@@ -2,22 +2,29 @@ package web
 
 import (
 	"context"
-        "errors"
-        "github.com/bolkedebruin/rdpgw/cmd/rdpgw/identity"
+	"errors"
+	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/identity"
 	"github.com/bolkedebruin/rdpgw/shared/auth"
+	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-        "log"
+	"log"
 	"net"
-        "net/http"
-        "time"
+	"net/http"
+	"time"
 )
 
 type ntlmAuthMode uint32
+
 const (
-        authNone ntlmAuthMode = iota
-        authNTLM
-        authNegotiate
+	authNone ntlmAuthMode = iota
+	authNTLM
+	authNegotiate
+)
+
+const (
+	ntlmSessionCookieName = "rdpgw-ntlm-session"
+	ntlmSessionCookieTTL  = 300 // seconds, long enough for multi-step handshake
 )
 
 type NTLMAuthHandler struct {
@@ -25,13 +32,42 @@ type NTLMAuthHandler struct {
 	Timeout       int
 }
 
+func (h *NTLMAuthHandler) sessionIDFromRequest(r *http.Request) string {
+	if c, err := r.Cookie(ntlmSessionCookieName); err == nil && c != nil && c.Value != "" {
+		return c.Value
+	}
+	return uuid.NewString()
+}
+
+func (h *NTLMAuthHandler) setSessionCookie(w http.ResponseWriter, r *http.Request, sessionID string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     ntlmSessionCookieName,
+		Value:    sessionID,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   r.TLS != nil,
+		MaxAge:   ntlmSessionCookieTTL,
+	})
+}
+
+func (h *NTLMAuthHandler) clearSessionCookie(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     ntlmSessionCookieName,
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   r.TLS != nil,
+		MaxAge:   -1,
+	})
+}
+
 func (h *NTLMAuthHandler) NTLMAuth(next http.HandlerFunc) http.HandlerFunc {
-        return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		authPayload, authMode, err := h.getAuthPayload(r)
-                if err != nil {
-                        log.Printf("Failed parsing auth header: %s", err)
+		if err != nil {
+			log.Printf("Failed parsing auth header: %s", err)
 			h.requestAuthenticate(w)
-                        return
+			return
 		}
 
 		authenticated, username := h.authenticate(w, r, authPayload, authMode)
@@ -44,10 +80,10 @@ func (h *NTLMAuthHandler) NTLMAuth(next http.HandlerFunc) http.HandlerFunc {
 			id.SetAuthTime(time.Now())
 			next.ServeHTTP(w, identity.AddToRequestCtx(id, r))
 		}
-        }
+	}
 }
 
-func (h *NTLMAuthHandler) getAuthPayload (r *http.Request) (payload string, authMode ntlmAuthMode, err error) {
+func (h *NTLMAuthHandler) getAuthPayload(r *http.Request) (payload string, authMode ntlmAuthMode, err error) {
 	authorisationEncoded := r.Header.Get("Authorization")
 	if authorisationEncoded[0:5] == "NTLM " {
 		return authorisationEncoded[5:], authNTLM, nil
@@ -58,13 +94,13 @@ func (h *NTLMAuthHandler) getAuthPayload (r *http.Request) (payload string, auth
 	return "", authNone, errors.New("Invalid NTLM Authorisation header")
 }
 
-func (h *NTLMAuthHandler) requestAuthenticate (w http.ResponseWriter) {
+func (h *NTLMAuthHandler) requestAuthenticate(w http.ResponseWriter) {
 	w.Header().Add("WWW-Authenticate", `NTLM`)
 	w.Header().Add("WWW-Authenticate", `Negotiate`)
 	http.Error(w, "Unauthorized", http.StatusUnauthorized)
 }
 
-func (h *NTLMAuthHandler) getAuthPrefix (authMode ntlmAuthMode) (prefix string) {
+func (h *NTLMAuthHandler) getAuthPrefix(authMode ntlmAuthMode) (prefix string) {
 	if authMode == authNTLM {
 		return "NTLM "
 	}
@@ -78,6 +114,8 @@ func (h *NTLMAuthHandler) authenticate(w http.ResponseWriter, r *http.Request, a
 	if h.SocketAddress == "" {
 		return false, ""
 	}
+
+	sessionID := h.sessionIDFromRequest(r)
 
 	ctx := r.Context()
 
@@ -96,7 +134,7 @@ func (h *NTLMAuthHandler) authenticate(w http.ResponseWriter, r *http.Request, a
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(h.Timeout))
 	defer cancel()
 
-	req := &auth.NtlmRequest{Session: r.RemoteAddr, NtlmMessage: authorisationEncoded}
+	req := &auth.NtlmRequest{Session: sessionID, NtlmMessage: authorisationEncoded}
 	res, err := c.NTLM(ctx, req)
 	if err != nil {
 		log.Printf("Error talking to authentication provider: %s", err)
@@ -105,6 +143,7 @@ func (h *NTLMAuthHandler) authenticate(w http.ResponseWriter, r *http.Request, a
 	}
 
 	if res.NtlmMessage != "" {
+		h.setSessionCookie(w, r, sessionID)
 		log.Printf("Sending NTLM challenge")
 		w.Header().Add("WWW-Authenticate", h.getAuthPrefix(authMode)+res.NtlmMessage)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -112,9 +151,12 @@ func (h *NTLMAuthHandler) authenticate(w http.ResponseWriter, r *http.Request, a
 	}
 
 	if !res.Authenticated {
+		h.clearSessionCookie(w, r)
 		h.requestAuthenticate(w)
 		return false, ""
 	}
+
+	h.clearSessionCookie(w, r)
 
 	return res.Authenticated, res.Username
 }

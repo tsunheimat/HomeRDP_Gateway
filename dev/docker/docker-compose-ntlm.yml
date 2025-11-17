@@ -1,0 +1,51 @@
+volumes:
+  auth-socket:
+    driver: local
+
+services:
+  rdpgw:
+    container_name: rdpgw
+    hostname: rdpgw
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    depends_on:
+      - rdpgw-auth
+    environment:
+      RDPGW_SERVER__AUTHENTICATION: ntlm
+      RDPGW_SERVER__HOSTS: 10.0.30.14:3389
+      RDPGW_SERVER__TLS: disable
+      RDPGW_SERVER__PORT: 8080
+      #RDPGW_SERVER__CERT_FILE: /opt/rdpgw/server.pem
+      #RDPGW_SERVER__KEY_FILE: /opt/rdpgw/key.pem
+      RDPGW_SERVER__GATEWAY_ADDRESS: https://rdapp.tsunhei.com:443
+      RDPGW_SERVER__SESSION_STORE: file
+      RDPGW_SERVER__SESSION_KEY: 0123456789abcdef0123456789abcdef
+      RDPGW_SERVER__SESSION_ENCRYPTION_KEY: fedcba9876543210fedcba9876543210
+      RDPGW_SECURITY__PAATOKENENCRYPTIONKEY: a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+      RDPGW_SECURITY__PAATOKENSIGNINGKEY: p6o5n4m3l2k1j0i9h8g7f6e5d4c3b2a1
+      RDPGW_CAPS__TOKEN_AUTH: "false"
+      RDPGW_SERVER__AUTH_SOCKET: /tmp/rdpgw-auth.sock
+    volumes:
+      - auth-socket:/tmp
+
+  rdpgw-auth:
+    container_name: rdpgw-auth
+    hostname: rdpgw-auth
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    volumes:
+      - auth-socket:/tmp
+      - ./rdpgw-auth-ntlm.yaml:/etc/rdpgw-auth.yaml:ro
+    entrypoint: ["/opt/rdpgw/rdpgw-auth"]
+    command:
+      - "-c"
+      - "/etc/rdpgw-auth.yaml"
+      - "-s"
+      - "/tmp/rdpgw-auth.sock"
+      - " -v"
