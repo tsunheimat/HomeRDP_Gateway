@@ -1,7 +1,3 @@
-volumes:
-  auth-socket:
-    driver: local
-
 services:
   rdpgw:
     container_name: rdpgw
@@ -12,8 +8,6 @@ services:
     ports:
       - "8080:8080"
     restart: unless-stopped
-    depends_on:
-      - rdpgw-auth
     environment:
       RDPGW_SERVER__AUTHENTICATION: ntlm
       RDPGW_SERVER__HOSTS: 10.0.30.14:3389
@@ -29,23 +23,6 @@ services:
       RDPGW_SECURITY__PAATOKENSIGNINGKEY: p6o5n4m3l2k1j0i9h8g7f6e5d4c3b2a1
       RDPGW_CAPS__TOKEN_AUTH: "false"
       RDPGW_SERVER__AUTH_SOCKET: /tmp/rdpgw-auth.sock
+      RDPGW_AUTH_HELPER_CONFIG: /opt/rdpgw/rdpgw-auth.yaml
     volumes:
-      - auth-socket:/tmp
-
-  rdpgw-auth:
-    container_name: rdpgw-auth
-    hostname: rdpgw-auth
-    build:
-      context: .
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    volumes:
-      - auth-socket:/tmp
-      - ./rdpgw-auth-ntlm.yaml:/etc/rdpgw-auth.yaml:ro
-    entrypoint: ["/opt/rdpgw/rdpgw-auth"]
-    command:
-      - "-c"
-      - "/etc/rdpgw-auth.yaml"
-      - "-s"
-      - "/tmp/rdpgw-auth.sock"
-      - " -v"
+      - ./rdpgw-auth-ntlm.yaml:/opt/rdpgw/rdpgw-auth.yaml:ro

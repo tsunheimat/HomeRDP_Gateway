@@ -5,10 +5,9 @@ This document details the technical approach for delivering a Docker-based NTLM 
 
 ## High-Level Design
 - **Docker Compose topology**
-  - `rdpgw`: gateway service built from the repository image, configured for NTLM authentication only, listening on HTTPS port 8080 (self-signed cert) and forwarding sessions to `10.0.30.14:3389`.
-  - `rdpgw-auth`: authentication helper container using the same repository image (auth binary), loading NTLM users from a mounted YAML file.
-- **Inter-service communication**
-  - A Docker volume (`auth-socket`) shares the Unix domain socket at `/tmp/rdpgw-auth.sock` between both containers.
+  - `rdpgw`: single container built from the repository image. It exposes HTTPS on port 8080 (self-signed cert) and forwards sessions to `10.0.30.14:3389`. When the `RDPGW_SERVER__AUTHENTICATION` list includes `ntlm` or `local`, the entrypoint script automatically launches the bundled `rdpgw-auth` binary inside the same container.
+- **Inter-process communication**
+  - The gateway and helper now share the Unix socket at `/tmp/rdpgw-auth.sock` inside the same container (path configurable via `RDPGW_SERVER__AUTH_SOCKET`).
 - **Session continuity across proxies**
   - The gateway now persists NTLM handshake context in an HTTP-only cookie (`rdpgw-ntlm-session`) so that multi-step NTLM flows survive when TLS is terminated upstream and requests arrive over different backend connections/ports.
 - **Configuration inputs**
@@ -33,10 +32,8 @@ This document details the technical approach for delivering a Docker-based NTLM 
   - Volume mounts:
     - Mount `auth-socket:/tmp` for the Unix socket.
   - Port mapping `8080:8080` for local access.
-- `rdpgw-auth`
-  - Command: run `rdpgw-auth -c /etc/rdpgw-auth.yaml -s /tmp/rdpgw-auth.sock`.
-  - Mount `dev/docker/rdpgw-auth-ntlm.yaml` as `/etc/rdpgw-auth.yaml` (read-only).
-  - Share `auth-socket:/tmp`.
+### Authentication Config (`dev/docker/rdpgw-auth-ntlm.yaml`)
+Bind-mounted into the container at `/opt/rdpgw/rdpgw-auth.yaml` (overridable via `RDPGW_AUTH_HELPER_CONFIG`).
 
 ### Authentication Config (`dev/docker/rdpgw-auth-ntlm.yaml`)
 ```yaml

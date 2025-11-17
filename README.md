@@ -281,7 +281,7 @@ docker compose -f docker-compose-ntlm.yml up --build
 
 ### NTLM Docker Deployment (TLS-ready)
 
-The NTLM sample spins up two containers: the gateway and the `rdpgw-auth` helper populated with the static user `matthew` / `matthewchiu`. The gateway terminates TLS directly with the self-signed certificate baked into the Docker image, which satisfies Windows `mstsc`. If you later put an HTTPS reverse proxy (nginx, Traefik, etc.) in front, you can set `RDPGW_SERVER__TLS=disable` and keep the proxy on TLS.
+The NTLM sample now runs everything inside a single container. The main `rdpgw` process automatically starts the bundled `rdpgw-auth` helper (configured with the static user `matthew` / `matthewchiu`) whenever NTLM authentication is enabled. The gateway still terminates TLS directly with the self-signed certificate baked into the Docker image, which satisfies Windows `mstsc`. If you later put an HTTPS reverse proxy (nginx, Traefik, etc.) in front, you can set `RDPGW_SERVER__TLS=disable` and keep the proxy on TLS.
 
 1. Ensure `dev/docker/rdpgw-auth-ntlm.yaml` contains your desired credentials and is readable only by trusted users (`chmod 600`).
 2. From the repository root run:
@@ -290,8 +290,7 @@ The NTLM sample spins up two containers: the gateway and the `rdpgw-auth` helper
 docker compose -f dev/docker/docker-compose-ntlm.yml up --build
 ```
 
-3. Wait for both `rdpgw` and `rdpgw-auth` logs to report that they are listening on `/tmp/rdpgw-auth.sock` and `0.0.0.0:8080` respectively.
-4. Verify the gateway is reachable over HTTPS (self-signed cert):
+3. Watch the `rdpgw` logs for: `Starting rdpgw-auth (socket: /tmp/rdpgw-auth.sock)` followed by `enabling NTLM authentication`, then verify the HTTPS listener is up:
 
 ```bash
 curl -k https://localhost:8080/
@@ -305,7 +304,7 @@ xfreerdp /g:localhost:8080 /gd:"" /u:matthew /p:matthewchiu /v:10.0.30.14 /cert-
 
 Security reminders:
 
-- NTLM passwords inside `rdpgw-auth-ntlm.yaml` are stored in plain text—treat the file carefully and rotate frequently.
+- NTLM passwords inside `rdpgw-auth-ntlm.yaml` are stored in plain text—treat the file carefully and rotate frequently. Mount it into the container at `/opt/rdpgw/rdpgw-auth.yaml` (or set `RDPGW_AUTH_HELPER_CONFIG` to the desired path).
 - If you disable TLS for a reverse proxy deployment (`RDPGW_SERVER__TLS=disable`), never expose port 8080 directly to untrusted networks; terminate HTTPS in the proxy and forward plain HTTP only on a trusted network.
 - Replace the sample session/signing keys in `docker-compose-ntlm.yml` before production use.
 - The gateway issues an HTTP-only cookie named `rdpgw-ntlm-session` to keep NTLM handshakes consistent; make sure any reverse proxy preserves cookies and allows subsequent requests to reach the same backend instance during authentication.

@@ -21,11 +21,29 @@ fi
 
 cd /opt/rdpgw || exit 1
 
-if [ -n "${RDPGW_SERVER__AUTHENTICATION}" ]; then
-  if [ "${RDPGW_SERVER__AUTHENTICATION}" = "local" ]; then
-    echo "Starting rdpgw-auth"
-    /opt/rdpgw/rdpgw-auth &
+AUTH_MODES=$(echo "${RDPGW_SERVER__AUTHENTICATION}" | tr ',;' ' ')
+AUTH_SOCKET=${RDPGW_SERVER__AUTH_SOCKET:-/tmp/rdpgw-auth.sock}
+AUTH_CONFIG=${RDPGW_AUTH_HELPER_CONFIG:-/opt/rdpgw/rdpgw-auth.yaml}
+
+start_helper=false
+for mode in ${AUTH_MODES}; do
+  case "${mode}" in
+    local|ntlm)
+      start_helper=true
+      ;;
+  esac
+done
+
+if [ "${start_helper}" = "true" ]; then
+  echo "Starting rdpgw-auth (socket: ${AUTH_SOCKET})"
+  AUTH_CMD="/opt/rdpgw/rdpgw-auth -s ${AUTH_SOCKET}"
+  if [ -f "${AUTH_CONFIG}" ]; then
+    echo "Using auth helper config ${AUTH_CONFIG}"
+    AUTH_CMD="${AUTH_CMD} -c ${AUTH_CONFIG}"
+  else
+    echo "Auth helper config ${AUTH_CONFIG} not found, proceeding without -c"
   fi
+  sh -c "${AUTH_CMD}" &
 fi
 
 # drop privileges and run the application

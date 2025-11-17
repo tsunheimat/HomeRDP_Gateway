@@ -26,9 +26,9 @@ The current Docker samples focus on OpenID Connect or local authentication and d
 - Linux paths and permissions can be managed on the host as needed.
 
 ## Functional Requirements
-1. Provide a Docker Compose file that starts both the `rdpgw` service and the `rdpgw-auth` helper.
-2. Share a Unix socket between both containers so the gateway can send NTLM challenges.
-3. Mount a configuration file containing the specified username and password into the auth helper.
+1. Provide a Docker Compose file that starts a single `rdpgw` service which also launches the bundled `rdpgw-auth` helper when NTLM authentication is enabled.
+2. Keep the NTLM helper accessible over the Unix socket defined by `RDPGW_SERVER__AUTH_SOCKET` (default `/tmp/rdpgw-auth.sock`).
+3. Mount a configuration file containing the specified username and password into the container so the helper can read it (via `RDPGW_AUTH_HELPER_CONFIG`).
 4. Configure the gateway with NTLM as the only authentication mechanism, targeting the RDP host `10.0.30.14:3389`.
 5. Expose the gateway over HTTPS on a configurable port (default 8080) and document how to switch to HTTP-only when placing a reverse proxy in front without breaking NTLM authentication flows.
 6. Document start-up, verification steps, and any follow-up actions required for productionization (e.g., TLS via reverse proxy).
