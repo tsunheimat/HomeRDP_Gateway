@@ -86,9 +86,13 @@ func (s *FileStore) Put(entry Entry) error {
 
 	now := time.Now().UTC()
 	updated := false
+	var staleUploadPath string
 	for i := range entries {
 		if entries[i].ID != entry.ID {
 			continue
+		}
+		if entries[i].UploadedTemplatePath != "" && entries[i].UploadedTemplatePath != entry.UploadedTemplatePath {
+			staleUploadPath = entries[i].UploadedTemplatePath
 		}
 		entry.CreatedAt = entries[i].CreatedAt
 		entry.UpdatedAt = now
@@ -104,7 +108,17 @@ func (s *FileStore) Put(entry Entry) error {
 		entries = append(entries, entry)
 	}
 
-	return s.writeLocked(entries)
+	if err := s.writeLocked(entries); err != nil {
+		return err
+	}
+
+	if staleUploadPath != "" {
+		if err := os.Remove(s.ResolveUpload(staleUploadPath)); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("remove replaced upload: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (s *FileStore) Delete(id string) error {
@@ -129,14 +143,18 @@ func (s *FileStore) Delete(id string) error {
 		return nil
 	}
 
+	entries = append(entries[:index], entries[index+1:]...)
+	if err := s.writeLocked(entries); err != nil {
+		return err
+	}
+
 	if uploadPath != "" {
 		if err := os.Remove(s.ResolveUpload(uploadPath)); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("remove uploaded file: %w", err)
 		}
 	}
 
-	entries = append(entries[:index], entries[index+1:]...)
-	return s.writeLocked(entries)
+	return nil
 }
 
 func (s *FileStore) SaveUpload(src io.Reader) (string, error) {
@@ -154,11 +172,16 @@ func (s *FileStore) SaveUpload(src io.Reader) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("create upload file: %w", err)
 	}
-	defer file.Close()
 
 	if _, err := io.Copy(file, src); err != nil {
+		_ = file.Close()
 		_ = os.Remove(fullPath)
 		return "", fmt.Errorf("write upload file: %w", err)
+	}
+
+	if err := file.Close(); err != nil {
+		_ = os.Remove(fullPath)
+		return "", fmt.Errorf("close upload file: %w", err)
 	}
 
 	return filename, nil

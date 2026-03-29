@@ -137,3 +137,47 @@ func TestFileStoreUpsertAndDelete(t *testing.T) {
 		t.Fatalf("expected zero entries after delete, got %d", len(afterDelete))
 	}
 }
+
+func TestFileStoreReplacesTemplateUpload(t *testing.T) {
+	t.Parallel()
+
+	baseDir := t.TempDir()
+	store, err := NewFileStore(filepath.Join(baseDir, "catalog"), filepath.Join(baseDir, "uploads"))
+	if err != nil {
+		t.Fatalf("new file store: %v", err)
+	}
+
+	firstUpload, err := store.SaveUpload(strings.NewReader("full address:s:first-template"))
+	if err != nil {
+		t.Fatalf("save first upload: %v", err)
+	}
+
+	entry := Entry{
+		ID:                   "template-1",
+		Type:                 EntryTypeTemplate,
+		Name:                 "Template",
+		AllowedGroups:        []string{"admins"},
+		Enabled:              true,
+		UploadedTemplatePath: firstUpload,
+	}
+	if err := store.Put(entry); err != nil {
+		t.Fatalf("put entry: %v", err)
+	}
+
+	secondUpload, err := store.SaveUpload(strings.NewReader("full address:s:second-template"))
+	if err != nil {
+		t.Fatalf("save second upload: %v", err)
+	}
+
+	entry.UploadedTemplatePath = secondUpload
+	if err := store.Put(entry); err != nil {
+		t.Fatalf("replace entry upload: %v", err)
+	}
+
+	if _, err := os.Stat(store.ResolveUpload(firstUpload)); !os.IsNotExist(err) {
+		t.Fatalf("expected first upload to be removed, stat err=%v", err)
+	}
+	if _, err := os.Stat(store.ResolveUpload(secondUpload)); err != nil {
+		t.Fatalf("expected second upload to exist, stat err=%v", err)
+	}
+}
