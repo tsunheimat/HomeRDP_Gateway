@@ -165,6 +165,7 @@ var envKeyOverrides = map[string]string{
 var Conf Configuration
 
 func Load(configFile string) Configuration {
+	Conf = Configuration{}
 
 	var k = koanf.New(".")
 

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"reflect"
 	"testing"
 )
@@ -90,14 +91,31 @@ func TestHeaderConfigValidation(t *testing.T) {
 }
 
 func TestLoadDashboardSettings(t *testing.T) {
+	cfg := Load("/definitely-missing.yaml")
+
+	if cfg.OpenId.GroupsClaim != "groups" {
+		t.Fatalf("expected default OpenId.GroupsClaim to be groups, got %q", cfg.OpenId.GroupsClaim)
+	}
+
+	if cfg.Dashboard.StorePath != "./data/dashboard" {
+		t.Fatalf("expected default Dashboard.StorePath to be ./data/dashboard, got %q", cfg.Dashboard.StorePath)
+	}
+
+	if cfg.Dashboard.UploadDir != "./data/dashboard/uploads" {
+		t.Fatalf("expected default Dashboard.UploadDir to be ./data/dashboard/uploads, got %q", cfg.Dashboard.UploadDir)
+	}
+
+	if cfg.Dashboard.MaxUploadSizeMb != 5 {
+		t.Fatalf("expected default Dashboard.MaxUploadSizeMb to be 5, got %d", cfg.Dashboard.MaxUploadSizeMb)
+	}
+
 	t.Setenv("RDPGW_OPENID__GROUPSCLAIM", "ak_groups")
 	t.Setenv("RDPGW_DASHBOARD__STOREPATH", "/tmp/rdpgw-dashboard")
 	t.Setenv("RDPGW_DASHBOARD__UPLOADDIR", "/tmp/rdpgw-dashboard/uploads")
 	t.Setenv("RDPGW_DASHBOARD__ADMINGROUPS", "rdpgw-admins homelab-admins")
 	t.Setenv("RDPGW_DASHBOARD__MAXUPLOADSIZEMB", "7")
 
-	Conf = Configuration{}
-	cfg := Load("/definitely-missing.yaml")
+	cfg = Load("/definitely-missing.yaml")
 
 	if cfg.OpenId.GroupsClaim != "ak_groups" {
 		t.Fatalf("expected OpenId.GroupsClaim to be ak_groups, got %q", cfg.OpenId.GroupsClaim)
@@ -118,5 +136,34 @@ func TestLoadDashboardSettings(t *testing.T) {
 	expectedGroups := []string{"rdpgw-admins", "homelab-admins"}
 	if !reflect.DeepEqual(cfg.Dashboard.AdminGroups, expectedGroups) {
 		t.Fatalf("expected Dashboard.AdminGroups to be %v, got %v", expectedGroups, cfg.Dashboard.AdminGroups)
+	}
+}
+
+func TestLoadDashboardSettingsDoesNotLeakAdminGroups(t *testing.T) {
+	const key = "RDPGW_DASHBOARD__ADMINGROUPS"
+	previousValue, hadPreviousValue := os.LookupEnv(key)
+	if err := os.Setenv(key, "admins ops"); err != nil {
+		t.Fatalf("failed to set %s: %v", key, err)
+	}
+
+	cfg := Load("/definitely-missing.yaml")
+	expectedGroups := []string{"admins", "ops"}
+	if !reflect.DeepEqual(cfg.Dashboard.AdminGroups, expectedGroups) {
+		t.Fatalf("expected Dashboard.AdminGroups to be %v, got %v", expectedGroups, cfg.Dashboard.AdminGroups)
+	}
+
+	if hadPreviousValue {
+		if err := os.Setenv(key, previousValue); err != nil {
+			t.Fatalf("failed to restore %s: %v", key, err)
+		}
+	} else {
+		if err := os.Unsetenv(key); err != nil {
+			t.Fatalf("failed to unset %s: %v", key, err)
+		}
+	}
+
+	cfg = Load("/definitely-missing.yaml")
+	if len(cfg.Dashboard.AdminGroups) != 0 {
+		t.Fatalf("expected Dashboard.AdminGroups to be cleared on reload, got %v", cfg.Dashboard.AdminGroups)
 	}
 }
