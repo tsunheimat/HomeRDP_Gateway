@@ -113,9 +113,7 @@ func (s *FileStore) Put(entry Entry) error {
 	}
 
 	if staleUploadPath != "" {
-		if err := os.Remove(s.ResolveUpload(staleUploadPath)); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("remove replaced upload: %w", err)
-		}
+		_ = removeUploadFile(s.ResolveUpload(staleUploadPath))
 	}
 
 	return nil
@@ -149,9 +147,7 @@ func (s *FileStore) Delete(id string) error {
 	}
 
 	if uploadPath != "" {
-		if err := os.Remove(s.ResolveUpload(uploadPath)); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("remove uploaded file: %w", err)
-		}
+		_ = removeUploadFile(s.ResolveUpload(uploadPath))
 	}
 
 	return nil
@@ -189,6 +185,13 @@ func (s *FileStore) SaveUpload(src io.Reader) (string, error) {
 
 func (s *FileStore) ResolveUpload(path string) string {
 	return filepath.Join(s.uploadDir, filepath.Base(path))
+}
+
+func removeUploadFile(path string) error {
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 func (s *FileStore) readLocked() ([]Entry, error) {
