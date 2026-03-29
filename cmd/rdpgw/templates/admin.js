@@ -24,8 +24,7 @@ function splitGroups(value) {
 
 async function adminRequest(url, init = {}) {
     const response = await fetch(url, init);
-    const contentType = response.headers.get('content-type') || '';
-    if (response.redirected || contentType.includes('text/html')) {
+    if (response.redirected) {
         window.location.href = '/';
         throw new Error('authentication required');
     }
@@ -38,6 +37,7 @@ async function adminRequest(url, init = {}) {
         throw new Error(body || `request failed (${response.status})`);
     }
 
+    const contentType = response.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
         return response.json();
     }

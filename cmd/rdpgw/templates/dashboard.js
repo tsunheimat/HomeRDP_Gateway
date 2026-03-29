@@ -29,8 +29,7 @@ function userInitials(value) {
 
 async function apiGetJSON(url) {
     const response = await fetch(url);
-    const contentType = response.headers.get('content-type') || '';
-    if (response.redirected || contentType.includes('text/html')) {
+    if (response.redirected) {
         window.location.href = '/';
         throw new Error('authentication required');
     }
