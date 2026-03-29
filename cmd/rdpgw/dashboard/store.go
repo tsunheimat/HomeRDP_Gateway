@@ -26,7 +26,7 @@ type Store interface {
 type FileStore struct {
 	metadataPath string
 	uploadDir    string
-	mu           sync.Mutex
+	mutex        sync.Mutex
 }
 
 func NewFileStore(storePath, uploadDir string) (*FileStore, error) {
@@ -43,8 +43,8 @@ func NewFileStore(storePath, uploadDir string) (*FileStore, error) {
 }
 
 func (s *FileStore) List() ([]Entry, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
 	entries, err := s.readLocked()
 	if err != nil {
@@ -56,8 +56,8 @@ func (s *FileStore) List() ([]Entry, error) {
 }
 
 func (s *FileStore) Get(id string) (Entry, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
 	entries, err := s.readLocked()
 	if err != nil {
@@ -76,8 +76,8 @@ func (s *FileStore) Put(entry Entry) error {
 		return err
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
 	entries, err := s.readLocked()
 	if err != nil {
@@ -108,8 +108,8 @@ func (s *FileStore) Put(entry Entry) error {
 }
 
 func (s *FileStore) Delete(id string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
 	entries, err := s.readLocked()
 	if err != nil {
@@ -140,8 +140,8 @@ func (s *FileStore) Delete(id string) error {
 }
 
 func (s *FileStore) SaveUpload(src io.Reader) (string, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
 	random := make([]byte, 16)
 	if _, err := rand.Read(random); err != nil {
