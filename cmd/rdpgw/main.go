@@ -128,12 +128,14 @@ func main() {
 	if conf.Security.EnableUserToken {
 		w.UserTokenGenerator = security.GenerateUserToken
 	}
-	dashboardStore, err := dashboard.NewFileStore(conf.Dashboard.StorePath, conf.Dashboard.UploadDir)
-	if err != nil {
-		log.Fatalf("Cannot initialize dashboard store: %s", err)
+	if conf.Server.OpenIDEnabled() {
+		dashboardStore, err := dashboard.NewFileStore(conf.Dashboard.StorePath, conf.Dashboard.UploadDir)
+		if err != nil {
+			log.Fatalf("Cannot initialize dashboard store: %s", err)
+		}
+		w.DashboardStore = dashboardStore
+		w.DashboardMaxUploadBytes = int64(conf.Dashboard.MaxUploadSizeMb) * 1024 * 1024
 	}
-	w.DashboardStore = dashboardStore
-	w.DashboardMaxUploadBytes = int64(conf.Dashboard.MaxUploadSizeMb) * 1024 * 1024
 	h := w.NewHandler()
 
 	log.Printf("Starting remote desktop gateway server")
@@ -265,7 +267,6 @@ func main() {
 		}
 		headerAuth := headerConfig.New()
 		r.Handle("/connect", headerAuth.Authenticated(http.HandlerFunc(h.HandleDownload)))
-		r.Handle("/connect/entries/{id}.rdp", headerAuth.Authenticated(http.HandlerFunc(h.HandleEntryDownload)))
 
 		// Web interface and API routes (authenticated)
 		r.Handle("/", headerAuth.Authenticated(http.HandlerFunc(h.HandleWebInterface)))

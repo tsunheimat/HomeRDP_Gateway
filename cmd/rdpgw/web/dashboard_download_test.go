@@ -23,7 +23,7 @@ func TestHandleEntryDownloadHostEntry(t *testing.T) {
 	}
 
 	entry := dashboard.Entry{
-		ID:            "lab-win11.rdp",
+		ID:            "lab-win11",
 		Type:          dashboard.EntryTypeHost,
 		Name:          "Lab Win11",
 		AllowedGroups: []string{"homelab-users"},
@@ -52,7 +52,7 @@ func TestHandleEntryDownloadHostEntry(t *testing.T) {
 	}).NewHandler()
 
 	req := httptest.NewRequest("GET", "/connect/entries/lab-win11.rdp", nil)
-	req = mux.SetURLVars(req, map[string]string{"id": "lab-win11.rdp"})
+	req = mux.SetURLVars(req, map[string]string{"id": "lab-win11"})
 
 	id := identity.NewUser()
 	id.SetUserName("alice@example.com")
@@ -90,7 +90,7 @@ func TestHandleEntryDownloadTemplateEntryPreservesRemoteApp(t *testing.T) {
 	}
 
 	template := strings.Join([]string{
-		"full address:s:template-target.internal:3389",
+		"full address:s:template-{{ preferred_username }}.internal:3389",
 		"remoteapplicationmode:i:1",
 		"remoteapplicationprogram:s:||notepad",
 		"remoteapplicationname:s:Notepad",
@@ -101,7 +101,7 @@ func TestHandleEntryDownloadTemplateEntryPreservesRemoteApp(t *testing.T) {
 	}
 
 	entry := dashboard.Entry{
-		ID:                   "office-app.rdp",
+		ID:                   "office-app",
 		Type:                 dashboard.EntryTypeTemplate,
 		Name:                 "Office App",
 		AllowedGroups:        []string{"office-users"},
@@ -122,7 +122,7 @@ func TestHandleEntryDownloadTemplateEntryPreservesRemoteApp(t *testing.T) {
 	}).NewHandler()
 
 	req := httptest.NewRequest("GET", "/connect/entries/office-app.rdp", nil)
-	req = mux.SetURLVars(req, map[string]string{"id": "office-app.rdp"})
+	req = mux.SetURLVars(req, map[string]string{"id": "office-app"})
 
 	id := identity.NewUser()
 	id.SetUserName("bob")
@@ -138,8 +138,8 @@ func TestHandleEntryDownloadTemplateEntryPreservesRemoteApp(t *testing.T) {
 	}
 
 	data := rdpToMap(strings.Split(recorder.Body.String(), rdp.CRLF))
-	if data["full address"] != "template-target.internal:3389" {
-		t.Fatalf("full address = %q, want %q", data["full address"], "template-target.internal:3389")
+	if data["full address"] != "template-bob.internal:3389" {
+		t.Fatalf("full address = %q, want %q", data["full address"], "template-bob.internal:3389")
 	}
 	if data["remoteapplicationmode"] != "1" {
 		t.Fatalf("remoteapplicationmode = %q, want %q", data["remoteapplicationmode"], "1")
@@ -166,7 +166,7 @@ func TestHandleEntryDownloadTemplateEntryRequiresTargetHost(t *testing.T) {
 	}
 
 	entry := dashboard.Entry{
-		ID:                   "broken-app.rdp",
+		ID:                   "broken-app",
 		Type:                 dashboard.EntryTypeTemplate,
 		Name:                 "Broken App",
 		AllowedGroups:        []string{"office-users"},
@@ -187,7 +187,7 @@ func TestHandleEntryDownloadTemplateEntryRequiresTargetHost(t *testing.T) {
 	}).NewHandler()
 
 	req := httptest.NewRequest("GET", "/connect/entries/broken-app.rdp", nil)
-	req = mux.SetURLVars(req, map[string]string{"id": "broken-app.rdp"})
+	req = mux.SetURLVars(req, map[string]string{"id": "broken-app"})
 
 	id := identity.NewUser()
 	id.SetUserName("bob")

@@ -134,6 +134,7 @@ func (h *Handler) buildEntryBuilder(id identity.Identity, entry dashboard.Entry)
 		if strings.TrimSpace(entry.TargetHostOverride) != "" {
 			host = strings.TrimSpace(entry.TargetHostOverride)
 		}
+		host = strings.Replace(host, "{{ preferred_username }}", id.UserName(), 1)
 		if strings.TrimSpace(host) == "" {
 			return nil, "", errors.New("template entry does not resolve to a target host")
 		}
