@@ -14,6 +14,7 @@ import (
 	"github.com/bolkedebruin/gokrb5/v8/service"
 	"github.com/bolkedebruin/gokrb5/v8/spnego"
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/config"
+	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/dashboard"
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/kdcproxy"
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/protocol"
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/security"
@@ -127,6 +128,12 @@ func main() {
 	if conf.Security.EnableUserToken {
 		w.UserTokenGenerator = security.GenerateUserToken
 	}
+	dashboardStore, err := dashboard.NewFileStore(conf.Dashboard.StorePath, conf.Dashboard.UploadDir)
+	if err != nil {
+		log.Fatalf("Cannot initialize dashboard store: %s", err)
+	}
+	w.DashboardStore = dashboardStore
+	w.DashboardMaxUploadBytes = int64(conf.Dashboard.MaxUploadSizeMb) * 1024 * 1024
 	h := w.NewHandler()
 
 	log.Printf("Starting remote desktop gateway server")
