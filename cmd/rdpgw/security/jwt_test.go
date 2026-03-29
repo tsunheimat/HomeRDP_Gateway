@@ -3,6 +3,7 @@ package security
 import (
 	"context"
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/identity"
+	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/protocol"
 	"testing"
 )
 
@@ -73,4 +74,30 @@ func TestPAACookie(t *testing.T) {
 	if !ok {
 		t.Fatalf("CheckPAACookie failed")
 	}*/
+}
+
+func TestCheckSessionWithoutLegacyHostCheck(t *testing.T) {
+	previousVerifyClientIP := VerifyClientIP
+	VerifyClientIP = true
+	defer func() {
+		VerifyClientIP = previousVerifyClientIP
+	}()
+
+	id := identity.NewUser()
+	id.SetAttribute(identity.AttrClientIp, "10.0.0.10")
+
+	ctx := context.WithValue(context.Background(), protocol.CtxTunnel, &protocol.Tunnel{
+		TargetServer: "lab-win11.internal:3389",
+		RemoteAddr:   "10.0.0.10",
+	})
+	ctx = context.WithValue(ctx, identity.CTXKey, id)
+
+	checkHost := CheckSession(nil)
+	ok, err := checkHost(ctx, "lab-win11.internal:3389")
+	if err != nil {
+		t.Fatalf("CheckSession returned error: %v", err)
+	}
+	if !ok {
+		t.Fatalf("CheckSession returned false, want true")
+	}
 }

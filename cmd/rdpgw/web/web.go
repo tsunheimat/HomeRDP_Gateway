@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/andrewheberle/rdpsign"
+	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/dashboard"
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/identity"
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/rdp"
 )
@@ -29,20 +30,22 @@ type UserTokenGeneratorFunc func(context.Context, string) (string, error)
 type QueryInfoFunc func(context.Context, string, string) (string, error)
 
 type Config struct {
-	PAATokenGenerator  TokenGeneratorFunc
-	UserTokenGenerator UserTokenGeneratorFunc
-	QueryInfo          QueryInfoFunc
-	QueryTokenIssuer   string
-	EnableUserToken    bool
-	AdminGroups        []string
-	Hosts              []string
-	HostSelection      string
-	GatewayAddress     *url.URL
-	RdpOpts            RdpOpts
-	TemplateFile       string
-	RdpSigningCert     string
-	RdpSigningKey      string
-	TemplatesPath      string
+	PAATokenGenerator       TokenGeneratorFunc
+	UserTokenGenerator      UserTokenGeneratorFunc
+	QueryInfo               QueryInfoFunc
+	QueryTokenIssuer        string
+	EnableUserToken         bool
+	DashboardStore          dashboard.Store
+	DashboardMaxUploadBytes int64
+	AdminGroups             []string
+	Hosts                   []string
+	HostSelection           string
+	GatewayAddress          *url.URL
+	RdpOpts                 RdpOpts
+	TemplateFile            string
+	RdpSigningCert          string
+	RdpSigningKey           string
+	TemplatesPath           string
 }
 
 // WebConfig represents the web interface configuration
@@ -76,21 +79,23 @@ type RdpOpts struct {
 }
 
 type Handler struct {
-	paaTokenGenerator  TokenGeneratorFunc
-	enableUserToken    bool
-	userTokenGenerator UserTokenGeneratorFunc
-	queryInfo          QueryInfoFunc
-	queryTokenIssuer   string
-	adminGroups        []string
-	gatewayAddress     *url.URL
-	hosts              []string
-	hostSelection      string
-	rdpOpts            RdpOpts
-	rdpDefaults        string
-	rdpSigner          *rdpsign.Signer
-	templatesPath      string
-	webConfig          *WebConfig
-	htmlTemplate       *template.Template
+	paaTokenGenerator       TokenGeneratorFunc
+	enableUserToken         bool
+	userTokenGenerator      UserTokenGeneratorFunc
+	queryInfo               QueryInfoFunc
+	queryTokenIssuer        string
+	adminGroups             []string
+	dashboardStore          dashboard.Store
+	dashboardMaxUploadBytes int64
+	gatewayAddress          *url.URL
+	hosts                   []string
+	hostSelection           string
+	rdpOpts                 RdpOpts
+	rdpDefaults             string
+	rdpSigner               *rdpsign.Signer
+	templatesPath           string
+	webConfig               *WebConfig
+	htmlTemplate            *template.Template
 }
 
 func (c *Config) NewHandler() *Handler {
@@ -99,18 +104,20 @@ func (c *Config) NewHandler() *Handler {
 	}
 
 	handler := &Handler{
-		paaTokenGenerator:  c.PAATokenGenerator,
-		enableUserToken:    c.EnableUserToken,
-		userTokenGenerator: c.UserTokenGenerator,
-		queryInfo:          c.QueryInfo,
-		queryTokenIssuer:   c.QueryTokenIssuer,
-		adminGroups:        c.AdminGroups,
-		gatewayAddress:     c.GatewayAddress,
-		hosts:              c.Hosts,
-		hostSelection:      c.HostSelection,
-		rdpOpts:            c.RdpOpts,
-		rdpDefaults:        c.TemplateFile,
-		templatesPath:      c.TemplatesPath,
+		paaTokenGenerator:       c.PAATokenGenerator,
+		enableUserToken:         c.EnableUserToken,
+		userTokenGenerator:      c.UserTokenGenerator,
+		queryInfo:               c.QueryInfo,
+		queryTokenIssuer:        c.QueryTokenIssuer,
+		adminGroups:             c.AdminGroups,
+		dashboardStore:          c.DashboardStore,
+		dashboardMaxUploadBytes: c.DashboardMaxUploadBytes,
+		gatewayAddress:          c.GatewayAddress,
+		hosts:                   c.Hosts,
+		hostSelection:           c.HostSelection,
+		rdpOpts:                 c.RdpOpts,
+		rdpDefaults:             c.TemplateFile,
+		templatesPath:           c.TemplatesPath,
 	}
 
 	// set up RDP signer if config values are set

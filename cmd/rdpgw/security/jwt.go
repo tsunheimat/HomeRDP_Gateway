@@ -52,6 +52,9 @@ func CheckSession(next protocol.CheckHostFunc) protocol.CheckHostFunc {
 				id.GetAttribute(identity.AttrClientIp), tunnel.RemoteAddr)
 			return false, nil
 		}
+		if next == nil {
+			return true, nil
+		}
 		return next(ctx, host)
 	}
 }
