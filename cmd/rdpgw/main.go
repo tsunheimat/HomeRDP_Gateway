@@ -61,6 +61,7 @@ func initOIDC(callbackUrl *url.URL) *web.OIDC {
 	o := web.OIDCConfig{
 		OAuth2Config:      &oauthConfig,
 		OIDCTokenVerifier: verifier,
+		GroupsClaim:       conf.OpenId.GroupsClaim,
 	}
 
 	return o.New()
@@ -106,6 +107,7 @@ func main() {
 		QueryInfo:        security.QueryInfo,
 		QueryTokenIssuer: conf.Security.QueryTokenIssuer,
 		EnableUserToken:  conf.Security.EnableUserToken,
+		AdminGroups:      conf.Dashboard.AdminGroups,
 		Hosts:            conf.Server.Hosts,
 		HostSelection:    conf.Server.HostSelection,
 		RdpOpts: web.RdpOpts{
