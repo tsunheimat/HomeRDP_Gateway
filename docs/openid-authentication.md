@@ -16,9 +16,58 @@ OpenId:
   ProviderUrl: https://<provider_url>
   ClientId: <your_client_id>
   ClientSecret: <your_client_secret>
+  GroupsClaim: groups
+Dashboard:
+  StorePath: ./data/dashboard
+  UploadDir: ./data/dashboard/uploads
+  AdminGroups:
+    - rdpgw-admins
+  MaxUploadSizeMb: 5
 Caps:
   TokenAuth: true
 ```
+
+### Dashboard + Group Configuration
+
+When OpenID Connect is enabled, the homelab dashboard uses OIDC group membership for entry visibility and admin authorization:
+
+- `OpenId.GroupsClaim`: claim name to read group memberships from the ID token. Default: `groups`.
+- `Dashboard.StorePath`: directory for dashboard metadata (`entries.json`). Default: `./data/dashboard`.
+- `Dashboard.UploadDir`: directory for uploaded `.rdp` templates. Default: derived from `StorePath` as `<StorePath>/uploads`.
+- `Dashboard.AdminGroups`: groups allowed to access `/admin` and admin APIs.
+- `Dashboard.MaxUploadSizeMb`: max upload size for template `.rdp` files. Default: `5`.
+
+Example:
+
+```yaml
+OpenId:
+  ProviderUrl: https://keycloak.example.com/realms/homelab
+  ClientId: rdpgw
+  ClientSecret: your-secret
+  GroupsClaim: groups
+Dashboard:
+  StorePath: /var/lib/rdpgw/dashboard
+  UploadDir: /var/lib/rdpgw/dashboard/uploads
+  AdminGroups:
+    - rdpgw-admins
+    - homelab-admins
+  MaxUploadSizeMb: 10
+```
+
+### Environment Variable Overrides
+
+You can override the same settings via environment variables:
+
+- `RDPGW_OPENID__GROUPSCLAIM`
+- `RDPGW_DASHBOARD__STOREPATH`
+- `RDPGW_DASHBOARD__UPLOADDIR`
+- `RDPGW_DASHBOARD__ADMINGROUPS`
+- `RDPGW_DASHBOARD__MAXUPLOADSIZEMB`
+
+Notes:
+
+- `RDPGW_DASHBOARD__ADMINGROUPS` is space-separated (for example: `rdpgw-admins homelab-admins`).
+- If `RDPGW_DASHBOARD__UPLOADDIR` is not set, it is derived from `StorePath`.
 
 ## Authentication Flow
 

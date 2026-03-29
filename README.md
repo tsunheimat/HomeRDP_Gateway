@@ -83,6 +83,18 @@ OpenID Connect it is not possible to mix it with local or Kerberos at the moment
 
 For detailed OpenID Connect setup with providers like Keycloak, Azure AD, Google, and others, see the [OpenID Connect Authentication Documentation](docs/openid-authentication.md).
 
+### Homelab Dashboard (OpenID)
+
+With OpenID Connect enabled, `/` serves a dashboard UI after OIDC login. Dashboard entries are filtered by the groups extracted from your OIDC token (claim configured by `OpenId.GroupsClaim`), so users only see entries where at least one of their groups matches the entry `AllowedGroups`.
+
+`Dashboard.AdminGroups` controls access to `/admin` and the admin API endpoints. Users in those groups can:
+
+- Create host entries (host/port-backed connections).
+- Upload `.rdp` template files and create template-backed entries.
+- Update and delete existing entries.
+
+The dashboard catalog is stored on local disk (`Dashboard.StorePath`) and uploaded templates are written to `Dashboard.UploadDir`. The current storage model is intended for single-node/homelab deployments unless you provide shared storage and routing affinity externally.
+
 ### Kerberos
 
 For detailed Kerberos setup including keytab generation, DNS requirements, and KDC proxy configuration, see the [Kerberos Authentication Documentation](docs/kerberos-authentication.md).

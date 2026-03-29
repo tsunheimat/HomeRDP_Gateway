@@ -51,6 +51,8 @@ Update this file to keep visual consistency across all pages.
 - `/static/dashboard.js`
 - `/static/admin.js`
 - `/static/app.js` (legacy flow)
+- `/assets/connect.svg`
+- `/assets/icon.svg`
 
 ## OpenID Dashboard Routes
 
