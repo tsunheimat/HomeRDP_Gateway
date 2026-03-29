@@ -157,6 +157,21 @@ func TestAdminDeleteEntryRemovesTemplate(t *testing.T) {
 	}
 }
 
+func TestAdminDeleteEntryMissingReturnsNotFound(t *testing.T) {
+	handler, _ := newAdminTestHandler(t)
+
+	req := httptest.NewRequest(http.MethodDelete, "/admin/api/dashboard/entries/missing", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "missing"})
+	req = withAdminIdentity(req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminDeleteEntry(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusNotFound)
+	}
+}
+
 func TestAdminListEntries(t *testing.T) {
 	handler, store := newAdminTestHandler(t)
 
@@ -304,6 +319,33 @@ func TestAdminOnlyRequiresAdmin(t *testing.T) {
 
 	if rr.Code != http.StatusForbidden {
 		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusForbidden)
+	}
+}
+
+func TestAdminCreateHostEntryValidationReturnsBadRequest(t *testing.T) {
+	handler, _ := newAdminTestHandler(t)
+
+	payload := map[string]interface{}{
+		"name":          "",
+		"description":   "Missing name",
+		"allowedGroups": []string{"homelab-users"},
+		"host":          "lab.internal:3389",
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/api/dashboard/entries/host", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = withAdminIdentity(req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminCreateHostEntry(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusBadRequest)
 	}
 }
 

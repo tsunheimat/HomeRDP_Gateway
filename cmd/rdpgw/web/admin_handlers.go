@@ -132,9 +132,11 @@ func (h *Handler) HandleAdminCreateTemplateEntry(w http.ResponseWriter, r *http.
 		http.Error(w, "unable to save template upload", http.StatusInternalServerError)
 		return
 	}
+	uploadFilePath := h.dashboardStore.ResolveUpload(uploadedPath)
 
 	id, err := newEntryID()
 	if err != nil {
+		_ = os.Remove(uploadFilePath)
 		http.Error(w, "unable to generate entry id", http.StatusInternalServerError)
 		return
 	}
@@ -151,7 +153,6 @@ func (h *Handler) HandleAdminCreateTemplateEntry(w http.ResponseWriter, r *http.
 	}
 
 	if err := h.dashboardStore.Put(entry); err != nil {
-		uploadFilePath := h.dashboardStore.ResolveUpload(uploadedPath)
 		if removeErr := os.Remove(uploadFilePath); removeErr != nil && !os.IsNotExist(removeErr) {
 			http.Error(w, "unable to persist template entry", http.StatusInternalServerError)
 			return
@@ -233,6 +234,15 @@ func (h *Handler) HandleAdminDeleteEntry(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if _, err := h.dashboardStore.Get(entryID); err != nil {
+		if errors.Is(err, dashboard.ErrEntryNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, "unable to load dashboard entry", http.StatusInternalServerError)
+		return
+	}
+
 	if err := h.dashboardStore.Delete(entryID); err != nil {
 		http.Error(w, "unable to delete dashboard entry", http.StatusInternalServerError)
 		return
@@ -274,8 +284,10 @@ func isValidationError(err error) bool {
 		return false
 	}
 	message := err.Error()
-	return strings.HasPrefix(message, "entry requires") ||
+	return strings.HasPrefix(message, "id is required") ||
+		strings.HasPrefix(message, "name is required") ||
+		strings.HasPrefix(message, "at least one allowed group is required") ||
 		strings.HasPrefix(message, "host entry requires") ||
 		strings.HasPrefix(message, "template entry requires") ||
-		strings.HasPrefix(message, "entry type must be")
+		strings.HasPrefix(message, "invalid entry type")
 }
