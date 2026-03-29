@@ -55,6 +55,7 @@ tmp/
 temp/
 *.tmp
 *.temp
+.worktrees/
 
 # Log files
 *.log
