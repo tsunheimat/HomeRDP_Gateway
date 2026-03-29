@@ -76,6 +76,15 @@ func (s *FileStore) Put(entry Entry) error {
 		return err
 	}
 
+	if entry.Type == EntryTypeTemplate {
+		if _, err := os.Stat(s.ResolveUpload(entry.UploadedTemplatePath)); err != nil {
+			if os.IsNotExist(err) {
+				return fmt.Errorf("uploaded template does not exist")
+			}
+			return fmt.Errorf("stat uploaded template: %w", err)
+		}
+	}
+
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 

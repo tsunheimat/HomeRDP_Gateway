@@ -181,3 +181,26 @@ func TestFileStoreReplacesTemplateUpload(t *testing.T) {
 		t.Fatalf("expected second upload to exist, stat err=%v", err)
 	}
 }
+
+func TestFileStoreRejectsMissingTemplateUpload(t *testing.T) {
+	t.Parallel()
+
+	baseDir := t.TempDir()
+	store, err := NewFileStore(filepath.Join(baseDir, "catalog"), filepath.Join(baseDir, "uploads"))
+	if err != nil {
+		t.Fatalf("new file store: %v", err)
+	}
+
+	entry := Entry{
+		ID:                   "template-missing",
+		Type:                 EntryTypeTemplate,
+		Name:                 "Missing upload",
+		AllowedGroups:        []string{"admins"},
+		Enabled:              true,
+		UploadedTemplatePath: "missing.rdp",
+	}
+
+	if err := store.Put(entry); err == nil {
+		t.Fatalf("expected missing uploaded template to fail")
+	}
+}
