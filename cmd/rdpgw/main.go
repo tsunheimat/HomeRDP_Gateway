@@ -199,7 +199,7 @@ func main() {
 
 	if conf.Caps.TokenAuth {
 		gw.CheckPAACookie = security.CheckPAACookie
-		gw.CheckHost = security.CheckSession(security.CheckHost)
+		gw.CheckHost = security.CheckSession(nil)
 	} else {
 		gw.CheckHost = security.CheckHost
 	}
@@ -226,6 +226,7 @@ func main() {
 		log.Printf("enabling openid extended authentication")
 		o := initOIDC(url)
 		r.Handle("/connect", o.Authenticated(http.HandlerFunc(h.HandleDownload)))
+		r.Handle("/connect/entries/{id}.rdp", o.Authenticated(http.HandlerFunc(h.HandleEntryDownload)))
 		r.HandleFunc("/callback", o.HandleCallback)
 
 		// Web interface and API routes (authenticated)
@@ -257,6 +258,7 @@ func main() {
 		}
 		headerAuth := headerConfig.New()
 		r.Handle("/connect", headerAuth.Authenticated(http.HandlerFunc(h.HandleDownload)))
+		r.Handle("/connect/entries/{id}.rdp", headerAuth.Authenticated(http.HandlerFunc(h.HandleEntryDownload)))
 
 		// Web interface and API routes (authenticated)
 		r.Handle("/", headerAuth.Authenticated(http.HandlerFunc(h.HandleWebInterface)))

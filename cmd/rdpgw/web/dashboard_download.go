@@ -3,6 +3,7 @@ package web
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"path/filepath"
@@ -57,25 +58,48 @@ func (h *Handler) HandleEntryDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	username := id.UserName()
-	token, err := h.paaTokenGenerator(r.Context(), username, host)
+	user := id.UserName()
+	domain := ""
+	if h.rdpOpts.SplitUserDomain {
+		parts := strings.SplitN(id.UserName(), "@", 2)
+		user = parts[0]
+		if len(parts) > 1 {
+			domain = parts[1]
+		}
+	}
+
+	render := user
+	if h.rdpOpts.UsernameTemplate != "" {
+		render = fmt.Sprint(h.rdpOpts.UsernameTemplate)
+		render = strings.Replace(render, "{{ username }}", user, 1)
+		if render == h.rdpOpts.UsernameTemplate {
+			http.Error(w, "invalid server configuration", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	token, err := h.paaTokenGenerator(r.Context(), user, host)
 	if err != nil {
-		log.Printf("Cannot generate PAA token for user %s due to %s", username, err)
+		log.Printf("Cannot generate PAA token for user %s due to %s", user, err)
 		http.Error(w, "unable to generate gateway credentials", http.StatusInternalServerError)
 		return
 	}
 
-	if !h.rdpOpts.NoUsername {
-		renderedUsername := username
-		if h.rdpOpts.UsernameTemplate != "" {
-			renderedUsername = h.rdpOpts.UsernameTemplate
-			renderedUsername = strings.Replace(renderedUsername, "{{ username }}", username, 1)
-			if renderedUsername == h.rdpOpts.UsernameTemplate {
-				http.Error(w, "invalid server configuration", http.StatusInternalServerError)
-				return
-			}
+	if h.enableUserToken {
+		userToken, err := h.userTokenGenerator(r.Context(), user)
+		if err != nil {
+			log.Printf("Cannot generate token for user %s due to %s", user, err)
+			http.Error(w, "unable to generate gateway credentials", http.StatusInternalServerError)
+			return
 		}
-		builder.Settings.Username = renderedUsername
+		render = strings.Replace(render, "{{ token }}", userToken, 1)
+	}
+
+	if !h.rdpOpts.NoUsername {
+		builder.Settings.Username = render
+		if domain != "" {
+			builder.Settings.Domain = domain
+		}
 	}
 
 	builder.Settings.FullAddress = host
@@ -109,6 +133,9 @@ func (h *Handler) buildEntryBuilder(id identity.Identity, entry dashboard.Entry)
 		host := builder.Settings.FullAddress
 		if strings.TrimSpace(entry.TargetHostOverride) != "" {
 			host = strings.TrimSpace(entry.TargetHostOverride)
+		}
+		if strings.TrimSpace(host) == "" {
+			return nil, "", errors.New("template entry does not resolve to a target host")
 		}
 		return builder, host, nil
 	default:
