@@ -181,11 +181,14 @@ func (h *Handler) loadHTMLTemplate() {
 func (h *Handler) ServeStaticFile(filename string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		filePath := filepath.Join(h.templatesPath, filename)
-
-		// Check if file exists
 		if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			http.NotFound(w, r)
-			return
+			fallbackPath := filepath.Join("./templates", filename)
+			if _, fallbackErr := os.Stat(fallbackPath); fallbackErr == nil {
+				filePath = fallbackPath
+			} else {
+				http.NotFound(w, r)
+				return
+			}
 		}
 
 		// Set appropriate content type
