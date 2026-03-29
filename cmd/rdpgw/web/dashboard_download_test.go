@@ -91,6 +91,8 @@ func TestHandleEntryDownloadTemplateEntryPreservesRemoteApp(t *testing.T) {
 
 	template := strings.Join([]string{
 		"full address:s:template-{{ preferred_username }}.internal:3389",
+		"username:s:stale-user",
+		"domain:s:stale-domain",
 		"remoteapplicationmode:i:1",
 		"remoteapplicationprogram:s:||notepad",
 		"remoteapplicationname:s:Notepad",
@@ -149,6 +151,12 @@ func TestHandleEntryDownloadTemplateEntryPreservesRemoteApp(t *testing.T) {
 	}
 	if data["remoteapplicationname"] != "Notepad" {
 		t.Fatalf("remoteapplicationname = %q, want %q", data["remoteapplicationname"], "Notepad")
+	}
+	if data["username"] != "bob" {
+		t.Fatalf("username = %q, want %q", data["username"], "bob")
+	}
+	if _, found := data["domain"]; found {
+		t.Fatalf("domain should be cleared, got %q", data["domain"])
 	}
 }
 

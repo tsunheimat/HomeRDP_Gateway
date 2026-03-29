@@ -97,9 +97,10 @@ func (h *Handler) HandleEntryDownload(w http.ResponseWriter, r *http.Request) {
 
 	if !h.rdpOpts.NoUsername {
 		builder.Settings.Username = render
-		if domain != "" {
-			builder.Settings.Domain = domain
-		}
+		builder.Settings.Domain = domain
+	} else {
+		builder.Settings.Username = ""
+		builder.Settings.Domain = ""
 	}
 
 	builder.Settings.FullAddress = host
