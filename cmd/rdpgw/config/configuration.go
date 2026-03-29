@@ -164,8 +164,18 @@ var envKeyOverrides = map[string]string{
 
 var Conf Configuration
 
+func deriveUploadDir(storePath string) string {
+	if storePath == "" {
+		return "uploads"
+	}
+	if strings.HasSuffix(storePath, "/") {
+		return storePath + "uploads"
+	}
+	return storePath + "/uploads"
+}
+
 func Load(configFile string) Configuration {
-	Conf = Configuration{}
+	Conf.Dashboard = DashboardConfig{}
 
 	var k = koanf.New(".")
 
@@ -179,7 +189,6 @@ func Load(configFile string) Configuration {
 		"Server.BasicAuthTimeout":    5,
 		"OpenId.GroupsClaim":         "groups",
 		"Dashboard.StorePath":        "./data/dashboard",
-		"Dashboard.UploadDir":        "./data/dashboard/uploads",
 		"Dashboard.MaxUploadSizeMb":  5,
 		"Client.NetworkAutoDetect":   1,
 		"Client.BandwidthAutoDetect": 1,
@@ -223,6 +232,10 @@ func Load(configFile string) Configuration {
 	k.UnmarshalWithConf("Security", &Conf.Security, koanfTag)
 	k.UnmarshalWithConf("Client", &Conf.Client, koanfTag)
 	k.UnmarshalWithConf("Kerberos", &Conf.Kerberos, koanfTag)
+
+	if Conf.Dashboard.UploadDir == "" {
+		Conf.Dashboard.UploadDir = deriveUploadDir(Conf.Dashboard.StorePath)
+	}
 
 	if len(Conf.Security.PAATokenEncryptionKey) != 32 {
 		Conf.Security.PAATokenEncryptionKey, _ = security.GenerateRandomString(32)

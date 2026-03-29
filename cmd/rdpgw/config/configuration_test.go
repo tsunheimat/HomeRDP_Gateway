@@ -6,6 +6,28 @@ import (
 	"testing"
 )
 
+func unsetEnvWithCleanup(t *testing.T, key string) {
+	t.Helper()
+	value, ok := os.LookupEnv(key)
+	if ok {
+		t.Cleanup(func() {
+			if err := os.Setenv(key, value); err != nil {
+				t.Fatalf("failed to restore %s: %v", key, err)
+			}
+		})
+	} else {
+		t.Cleanup(func() {
+			if err := os.Unsetenv(key); err != nil {
+				t.Fatalf("failed to unset %s: %v", key, err)
+			}
+		})
+	}
+
+	if err := os.Unsetenv(key); err != nil {
+		t.Fatalf("failed to clear %s: %v", key, err)
+	}
+}
+
 func TestHeaderEnabled(t *testing.T) {
 	cases := []struct {
 		name           string
@@ -91,6 +113,12 @@ func TestHeaderConfigValidation(t *testing.T) {
 }
 
 func TestLoadDashboardSettings(t *testing.T) {
+	unsetEnvWithCleanup(t, "RDPGW_OPENID__GROUPSCLAIM")
+	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__STOREPATH")
+	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__UPLOADDIR")
+	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__ADMINGROUPS")
+	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__MAXUPLOADSIZEMB")
+
 	cfg := Load("/definitely-missing.yaml")
 
 	if cfg.OpenId.GroupsClaim != "groups" {
@@ -165,5 +193,15 @@ func TestLoadDashboardSettingsDoesNotLeakAdminGroups(t *testing.T) {
 	cfg = Load("/definitely-missing.yaml")
 	if len(cfg.Dashboard.AdminGroups) != 0 {
 		t.Fatalf("expected Dashboard.AdminGroups to be cleared on reload, got %v", cfg.Dashboard.AdminGroups)
+	}
+}
+
+func TestLoadDashboardSettingsDerivesUploadDirFromStorePath(t *testing.T) {
+	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__UPLOADDIR")
+	t.Setenv("RDPGW_DASHBOARD__STOREPATH", "/tmp/rdpgw-dashboard")
+
+	cfg := Load("/definitely-missing.yaml")
+	if cfg.Dashboard.UploadDir != "/tmp/rdpgw-dashboard/uploads" {
+		t.Fatalf("expected derived Dashboard.UploadDir to be /tmp/rdpgw-dashboard/uploads, got %q", cfg.Dashboard.UploadDir)
 	}
 }
