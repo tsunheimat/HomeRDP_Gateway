@@ -3,6 +3,9 @@ package identity
 import (
 	"bytes"
 	"encoding/gob"
+	"sort"
+	"strings"
+
 	"github.com/google/uuid"
 	"time"
 )
@@ -116,6 +119,49 @@ func (u *User) SetEmail(s string) {
 	u.email = s
 }
 
+func (u *User) Groups() []string {
+	groups := make([]string, 0, len(u.groupMembership))
+	for group, member := range u.groupMembership {
+		if member {
+			groups = append(groups, group)
+		}
+	}
+	sort.Strings(groups)
+	return groups
+}
+
+func (u *User) SetGroups(groups []string) {
+	if u.groupMembership == nil {
+		u.groupMembership = make(map[string]bool)
+	}
+
+	for k := range u.groupMembership {
+		delete(u.groupMembership, k)
+	}
+
+	for _, group := range groups {
+		group = strings.TrimSpace(group)
+		if group == "" {
+			continue
+		}
+		u.groupMembership[group] = true
+	}
+}
+
+func (u *User) InGroup(group string) bool {
+	group = strings.TrimSpace(group)
+	if group == "" {
+		return false
+	}
+
+	if u.groupMembership == nil {
+		return false
+	}
+
+	member, ok := u.groupMembership[group]
+	return ok && member
+}
+
 func (u *User) Expiry() time.Time {
 	return u.expiry
 }
@@ -165,6 +211,14 @@ func (u *User) Unmarshal(b []byte) error {
 	u.expiry = uu.Expiry
 	u.attributes = uu.Attributes
 	u.groupMembership = uu.GroupMembership
+
+	if u.attributes == nil {
+		u.attributes = make(map[string]interface{})
+	}
+
+	if u.groupMembership == nil {
+		u.groupMembership = make(map[string]bool)
+	}
 
 	return nil
 }

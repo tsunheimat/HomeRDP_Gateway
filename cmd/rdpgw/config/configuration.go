@@ -30,13 +30,14 @@ const (
 )
 
 type Configuration struct {
-	Server   ServerConfig   `koanf:"server"`
-	OpenId   OpenIDConfig   `koanf:"openid"`
-	Kerberos KerberosConfig `koanf:"kerberos"`
-	Header   HeaderConfig   `koanf:"header"`
-	Caps     RDGCapsConfig  `koanf:"caps"`
-	Security SecurityConfig `koanf:"security"`
-	Client   ClientConfig   `koanf:"client"`
+	Server    ServerConfig    `koanf:"server"`
+	OpenId    OpenIDConfig    `koanf:"openid"`
+	Dashboard DashboardConfig `koanf:"dashboard"`
+	Kerberos  KerberosConfig  `koanf:"kerberos"`
+	Header    HeaderConfig    `koanf:"header"`
+	Caps      RDGCapsConfig   `koanf:"caps"`
+	Security  SecurityConfig  `koanf:"security"`
+	Client    ClientConfig    `koanf:"client"`
 }
 
 type ServerConfig struct {
@@ -67,12 +68,20 @@ type OpenIDConfig struct {
 	ProviderUrl  string `koanf:"providerurl"`
 	ClientId     string `koanf:"clientid"`
 	ClientSecret string `koanf:"clientsecret"`
+	GroupsClaim  string `koanf:"groupsclaim"`
+}
+
+type DashboardConfig struct {
+	StorePath       string   `koanf:"storepath"`
+	UploadDir       string   `koanf:"uploaddir"`
+	AdminGroups     []string `koanf:"admingroups"`
+	MaxUploadSizeMb int      `koanf:"maxuploadsizemb"`
 }
 
 type HeaderConfig struct {
-	UserHeader      string `koanf:"userheader"`
-	UserIdHeader    string `koanf:"useridheader"`
-	EmailHeader     string `koanf:"emailheader"`
+	UserHeader        string `koanf:"userheader"`
+	UserIdHeader      string `koanf:"useridheader"`
+	EmailHeader       string `koanf:"emailheader"`
 	DisplayNameHeader string `koanf:"displaynameheader"`
 }
 
@@ -145,6 +154,14 @@ func ToCamel(s string) string {
 	return n.String()
 }
 
+var envKeyOverrides = map[string]string{
+	"Openid.Groupsclaim":        "OpenId.GroupsClaim",
+	"Dashboard.Storepath":       "Dashboard.StorePath",
+	"Dashboard.Uploaddir":       "Dashboard.UploadDir",
+	"Dashboard.Admingroups":     "Dashboard.AdminGroups",
+	"Dashboard.Maxuploadsizemb": "Dashboard.MaxUploadSizeMb",
+}
+
 var Conf Configuration
 
 func Load(configFile string) Configuration {
@@ -159,6 +176,10 @@ func Load(configFile string) Configuration {
 		"Server.Authentication":      "openid",
 		"Server.AuthSocket":          "/tmp/rdpgw-auth.sock",
 		"Server.BasicAuthTimeout":    5,
+		"OpenId.GroupsClaim":         "groups",
+		"Dashboard.StorePath":        "./data/dashboard",
+		"Dashboard.UploadDir":        "./data/dashboard/uploads",
+		"Dashboard.MaxUploadSizeMb":  5,
 		"Client.NetworkAutoDetect":   1,
 		"Client.BandwidthAutoDetect": 1,
 		"Security.VerifyClientIp":    true,
@@ -176,6 +197,9 @@ func Load(configFile string) Configuration {
 	if err := k.Load(env.ProviderWithValue("RDPGW_", ".", func(s string, v string) (string, interface{}) {
 		key := strings.Replace(strings.ToLower(strings.TrimPrefix(s, "RDPGW_")), "__", ".", -1)
 		key = ToCamel(key)
+		if override, ok := envKeyOverrides[key]; ok {
+			key = override
+		}
 
 		v = strings.Trim(v, " ")
 
@@ -192,6 +216,7 @@ func Load(configFile string) Configuration {
 	koanfTag := koanf.UnmarshalConf{Tag: "koanf"}
 	k.UnmarshalWithConf("Server", &Conf.Server, koanfTag)
 	k.UnmarshalWithConf("OpenId", &Conf.OpenId, koanfTag)
+	k.UnmarshalWithConf("Dashboard", &Conf.Dashboard, koanfTag)
 	k.UnmarshalWithConf("Header", &Conf.Header, koanfTag)
 	k.UnmarshalWithConf("Caps", &Conf.Caps, koanfTag)
 	k.UnmarshalWithConf("Security", &Conf.Security, koanfTag)

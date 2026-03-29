@@ -1,6 +1,7 @@
 package config
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -85,5 +86,37 @@ func TestHeaderConfigValidation(t *testing.T) {
 				t.Error("expected configuration to be invalid")
 			}
 		})
+	}
+}
+
+func TestLoadDashboardSettings(t *testing.T) {
+	t.Setenv("RDPGW_OPENID__GROUPSCLAIM", "ak_groups")
+	t.Setenv("RDPGW_DASHBOARD__STOREPATH", "/tmp/rdpgw-dashboard")
+	t.Setenv("RDPGW_DASHBOARD__UPLOADDIR", "/tmp/rdpgw-dashboard/uploads")
+	t.Setenv("RDPGW_DASHBOARD__ADMINGROUPS", "rdpgw-admins homelab-admins")
+	t.Setenv("RDPGW_DASHBOARD__MAXUPLOADSIZEMB", "7")
+
+	Conf = Configuration{}
+	cfg := Load("/definitely-missing.yaml")
+
+	if cfg.OpenId.GroupsClaim != "ak_groups" {
+		t.Fatalf("expected OpenId.GroupsClaim to be ak_groups, got %q", cfg.OpenId.GroupsClaim)
+	}
+
+	if cfg.Dashboard.StorePath != "/tmp/rdpgw-dashboard" {
+		t.Fatalf("expected Dashboard.StorePath to be /tmp/rdpgw-dashboard, got %q", cfg.Dashboard.StorePath)
+	}
+
+	if cfg.Dashboard.UploadDir != "/tmp/rdpgw-dashboard/uploads" {
+		t.Fatalf("expected Dashboard.UploadDir to be /tmp/rdpgw-dashboard/uploads, got %q", cfg.Dashboard.UploadDir)
+	}
+
+	if cfg.Dashboard.MaxUploadSizeMb != 7 {
+		t.Fatalf("expected Dashboard.MaxUploadSizeMb to be 7, got %d", cfg.Dashboard.MaxUploadSizeMb)
+	}
+
+	expectedGroups := []string{"rdpgw-admins", "homelab-admins"}
+	if !reflect.DeepEqual(cfg.Dashboard.AdminGroups, expectedGroups) {
+		t.Fatalf("expected Dashboard.AdminGroups to be %v, got %v", expectedGroups, cfg.Dashboard.AdminGroups)
 	}
 }
