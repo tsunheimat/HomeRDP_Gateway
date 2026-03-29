@@ -53,19 +53,35 @@ function renderEntries(entries) {
     entries.forEach((entry) => {
         const card = document.createElement('article');
         card.className = 'entry-card';
-        card.innerHTML = `
-            <div class="entry-meta">${entry.type}</div>
-            <h3 class="entry-name">${entry.name}</h3>
-            <p class="entry-description">${entry.description || 'No description provided.'}</p>
-            <button type="button" class="primary-button">Download RDP</button>
-        `;
 
-        card.querySelector('button').addEventListener('click', () => {
+        const meta = document.createElement('div');
+        meta.className = 'entry-meta';
+        meta.textContent = entry.type;
+
+        const title = document.createElement('h3');
+        title.className = 'entry-name';
+        title.textContent = entry.name;
+
+        const description = document.createElement('p');
+        description.className = 'entry-description';
+        description.textContent = entry.description || 'No description provided.';
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'primary-button';
+        button.textContent = 'Download RDP';
+
+        button.addEventListener('click', () => {
             clearDashboardError();
             clearDashboardSuccess();
             window.location.href = entry.downloadUrl;
             setDashboardSuccess(`Downloading ${entry.name}.`);
         });
+
+        card.appendChild(meta);
+        card.appendChild(title);
+        card.appendChild(description);
+        card.appendChild(button);
         grid.appendChild(card);
     });
 }

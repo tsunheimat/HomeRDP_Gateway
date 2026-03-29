@@ -156,14 +156,17 @@ const fallbackDashboardTemplate = `<!DOCTYPE html>
 			RDP Gateway
 		</div>
 		<div class="user-info">
-			<span id="dashboardUser">Loading...</span>
+			<div class="user-avatar" id="userAvatar"></div>
+			<span id="dashboardUsername">Loading...</span>
 			<a class="admin-link" id="adminLink" href="/admin" hidden>Admin</a>
 		</div>
 	</div>
 	<main class="main">
-		<div class="container">
+		<div class="container dashboard-container">
 			<h1 class="title">Connection Dashboard</h1>
+			<div class="success" id="dashboardSuccess"></div>
 			<div class="error" id="dashboardError"></div>
+			<div class="empty-state" id="entriesEmpty" hidden>No entries are currently available for your groups.</div>
 			<div class="entries-grid" id="entriesGrid"></div>
 		</div>
 	</main>
@@ -188,21 +191,38 @@ const fallbackAdminTemplate = `<!DOCTYPE html>
 			RDP Gateway Admin
 		</div>
 		<div class="user-info">
+			<span id="adminUsername">Loading...</span>
 			<a class="admin-link" href="/">Dashboard</a>
 		</div>
 	</div>
 	<main class="main">
-		<div class="container">
+		<div class="container admin-container">
 			<h1 class="title">Admin</h1>
+			<div class="success" id="adminSuccess"></div>
 			<div class="error" id="adminError"></div>
+			<div class="admin-grid">
 			<section class="admin-panel">
 				<h2>Host Entry</h2>
-				<form id="hostForm"></form>
+				<form id="hostForm" class="stack-form">
+					<label>Name<input type="text" name="name" required></label>
+					<label>Description<input type="text" name="description"></label>
+					<label>Allowed Groups<input type="text" name="allowedGroups" required></label>
+					<label>Host<input type="text" name="host" required></label>
+					<button type="submit" class="primary-button">Create Host Entry</button>
+				</form>
 			</section>
 			<section class="admin-panel">
 				<h2>Template Entry</h2>
-				<form id="templateForm"></form>
+				<form id="templateForm" class="stack-form" enctype="multipart/form-data">
+					<label>Name<input type="text" name="name" required></label>
+					<label>Description<input type="text" name="description"></label>
+					<label>Allowed Groups<input type="text" name="allowedGroups" required></label>
+					<label>Target Host Override<input type="text" name="targetHostOverride"></label>
+					<label>RDP Template File<input type="file" name="template" accept=".rdp" required></label>
+					<button type="submit" class="primary-button">Upload Template Entry</button>
+				</form>
 			</section>
+			</div>
 			<section class="admin-panel">
 				<h2>Entries</h2>
 				<div id="adminEntries"></div>

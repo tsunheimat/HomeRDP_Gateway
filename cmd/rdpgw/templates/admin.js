@@ -45,29 +45,71 @@ function renderAdminEntries(entries) {
     root.innerHTML = '';
 
     if (!entries || entries.length === 0) {
-        root.innerHTML = '<p class="muted">No entries configured yet.</p>';
+        const empty = document.createElement('p');
+        empty.className = 'muted';
+        empty.textContent = 'No entries configured yet.';
+        root.appendChild(empty);
         return;
     }
 
     entries.forEach((entry) => {
         const wrapper = document.createElement('article');
         wrapper.className = 'entry-row';
-        wrapper.innerHTML = `
-            <div class="entry-row-main">
-                <strong>${entry.name}</strong>
-                <span class="entry-meta">${entry.type}</span>
-                <span class="entry-meta">${entry.enabled ? 'enabled' : 'disabled'}</span>
-            </div>
-            <p class="entry-description">${entry.description || 'No description provided.'}</p>
-            <p class="entry-meta">${entry.host || entry.targetHostOverride || entry.uploadedTemplatePath || ''}</p>
-            <p class="entry-meta">Allowed groups: ${(entry.allowedGroups || []).join(', ')}</p>
-            <div class="entry-actions">
-                <button type="button" class="secondary-button" data-action="toggle">Toggle Enabled</button>
-                <button type="button" class="danger-button" data-action="delete">Delete</button>
-            </div>
-        `;
 
-        wrapper.querySelector('[data-action="toggle"]').addEventListener('click', async () => {
+        const mainRow = document.createElement('div');
+        mainRow.className = 'entry-row-main';
+
+        const title = document.createElement('strong');
+        title.textContent = entry.name;
+        mainRow.appendChild(title);
+
+        const type = document.createElement('span');
+        type.className = 'entry-meta';
+        type.textContent = entry.type;
+        mainRow.appendChild(type);
+
+        const enabled = document.createElement('span');
+        enabled.className = 'entry-meta';
+        enabled.textContent = entry.enabled ? 'enabled' : 'disabled';
+        mainRow.appendChild(enabled);
+
+        const description = document.createElement('p');
+        description.className = 'entry-description';
+        description.textContent = entry.description || 'No description provided.';
+
+        const target = document.createElement('p');
+        target.className = 'entry-meta';
+        target.textContent = entry.host || entry.targetHostOverride || entry.uploadedTemplatePath || '';
+
+        const groups = document.createElement('p');
+        groups.className = 'entry-meta';
+        groups.textContent = `Allowed groups: ${(entry.allowedGroups || []).join(', ')}`;
+
+        const actions = document.createElement('div');
+        actions.className = 'entry-actions';
+
+        const toggleButton = document.createElement('button');
+        toggleButton.type = 'button';
+        toggleButton.className = 'secondary-button';
+        toggleButton.dataset.action = 'toggle';
+        toggleButton.textContent = 'Toggle Enabled';
+
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'danger-button';
+        deleteButton.dataset.action = 'delete';
+        deleteButton.textContent = 'Delete';
+
+        actions.appendChild(toggleButton);
+        actions.appendChild(deleteButton);
+
+        wrapper.appendChild(mainRow);
+        wrapper.appendChild(description);
+        wrapper.appendChild(target);
+        wrapper.appendChild(groups);
+        wrapper.appendChild(actions);
+
+        toggleButton.addEventListener('click', async () => {
             clearAdminError();
             clearAdminSuccess();
             try {
@@ -85,7 +127,7 @@ function renderAdminEntries(entries) {
             }
         });
 
-        wrapper.querySelector('[data-action="delete"]').addEventListener('click', async () => {
+        deleteButton.addEventListener('click', async () => {
             clearAdminError();
             clearAdminSuccess();
             try {
