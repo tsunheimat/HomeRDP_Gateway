@@ -157,6 +157,156 @@ func TestAdminDeleteEntryRemovesTemplate(t *testing.T) {
 	}
 }
 
+func TestAdminListEntries(t *testing.T) {
+	handler, store := newAdminTestHandler(t)
+
+	entry := dashboard.Entry{
+		ID:            "host-1",
+		Type:          dashboard.EntryTypeHost,
+		Name:          "Host 1",
+		AllowedGroups: []string{"homelab-users"},
+		Enabled:       true,
+		Host:          "host.internal:3389",
+	}
+	if err := store.Put(entry); err != nil {
+		t.Fatalf("put entry: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/api/dashboard/entries", nil)
+	req = withAdminIdentity(req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminListEntries(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	var entries []dashboard.Entry
+	if err := json.Unmarshal(rr.Body.Bytes(), &entries); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(entries) != 1 || entries[0].ID != entry.ID {
+		t.Fatalf("unexpected entries payload: %+v", entries)
+	}
+}
+
+func TestAdminUpdateEntry(t *testing.T) {
+	handler, store := newAdminTestHandler(t)
+
+	entry := dashboard.Entry{
+		ID:            "host-1",
+		Type:          dashboard.EntryTypeHost,
+		Name:          "Host 1",
+		AllowedGroups: []string{"homelab-users"},
+		Enabled:       true,
+		Host:          "host.internal:3389",
+	}
+	if err := store.Put(entry); err != nil {
+		t.Fatalf("put entry: %v", err)
+	}
+
+	payload := map[string]interface{}{
+		"name":          "Host 2",
+		"allowedGroups": []string{"admins"},
+		"host":          "new-host.internal:3389",
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPut, "/admin/api/dashboard/entries/host-1", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = mux.SetURLVars(req, map[string]string{"id": entry.ID})
+	req = withAdminIdentity(req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminUpdateEntry(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	updated, err := store.Get(entry.ID)
+	if err != nil {
+		t.Fatalf("get updated entry: %v", err)
+	}
+	if updated.Name != "Host 2" || updated.Host != "new-host.internal:3389" {
+		t.Fatalf("unexpected updated entry: %+v", updated)
+	}
+}
+
+func TestAdminCreateTemplateEntry(t *testing.T) {
+	handler, store := newAdminTestHandler(t)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	if err := writer.WriteField("name", "Good Template"); err != nil {
+		t.Fatalf("write form field name: %v", err)
+	}
+	if err := writer.WriteField("allowedGroups", "homelab-users, admins"); err != nil {
+		t.Fatalf("write form field allowedGroups: %v", err)
+	}
+	if err := writer.WriteField("targetHostOverride", "app.internal:3389"); err != nil {
+		t.Fatalf("write form field targetHostOverride: %v", err)
+	}
+	fileWriter, err := writer.CreateFormFile("template", "good.rdp")
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
+	if _, err := fileWriter.Write([]byte("full address:s:template.internal:3389\r\n")); err != nil {
+		t.Fatalf("write upload content: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close multipart writer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/api/dashboard/entries/template", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req = withAdminIdentity(req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminCreateTemplateEntry(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusCreated)
+	}
+
+	var created dashboard.Entry
+	if err := json.Unmarshal(rr.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if created.UploadedTemplatePath == "" {
+		t.Fatalf("expected uploaded template path to be set")
+	}
+	if _, err := os.Stat(store.ResolveUpload(created.UploadedTemplatePath)); err != nil {
+		t.Fatalf("expected uploaded file to exist: %v", err)
+	}
+}
+
+func TestAdminOnlyRequiresAdmin(t *testing.T) {
+	handler, _ := newAdminTestHandler(t)
+
+	next := handler.AdminOnly(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/api/dashboard/entries", nil)
+	id := identity.NewUser()
+	id.SetUserName("user@example.com")
+	id.SetAuthenticated(true)
+	id.SetGroups([]string{"homelab-users"})
+	req = identity.AddToRequestCtx(id, req)
+	rr := httptest.NewRecorder()
+
+	next.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusForbidden)
+	}
+}
+
 func newAdminTestHandler(t *testing.T) (*Handler, dashboard.Store) {
 	t.Helper()
 

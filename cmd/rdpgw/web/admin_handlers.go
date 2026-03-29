@@ -61,8 +61,14 @@ func (h *Handler) HandleAdminCreateHostEntry(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	id, err := newEntryID()
+	if err != nil {
+		http.Error(w, "unable to generate entry id", http.StatusInternalServerError)
+		return
+	}
+
 	entry := dashboard.Entry{
-		ID:            newEntryID(),
+		ID:            id,
 		Type:          dashboard.EntryTypeHost,
 		Name:          strings.TrimSpace(req.Name),
 		Description:   strings.TrimSpace(req.Description),
@@ -72,7 +78,7 @@ func (h *Handler) HandleAdminCreateHostEntry(w http.ResponseWriter, r *http.Requ
 	}
 
 	if err := h.dashboardStore.Put(entry); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, err.Error(), statusForStorePutError(err))
 		return
 	}
 
@@ -127,8 +133,14 @@ func (h *Handler) HandleAdminCreateTemplateEntry(w http.ResponseWriter, r *http.
 		return
 	}
 
+	id, err := newEntryID()
+	if err != nil {
+		http.Error(w, "unable to generate entry id", http.StatusInternalServerError)
+		return
+	}
+
 	entry := dashboard.Entry{
-		ID:                   newEntryID(),
+		ID:                   id,
 		Type:                 dashboard.EntryTypeTemplate,
 		Name:                 strings.TrimSpace(r.FormValue("name")),
 		Description:          strings.TrimSpace(r.FormValue("description")),
@@ -144,7 +156,7 @@ func (h *Handler) HandleAdminCreateTemplateEntry(w http.ResponseWriter, r *http.
 			http.Error(w, "unable to persist template entry", http.StatusInternalServerError)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, err.Error(), statusForStorePutError(err))
 		return
 	}
 
@@ -201,7 +213,7 @@ func (h *Handler) HandleAdminUpdateEntry(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := h.dashboardStore.Put(entry); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, err.Error(), statusForStorePutError(err))
 		return
 	}
 
@@ -229,12 +241,12 @@ func (h *Handler) HandleAdminDeleteEntry(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func newEntryID() string {
+func newEntryID() (string, error) {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
-		return ""
+		return "", err
 	}
-	return hex.EncodeToString(b)
+	return hex.EncodeToString(b), nil
 }
 
 func splitCSV(value string) []string {
@@ -248,4 +260,22 @@ func splitCSV(value string) []string {
 		out = append(out, part)
 	}
 	return out
+}
+
+func statusForStorePutError(err error) int {
+	if isValidationError(err) {
+		return http.StatusBadRequest
+	}
+	return http.StatusInternalServerError
+}
+
+func isValidationError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := err.Error()
+	return strings.HasPrefix(message, "entry requires") ||
+		strings.HasPrefix(message, "host entry requires") ||
+		strings.HasPrefix(message, "template entry requires") ||
+		strings.HasPrefix(message, "entry type must be")
 }
