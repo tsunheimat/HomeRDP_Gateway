@@ -88,6 +88,61 @@ function renderAdminEntries(entries) {
         const actions = document.createElement('div');
         actions.className = 'entry-actions';
 
+        const nameLabel = document.createElement('label');
+        nameLabel.className = 'muted';
+        nameLabel.textContent = 'Name';
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.value = entry.name || '';
+        nameLabel.appendChild(nameInput);
+
+        const descriptionLabel = document.createElement('label');
+        descriptionLabel.className = 'muted';
+        descriptionLabel.textContent = 'Description';
+        const descriptionInput = document.createElement('input');
+        descriptionInput.type = 'text';
+        descriptionInput.value = entry.description || '';
+        descriptionLabel.appendChild(descriptionInput);
+
+        const groupsLabel = document.createElement('label');
+        groupsLabel.className = 'muted';
+        groupsLabel.textContent = 'Allowed Groups';
+        const groupsInput = document.createElement('input');
+        groupsInput.type = 'text';
+        groupsInput.value = (entry.allowedGroups || []).join(', ');
+        groupsLabel.appendChild(groupsInput);
+
+        wrapper.appendChild(nameLabel);
+        wrapper.appendChild(descriptionLabel);
+        wrapper.appendChild(groupsLabel);
+
+        let hostInput = null;
+        let targetHostInput = null;
+        if (entry.type === 'host') {
+            const hostLabel = document.createElement('label');
+            hostLabel.className = 'muted';
+            hostLabel.textContent = 'Host';
+            hostInput = document.createElement('input');
+            hostInput.type = 'text';
+            hostInput.value = entry.host || '';
+            hostLabel.appendChild(hostInput);
+            wrapper.appendChild(hostLabel);
+        } else {
+            const targetLabel = document.createElement('label');
+            targetLabel.className = 'muted';
+            targetLabel.textContent = 'Target Host Override';
+            targetHostInput = document.createElement('input');
+            targetHostInput.type = 'text';
+            targetHostInput.value = entry.targetHostOverride || '';
+            targetLabel.appendChild(targetHostInput);
+            wrapper.appendChild(targetLabel);
+        }
+
+        const saveButton = document.createElement('button');
+        saveButton.type = 'button';
+        saveButton.className = 'primary-button';
+        saveButton.textContent = 'Save';
+
         const toggleButton = document.createElement('button');
         toggleButton.type = 'button';
         toggleButton.className = 'secondary-button';
@@ -100,6 +155,7 @@ function renderAdminEntries(entries) {
         deleteButton.dataset.action = 'delete';
         deleteButton.textContent = 'Delete';
 
+        actions.appendChild(saveButton);
         actions.appendChild(toggleButton);
         actions.appendChild(deleteButton);
 
@@ -108,6 +164,36 @@ function renderAdminEntries(entries) {
         wrapper.appendChild(target);
         wrapper.appendChild(groups);
         wrapper.appendChild(actions);
+
+        saveButton.addEventListener('click', async () => {
+            clearAdminError();
+            clearAdminSuccess();
+            const payload = {
+                name: nameInput.value,
+                description: descriptionInput.value,
+                allowedGroups: splitGroups(groupsInput.value),
+                enabled: entry.enabled,
+            };
+            if (hostInput) {
+                payload.host = hostInput.value;
+            }
+            if (targetHostInput) {
+                payload.targetHostOverride = targetHostInput.value;
+            }
+            try {
+                await adminRequest(`/api/v1/admin/entries/${encodeURIComponent(entry.id)}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload),
+                });
+                setAdminSuccess(`Saved ${entry.name}.`);
+                await loadEntries();
+            } catch (error) {
+                if (error.message !== 'authentication required') {
+                    setAdminError(`Unable to save entry: ${error.message}`);
+                }
+            }
+        });
 
         toggleButton.addEventListener('click', async () => {
             clearAdminError();

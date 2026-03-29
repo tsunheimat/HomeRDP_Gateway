@@ -32,7 +32,7 @@ func TestAdminCreateHostEntry(t *testing.T) {
 		t.Fatalf("marshal payload: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/admin/api/dashboard/entries/host", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/entries/host", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req = withAdminIdentity(req)
 	rr := httptest.NewRecorder()
@@ -95,7 +95,7 @@ func TestAdminCreateTemplateEntryRejectsBadUpload(t *testing.T) {
 		t.Fatalf("close multipart writer: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/admin/api/dashboard/entries/template", &body)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/entries/template", &body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req = withAdminIdentity(req)
 	rr := httptest.NewRecorder()
@@ -135,7 +135,7 @@ func TestAdminDeleteEntryRemovesTemplate(t *testing.T) {
 		t.Fatalf("put entry: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodDelete, "/admin/api/dashboard/entries/template-1", nil)
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/entries/template-1", nil)
 	req = mux.SetURLVars(req, map[string]string{"id": entry.ID})
 	req = withAdminIdentity(req)
 	rr := httptest.NewRecorder()
@@ -160,7 +160,7 @@ func TestAdminDeleteEntryRemovesTemplate(t *testing.T) {
 func TestAdminDeleteEntryMissingReturnsNotFound(t *testing.T) {
 	handler, _ := newAdminTestHandler(t)
 
-	req := httptest.NewRequest(http.MethodDelete, "/admin/api/dashboard/entries/missing", nil)
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/entries/missing", nil)
 	req = mux.SetURLVars(req, map[string]string{"id": "missing"})
 	req = withAdminIdentity(req)
 	rr := httptest.NewRecorder()
@@ -187,7 +187,7 @@ func TestAdminListEntries(t *testing.T) {
 		t.Fatalf("put entry: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/admin/api/dashboard/entries", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/entries", nil)
 	req = withAdminIdentity(req)
 	rr := httptest.NewRecorder()
 
@@ -231,7 +231,7 @@ func TestAdminUpdateEntry(t *testing.T) {
 		t.Fatalf("marshal payload: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodPut, "/admin/api/dashboard/entries/host-1", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/entries/host-1", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req = mux.SetURLVars(req, map[string]string{"id": entry.ID})
 	req = withAdminIdentity(req)
@@ -277,7 +277,7 @@ func TestAdminCreateTemplateEntry(t *testing.T) {
 		t.Fatalf("close multipart writer: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/admin/api/dashboard/entries/template", &body)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/entries/template", &body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req = withAdminIdentity(req)
 	rr := httptest.NewRecorder()
@@ -307,7 +307,7 @@ func TestAdminOnlyRequiresAdmin(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/admin/api/dashboard/entries", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/entries", nil)
 	id := identity.NewUser()
 	id.SetUserName("user@example.com")
 	id.SetAuthenticated(true)
@@ -337,7 +337,7 @@ func TestAdminCreateHostEntryValidationReturnsBadRequest(t *testing.T) {
 		t.Fatalf("marshal payload: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/admin/api/dashboard/entries/host", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/entries/host", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req = withAdminIdentity(req)
 	rr := httptest.NewRecorder()
