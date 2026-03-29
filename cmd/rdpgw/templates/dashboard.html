@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+    <link rel="alternate icon" type="image/x-icon" href="/assets/icon.svg">
+</head>
+<body>
+    <div class="header">
+        <div class="logo">
+            <img src="/assets/icon.svg" alt="Logo" id="logoImage">
+            RDP Gateway
+        </div>
+        <div class="user-info">
+            <div class="user-avatar" id="userAvatar"></div>
+            <span id="dashboardUsername">Loading...</span>
+            <a class="admin-link" id="adminLink" href="/admin" hidden>Admin</a>
+        </div>
+    </div>
+
+    <main class="main">
+        <div class="container dashboard-container">
+            <h1 class="title">Connection Dashboard</h1>
+            <p class="subtitle">Select a published entry and download its RDP file.</p>
+
+            <div class="error" id="dashboardError"></div>
+            <div class="success" id="dashboardSuccess"></div>
+
+            <div class="entries-grid" id="entriesGrid"></div>
+            <div class="empty-state" id="entriesEmpty" hidden>No entries are currently available for your groups.</div>
+        </div>
+    </main>
+
+    <script src="/static/dashboard.js"></script>
+</body>
+</html>

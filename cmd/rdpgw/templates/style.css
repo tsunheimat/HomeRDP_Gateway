@@ -245,6 +245,173 @@ body {
     text-align: center;
 }
 
+.subtitle {
+    color: var(--muted-foreground);
+    text-align: center;
+    margin-top: -1rem;
+    margin-bottom: 1.5rem;
+}
+
+.admin-link {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+    color: var(--foreground);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 0.45rem 0.8rem;
+    font-size: 0.9rem;
+    margin-left: 0.5rem;
+}
+
+.admin-link:hover {
+    background: var(--secondary);
+}
+
+.dashboard-container {
+    max-width: 960px;
+}
+
+.entries-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1rem;
+}
+
+.entry-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--card);
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.entry-name {
+    font-size: 1.05rem;
+    color: var(--foreground);
+}
+
+.entry-description {
+    color: var(--muted-foreground);
+    font-size: 0.92rem;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.entry-meta {
+    color: var(--muted-foreground);
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.empty-state {
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+    color: var(--muted-foreground);
+    text-align: center;
+}
+
+.admin-container {
+    max-width: 1100px;
+}
+
+.admin-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.admin-panel {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--card);
+    padding: 1rem;
+}
+
+.admin-panel h2 {
+    margin-bottom: 0.8rem;
+    font-size: 1.1rem;
+}
+
+.stack-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+}
+
+.stack-form label {
+    color: var(--foreground);
+    font-size: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.stack-form input {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--background);
+    color: var(--foreground);
+    padding: 0.55rem 0.65rem;
+}
+
+.primary-button,
+.secondary-button,
+.danger-button {
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    padding: 0.55rem 0.8rem;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.primary-button {
+    background: var(--primary);
+    color: var(--background);
+}
+
+.secondary-button {
+    background: var(--secondary);
+    color: var(--foreground);
+}
+
+.danger-button {
+    background: color-mix(in oklch, var(--destructive) 15%, transparent);
+    color: var(--destructive);
+    border-color: color-mix(in oklch, var(--destructive) 30%, transparent);
+}
+
+.entry-row {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 0.9rem;
+    margin-bottom: 0.75rem;
+    background: var(--card);
+}
+
+.entry-row-main {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.4rem;
+}
+
+.entry-actions {
+    margin-top: 0.75rem;
+    display: flex;
+    gap: 0.6rem;
+}
+
+.muted {
+    color: var(--muted-foreground);
+}
+
 
 .progress-bar {
     width: 100%;
@@ -277,6 +444,14 @@ body {
     }
 
     .servers-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .entries-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-grid {
         grid-template-columns: 1fr;
     }
 

@@ -1,0 +1,171 @@
+package web
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/dashboard"
+	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/identity"
+)
+
+func TestHandleEntryListFiltersByGroups(t *testing.T) {
+	handler, store := newDashboardTestHandler(t)
+
+	if err := store.Put(dashboard.Entry{
+		ID:            "entry-visible",
+		Type:          dashboard.EntryTypeHost,
+		Name:          "Visible Host",
+		Description:   "Visible to homelab users",
+		AllowedGroups: []string{"homelab-users"},
+		Enabled:       true,
+		Host:          "visible.internal:3389",
+	}); err != nil {
+		t.Fatalf("put visible entry: %v", err)
+	}
+	if err := store.Put(dashboard.Entry{
+		ID:            "entry-hidden",
+		Type:          dashboard.EntryTypeHost,
+		Name:          "Hidden Host",
+		Description:   "Visible to admins only",
+		AllowedGroups: []string{"rdpgw-admins"},
+		Enabled:       true,
+		Host:          "hidden.internal:3389",
+	}); err != nil {
+		t.Fatalf("put hidden entry: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/entries", nil)
+	req = identity.AddToRequestCtx(newIdentity(t, false), req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleEntryList(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	var summaries []DashboardEntrySummary
+	if err := json.Unmarshal(rr.Body.Bytes(), &summaries); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if len(summaries) != 1 {
+		t.Fatalf("entry count = %d, want %d", len(summaries), 1)
+	}
+	if summaries[0].ID != "entry-visible" {
+		t.Fatalf("entry id = %q, want %q", summaries[0].ID, "entry-visible")
+	}
+	if summaries[0].DownloadURL != "/connect/entries/entry-visible.rdp" {
+		t.Fatalf("download url = %q", summaries[0].DownloadURL)
+	}
+}
+
+func TestHandleDashboardUserInfoIncludesAdminState(t *testing.T) {
+	handler, _ := newDashboardTestHandler(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/user", nil)
+	req = identity.AddToRequestCtx(newIdentity(t, true), req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleDashboardUserInfo(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	var info DashboardUserInfo
+	if err := json.Unmarshal(rr.Body.Bytes(), &info); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if info.Username != "admin@example.com" {
+		t.Fatalf("username = %q", info.Username)
+	}
+	if info.DisplayName != "Admin User" {
+		t.Fatalf("display name = %q", info.DisplayName)
+	}
+	if info.Email != "admin@example.com" {
+		t.Fatalf("email = %q", info.Email)
+	}
+	if len(info.Groups) != 2 {
+		t.Fatalf("groups len = %d", len(info.Groups))
+	}
+	if !info.Authenticated {
+		t.Fatalf("expected authenticated=true")
+	}
+	if info.AuthTime.IsZero() {
+		t.Fatalf("expected non-zero auth time")
+	}
+	if !info.IsAdmin {
+		t.Fatalf("expected isAdmin=true")
+	}
+}
+
+func TestHandleDashboardRendersTemplate(t *testing.T) {
+	handler, _ := newDashboardTestHandler(t)
+
+	customHTML := "<!DOCTYPE html><html><body>dashboard template marker</body></html>"
+	if err := os.WriteFile(filepath.Join(handler.templatesPath, "dashboard.html"), []byte(customHTML), 0o600); err != nil {
+		t.Fatalf("write dashboard template: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req = identity.AddToRequestCtx(newIdentity(t, false), req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleDashboard(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusOK)
+	}
+	if rr.Body.String() != customHTML {
+		t.Fatalf("unexpected body: %q", rr.Body.String())
+	}
+}
+
+func newDashboardTestHandler(t *testing.T) (*Handler, dashboard.Store) {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	store, err := dashboard.NewFileStore(filepath.Join(tmpDir, "catalog"), filepath.Join(tmpDir, "uploads"))
+	if err != nil {
+		t.Fatalf("new dashboard store: %v", err)
+	}
+
+	handler := (&Config{
+		Hosts:          []string{"fallback.internal:3389"},
+		HostSelection:  "roundrobin",
+		DashboardStore: store,
+		AdminGroups:    []string{"rdpgw-admins"},
+		TemplatesPath:  tmpDir,
+	}).NewHandler()
+
+	return handler, store
+}
+
+func newIdentity(t *testing.T, admin bool) identity.Identity {
+	t.Helper()
+
+	id := identity.NewUser()
+	id.SetAuthenticated(true)
+	id.SetAuthTime(time.Now().UTC())
+
+	if admin {
+		id.SetUserName("admin@example.com")
+		id.SetDisplayName("Admin User")
+		id.SetEmail("admin@example.com")
+		id.SetGroups([]string{"homelab-users", "rdpgw-admins"})
+		return id
+	}
+
+	id.SetUserName("user@example.com")
+	id.SetDisplayName("Regular User")
+	id.SetEmail("user@example.com")
+	id.SetGroups([]string{"homelab-users"})
+	return id
+}

@@ -1,95 +1,67 @@
-# RDP Gateway Web Interface Templates
+# RDP Gateway UI Templates
 
-This directory contains the customizable web interface templates for RDP Gateway.
+This directory contains the web UI templates and static assets used by the gateway.
 
-## Files
+## Template Files
+
+### `dashboard.html`
+Authenticated OpenID dashboard page (`/`) that renders:
+- Current user details
+- Entry cards loaded from `/api/v1/entries`
+- Admin link (shown only when `/api/v1/user` reports `isAdmin: true`)
+
+### `admin.html`
+Authenticated OpenID admin page (`/admin`) for users in configured admin groups:
+- Host entry create form
+- Template upload form
+- Entry list management area
 
 ### `index.html`
-The main HTML template for the web interface. This file uses Go template syntax and can be customized to match your organization's branding.
+Legacy web interface template used by existing non-dashboard flows.
 
-**Template Variables Available:**
-- `{{.Title}}` - Page title
-- `{{.Logo}}` - Header logo text
-- `{{.PageTitle}}` - Main page heading
-- `{{.SelectServerMessage}}` - Default button text
-- `{{.PreparingMessage}}` - Loading message
-- `{{.AutoLaunchMessage}}` - Auto-launch notice text
+## JavaScript Files
 
-### `style.css`
-The CSS stylesheet for the web interface. Modify this file to customize:
-- Colors and branding
-- Layout and spacing
-- Fonts and typography
-- Responsive behavior
+### `dashboard.js`
+Dashboard logic:
+- Fetches `/api/v1/user` and `/api/v1/entries`
+- Renders entry cards
+- Starts entry downloads via `/connect/entries/{id}.rdp`
+- Surfaces API failures in-page
+
+### `admin.js`
+Admin panel logic:
+- Fetches `/api/v1/admin/entries`
+- Creates host entries with `POST /api/v1/admin/entries/host`
+- Uploads template entries with `POST /api/v1/admin/entries/template`
+- Updates/deletes entries via `PUT`/`DELETE /api/v1/admin/entries/{id}`
+- Surfaces API failures in-page
 
 ### `app.js`
-The JavaScript file containing the web interface logic. This includes:
-- Server list loading and rendering
-- User authentication display
-- **Automatic RDP client launching** (multiple methods)
-- File download fallback
-- Progress animations
+Legacy web interface logic used by `index.html`.
 
-### `config-example.json`
-Example configuration structure showing available customization options. These values are set as defaults in the code but can be integrated with your main configuration system.
+## Shared Styling
 
-## Auto-Launch Functionality
+### `style.css`
+Shared stylesheet for dashboard/admin and legacy templates.  
+Update this file to keep visual consistency across all pages.
 
-The interface automatically attempts to launch RDP clients using **actual RDP file content**:
+## Static Routes
 
-### How It Works:
-1. **Fetches RDP Content**: Gets the complete RDP file configuration from `/api/rdp-content`
-2. **Creates Data URL**: Converts RDP content to a downloadable blob
-3. **Platform-Specific Launch**:
-   - **Windows**: Downloads .rdp file which auto-opens with mstsc
-   - **macOS**: Downloads .rdp file which auto-opens with Microsoft Remote Desktop
-   - **Universal**: Creates temporary download that browsers handle appropriately
+- `/static/style.css`
+- `/static/dashboard.js`
+- `/static/admin.js`
+- `/static/app.js` (legacy flow)
 
-### Technical Implementation:
-- **`/api/rdp-content`** endpoint generates actual RDP file content with proper tokens
-- **Data URLs** created from RDP content for browser download
-- **Automatic file association** triggers RDP client launch
-- **Graceful fallbacks** ensure users always get the RDP file
+## OpenID Dashboard Routes
 
-## Customization
+- `/` -> dashboard page
+- `/admin` -> admin page (admin-only)
+- `/api/v1/user` -> dashboard user info
+- `/api/v1/entries` -> visible dashboard entries
+- `/api/v1/admin/entries` -> admin entry list
+- `/api/v1/admin/entries/host` -> create host entry
+- `/api/v1/admin/entries/template` -> create template entry
+- `/api/v1/admin/entries/{id}` -> update/delete entry
+- `/connect` and `/connect/entries/{id}.rdp` -> RDP download routes
 
-To customize the interface:
-
-1. **Copy this templates directory** to your preferred location
-2. **Set the templates path** in your RDP Gateway configuration
-3. **Edit the files** to match your branding requirements
-4. **Restart RDP Gateway** to load the new templates
-
-If template files are missing, the system automatically falls back to embedded templates to ensure the interface remains functional.
-
-## API Endpoints
-
-The web interface uses these authenticated API endpoints:
-
-- **`/api/hosts`** - Returns available servers for the user (JSON)
-- **`/api/user`** - Returns current user information (JSON)
-- **`/api/rdp-content`** - Returns RDP file content as text for auto-launch
-- **`/connect`** - Downloads RDP file (traditional endpoint)
-
-## Static File Serving
-
-The following URLs serve static files:
-- `/static/style.css` - CSS stylesheet
-- `/static/app.js` - JavaScript application
-
-These files are served without authentication requirements for better performance.
-
-## Browser Compatibility
-
-The interface supports:
-- Modern browsers (Chrome, Firefox, Safari, Edge)
-- Mobile responsive design
-- Protocol handlers for RDP client launching
-- Graceful fallbacks for unsupported features
-
-## Security Considerations
-
-- Template files are served from the server filesystem
-- Static files include cache headers for performance
-- User authentication is required for the main interface
-- API endpoints validate authentication before serving data
+If `dashboard.html` or `admin.html` are missing, the server uses embedded fallback HTML.
