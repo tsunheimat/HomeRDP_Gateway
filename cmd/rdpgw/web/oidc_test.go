@@ -2,7 +2,10 @@ package web
 
 import (
 	"net/http/httptest"
+	"reflect"
 	"testing"
+
+	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/identity"
 )
 
 func TestFindUserNameInClaims(t *testing.T) {
@@ -53,8 +56,8 @@ func TestFindUserNameInClaims(t *testing.T) {
 
 func TestOIDCStateManagement(t *testing.T) {
 	// Initialize session store for testing
-	sessionKey := []byte("testsessionkeytestsessionkey1234")  // 32 bytes
-	encryptionKey := []byte("testencryptionkeytestencrypt1234")  // 32 bytes
+	sessionKey := []byte("testsessionkeytestsessionkey1234")    // 32 bytes
+	encryptionKey := []byte("testencryptionkeytestencrypt1234") // 32 bytes
 	InitStore(sessionKey, encryptionKey, "cookie", 8192)
 
 	// Test storing and retrieving OIDC state
@@ -112,4 +115,35 @@ func TestOIDCStateManagement(t *testing.T) {
 			t.Fatal("Expected state not to be found in empty session, but it was found")
 		}
 	})
+}
+
+func TestPopulateIdentityFromClaims(t *testing.T) {
+	id := identity.NewUser()
+	claims := map[string]interface{}{
+		"preferred_username": "matthew",
+		"email":              "matthew@example.com",
+		"name":               "Matthew Chiu",
+		"groups":             []interface{}{"rdpgw-admins", "homelab-users", "rdpgw-admins"},
+	}
+
+	if err := populateIdentityFromClaims(id, claims, "groups"); err != nil {
+		t.Fatalf("populateIdentityFromClaims returned error: %v", err)
+	}
+
+	if id.UserName() != "matthew" {
+		t.Fatalf("expected username matthew, got %q", id.UserName())
+	}
+
+	if id.Email() != "matthew@example.com" {
+		t.Fatalf("expected email matthew@example.com, got %q", id.Email())
+	}
+
+	if id.DisplayName() != "Matthew Chiu" {
+		t.Fatalf("expected display name Matthew Chiu, got %q", id.DisplayName())
+	}
+
+	expectedGroups := []string{"homelab-users", "rdpgw-admins"}
+	if !reflect.DeepEqual(id.Groups(), expectedGroups) {
+		t.Fatalf("expected groups %v, got %v", expectedGroups, id.Groups())
+	}
 }

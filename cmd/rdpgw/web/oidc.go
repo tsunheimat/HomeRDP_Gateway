@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strings"
@@ -23,17 +24,25 @@ const (
 type OIDC struct {
 	oAuth2Config      *oauth2.Config
 	oidcTokenVerifier *oidc.IDTokenVerifier
+	groupsClaim       string
 }
 
 type OIDCConfig struct {
 	OAuth2Config      *oauth2.Config
 	OIDCTokenVerifier *oidc.IDTokenVerifier
+	GroupsClaim       string
 }
 
 func (c *OIDCConfig) New() *OIDC {
+	groupsClaim := c.GroupsClaim
+	if groupsClaim == "" {
+		groupsClaim = "groups"
+	}
+
 	return &OIDC{
 		oAuth2Config:      c.OAuth2Config,
 		oidcTokenVerifier: c.OIDCTokenVerifier,
+		groupsClaim:       groupsClaim,
 	}
 }
 
@@ -128,18 +137,17 @@ func (h *OIDC) HandleCallback(w http.ResponseWriter, r *http.Request) {
 
 	id := identity.FromRequestCtx(r)
 
-	userName := findUsernameInClaims(data)
-	if userName == "" {
-		http.Error(w, "no oidc claim for username found", http.StatusInternalServerError)
+	if err := populateIdentityFromClaims(id, data, h.groupsClaim); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
-
-	id.SetUserName(userName)
 	id.SetAuthenticated(true)
 	id.SetAuthTime(time.Now())
 	id.SetAttribute(identity.AttrAccessToken, oauth2Token.AccessToken)
 
 	if err := SaveSessionIdentity(r, w, id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	http.Redirect(w, r, url, http.StatusFound)
@@ -155,6 +163,50 @@ func findUsernameInClaims(data map[string]interface{}) string {
 	}
 
 	return ""
+}
+
+func populateIdentityFromClaims(id identity.Identity, data map[string]interface{}, groupsClaim string) error {
+	userName := findUsernameInClaims(data)
+	if userName == "" {
+		return errors.New("no oidc claim for username found")
+	}
+	id.SetUserName(userName)
+
+	if email, ok := data["email"].(string); ok {
+		id.SetEmail(email)
+	}
+
+	if displayName, ok := data["name"].(string); ok {
+		id.SetDisplayName(displayName)
+	} else if displayName, ok := data["display_name"].(string); ok {
+		id.SetDisplayName(displayName)
+	}
+
+	if groupsClaim == "" {
+		groupsClaim = "groups"
+	}
+	id.SetGroups(extractGroups(data[groupsClaim]))
+
+	return nil
+}
+
+func extractGroups(raw interface{}) []string {
+	switch groups := raw.(type) {
+	case []string:
+		return groups
+	case []interface{}:
+		membership := make([]string, 0, len(groups))
+		for _, group := range groups {
+			if groupName, ok := group.(string); ok {
+				membership = append(membership, groupName)
+			}
+		}
+		return membership
+	case string:
+		return []string{groups}
+	default:
+		return nil
+	}
 }
 
 func (h *OIDC) Authenticated(next http.Handler) http.Handler {

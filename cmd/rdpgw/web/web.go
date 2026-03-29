@@ -34,6 +34,7 @@ type Config struct {
 	QueryInfo          QueryInfoFunc
 	QueryTokenIssuer   string
 	EnableUserToken    bool
+	AdminGroups        []string
 	Hosts              []string
 	HostSelection      string
 	GatewayAddress     *url.URL
@@ -80,6 +81,7 @@ type Handler struct {
 	userTokenGenerator UserTokenGeneratorFunc
 	queryInfo          QueryInfoFunc
 	queryTokenIssuer   string
+	adminGroups        []string
 	gatewayAddress     *url.URL
 	hosts              []string
 	hostSelection      string
@@ -102,6 +104,7 @@ func (c *Config) NewHandler() *Handler {
 		userTokenGenerator: c.UserTokenGenerator,
 		queryInfo:          c.QueryInfo,
 		queryTokenIssuer:   c.QueryTokenIssuer,
+		adminGroups:        c.AdminGroups,
 		gatewayAddress:     c.GatewayAddress,
 		hosts:              c.Hosts,
 		hostSelection:      c.HostSelection,
