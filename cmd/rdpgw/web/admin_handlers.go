@@ -8,9 +8,11 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/dashboard"
 	rdpparser "github.com/bolkedebruin/rdpgw/cmd/rdpgw/rdp/koanf/parsers/rdp"
@@ -33,6 +35,20 @@ type adminUpdateEntryRequest struct {
 	TargetHostOverride *string   `json:"targetHostOverride"`
 }
 
+type adminEntryResponse struct {
+	ID                  string    `json:"id"`
+	Type                string    `json:"type"`
+	Name                string    `json:"name"`
+	Description         string    `json:"description"`
+	AllowedGroups       []string  `json:"allowedGroups"`
+	Enabled             bool      `json:"enabled"`
+	Host                string    `json:"host"`
+	TargetHostOverride  string    `json:"targetHostOverride"`
+	HasUploadedTemplate bool      `json:"hasUploadedTemplate"`
+	CreatedAt           time.Time `json:"createdAt"`
+	UpdatedAt           time.Time `json:"updatedAt"`
+}
+
 func (h *Handler) HandleAdminListEntries(w http.ResponseWriter, r *http.Request) {
 	if h.dashboardStore == nil {
 		http.Error(w, "dashboard store not configured", http.StatusServiceUnavailable)
@@ -46,10 +62,14 @@ func (h *Handler) HandleAdminListEntries(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(entries)
+	_ = json.NewEncoder(w).Encode(adminEntryResponses(entries))
 }
 
 func (h *Handler) HandleAdminCreateHostEntry(w http.ResponseWriter, r *http.Request) {
+	if !sameOriginAdminRequest(r) {
+		http.Error(w, "cross-origin admin request forbidden", http.StatusForbidden)
+		return
+	}
 	if h.dashboardStore == nil {
 		http.Error(w, "dashboard store not configured", http.StatusServiceUnavailable)
 		return
@@ -84,10 +104,14 @@ func (h *Handler) HandleAdminCreateHostEntry(w http.ResponseWriter, r *http.Requ
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(entry)
+	_ = json.NewEncoder(w).Encode(newAdminEntryResponse(entry))
 }
 
 func (h *Handler) HandleAdminCreateTemplateEntry(w http.ResponseWriter, r *http.Request) {
+	if !sameOriginAdminRequest(r) {
+		http.Error(w, "cross-origin admin request forbidden", http.StatusForbidden)
+		return
+	}
 	if h.dashboardStore == nil {
 		http.Error(w, "dashboard store not configured", http.StatusServiceUnavailable)
 		return
@@ -163,10 +187,14 @@ func (h *Handler) HandleAdminCreateTemplateEntry(w http.ResponseWriter, r *http.
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(entry)
+	_ = json.NewEncoder(w).Encode(newAdminEntryResponse(entry))
 }
 
 func (h *Handler) HandleAdminUpdateEntry(w http.ResponseWriter, r *http.Request) {
+	if !sameOriginAdminRequest(r) {
+		http.Error(w, "cross-origin admin request forbidden", http.StatusForbidden)
+		return
+	}
 	if h.dashboardStore == nil {
 		http.Error(w, "dashboard store not configured", http.StatusServiceUnavailable)
 		return
@@ -219,10 +247,14 @@ func (h *Handler) HandleAdminUpdateEntry(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(entry)
+	_ = json.NewEncoder(w).Encode(newAdminEntryResponse(entry))
 }
 
 func (h *Handler) HandleAdminDeleteEntry(w http.ResponseWriter, r *http.Request) {
+	if !sameOriginAdminRequest(r) {
+		http.Error(w, "cross-origin admin request forbidden", http.StatusForbidden)
+		return
+	}
 	if h.dashboardStore == nil {
 		http.Error(w, "dashboard store not configured", http.StatusServiceUnavailable)
 		return
@@ -273,21 +305,73 @@ func splitCSV(value string) []string {
 }
 
 func statusForStorePutError(err error) int {
-	if isValidationError(err) {
+	if dashboard.IsValidationError(err) {
 		return http.StatusBadRequest
 	}
 	return http.StatusInternalServerError
 }
 
-func isValidationError(err error) bool {
-	if err == nil {
+func sameOriginAdminRequest(r *http.Request) bool {
+	if target, ok := requestOriginURL(r); ok {
+		return sameOriginHost(target, r.Host)
+	}
+	if target, ok := requestRefererURL(r); ok {
+		return sameOriginHost(target, r.Host)
+	}
+	return false
+}
+
+func requestOriginURL(r *http.Request) (*url.URL, bool) {
+	rawOrigin := strings.TrimSpace(r.Header.Get("Origin"))
+	if rawOrigin == "" || rawOrigin == "null" {
+		return nil, false
+	}
+	parsed, err := url.Parse(rawOrigin)
+	if err != nil || parsed.Host == "" {
+		return nil, false
+	}
+	return parsed, true
+}
+
+func requestRefererURL(r *http.Request) (*url.URL, bool) {
+	rawReferer := strings.TrimSpace(r.Referer())
+	if rawReferer == "" {
+		return nil, false
+	}
+	parsed, err := url.Parse(rawReferer)
+	if err != nil || parsed.Host == "" {
+		return nil, false
+	}
+	return parsed, true
+}
+
+func sameOriginHost(target *url.URL, requestHost string) bool {
+	if target == nil {
 		return false
 	}
-	message := err.Error()
-	return strings.HasPrefix(message, "id is required") ||
-		strings.HasPrefix(message, "name is required") ||
-		strings.HasPrefix(message, "at least one allowed group is required") ||
-		strings.HasPrefix(message, "host entry requires") ||
-		strings.HasPrefix(message, "template entry requires") ||
-		strings.HasPrefix(message, "invalid entry type")
+	return strings.EqualFold(target.Host, requestHost)
+}
+
+func adminEntryResponses(entries []dashboard.Entry) []adminEntryResponse {
+	out := make([]adminEntryResponse, 0, len(entries))
+	for _, entry := range entries {
+		out = append(out, newAdminEntryResponse(entry))
+	}
+	return out
+}
+
+func newAdminEntryResponse(entry dashboard.Entry) adminEntryResponse {
+	return adminEntryResponse{
+		ID:                  entry.ID,
+		Type:                string(entry.Type),
+		Name:                entry.Name,
+		Description:         entry.Description,
+		AllowedGroups:       entry.AllowedGroups,
+		Enabled:             entry.Enabled,
+		Host:                entry.Host,
+		TargetHostOverride:  entry.TargetHostOverride,
+		HasUploadedTemplate: strings.TrimSpace(entry.UploadedTemplatePath) != "",
+		CreatedAt:           entry.CreatedAt,
+		UpdatedAt:           entry.UpdatedAt,
+	}
 }

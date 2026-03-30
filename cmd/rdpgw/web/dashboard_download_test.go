@@ -44,7 +44,7 @@ func TestHandleEntryDownloadHostEntry(t *testing.T) {
 		UserTokenGenerator: func(ctx context.Context, user string) (string, error) {
 			return user + "-token", nil
 		},
-		GatewayAddress:    gatewayAddress,
+		GatewayAddress: gatewayAddress,
 		RdpOpts: RdpOpts{
 			UsernameTemplate: "{{ username }}#{{ token }}",
 			SplitUserDomain:  true,
@@ -199,6 +199,57 @@ func TestHandleEntryDownloadTemplateEntryRequiresTargetHost(t *testing.T) {
 
 	id := identity.NewUser()
 	id.SetUserName("bob")
+	id.SetAuthenticated(true)
+	id.SetGroups([]string{"office-users"})
+	req = identity.AddToRequestCtx(id, req)
+
+	recorder := httptest.NewRecorder()
+	handler.HandleEntryDownload(recorder, req)
+
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleEntryDownloadRejectsInvalidRenderedTemplateHost(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := dashboard.NewFileStore(filepath.Join(tmpDir, "catalog"), filepath.Join(tmpDir, "uploads"))
+	if err != nil {
+		t.Fatalf("new dashboard store: %v", err)
+	}
+
+	template := "full address:s:template-{{ preferred_username }}.internal:3389\r\n"
+	uploadPath, err := store.SaveUpload(strings.NewReader(template))
+	if err != nil {
+		t.Fatalf("save upload: %v", err)
+	}
+
+	entry := dashboard.Entry{
+		ID:                   "broken-host-template",
+		Type:                 dashboard.EntryTypeTemplate,
+		Name:                 "Broken Host Template",
+		AllowedGroups:        []string{"office-users"},
+		Enabled:              true,
+		UploadedTemplatePath: uploadPath,
+	}
+	if err := store.Put(entry); err != nil {
+		t.Fatalf("put entry: %v", err)
+	}
+
+	gatewayAddress, _ := url.Parse("https://gw.example.com:443")
+	handler := (&Config{
+		Hosts:             []string{"fallback.internal:3389"},
+		HostSelection:     "roundrobin",
+		DashboardStore:    store,
+		PAATokenGenerator: paaTokenMock,
+		GatewayAddress:    gatewayAddress,
+	}).NewHandler()
+
+	req := httptest.NewRequest(http.MethodGet, "/connect/entries/broken-host-template.rdp", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "broken-host-template"})
+
+	id := identity.NewUser()
+	id.SetUserName("bob:3389")
 	id.SetAuthenticated(true)
 	id.SetGroups([]string{"office-users"})
 	req = identity.AddToRequestCtx(id, req)

@@ -13,6 +13,7 @@ import (
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/dashboard"
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/identity"
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/rdp"
+	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/security"
 	"github.com/gorilla/mux"
 )
 
@@ -116,7 +117,10 @@ func (h *Handler) HandleEntryDownload(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) buildEntryBuilder(id identity.Identity, entry dashboard.Entry) (*rdp.Builder, string, error) {
 	switch entry.Type {
 	case dashboard.EntryTypeHost:
-		host := strings.Replace(entry.Host, "{{ preferred_username }}", id.UserName(), 1)
+		host, err := security.ResolvePreferredUsernameHost(entry.Host, id.UserName())
+		if err != nil {
+			return nil, "", err
+		}
 		if h.rdpDefaults == "" {
 			return rdp.NewBuilder(), host, nil
 		}
@@ -135,9 +139,12 @@ func (h *Handler) buildEntryBuilder(id identity.Identity, entry dashboard.Entry)
 		if strings.TrimSpace(entry.TargetHostOverride) != "" {
 			host = strings.TrimSpace(entry.TargetHostOverride)
 		}
-		host = strings.Replace(host, "{{ preferred_username }}", id.UserName(), 1)
-		if strings.TrimSpace(host) == "" {
-			return nil, "", errors.New("template entry does not resolve to a target host")
+		host, err = security.ResolvePreferredUsernameHost(host, id.UserName())
+		if err != nil {
+			if strings.TrimSpace(host) == "" {
+				return nil, "", errors.New("template entry does not resolve to a target host")
+			}
+			return nil, "", err
 		}
 		return builder, host, nil
 	default:

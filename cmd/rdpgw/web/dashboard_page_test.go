@@ -2,10 +2,12 @@ package web
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -125,6 +127,29 @@ func TestHandleDashboardRendersTemplate(t *testing.T) {
 	}
 	if rr.Body.String() != customHTML {
 		t.Fatalf("unexpected body: %q", rr.Body.String())
+	}
+}
+
+func TestRenderTemplatePageDoesNotPartiallyWriteOnExecuteError(t *testing.T) {
+	handler, _ := newDashboardTestHandler(t)
+
+	const broken = "<!DOCTYPE html><html><body>prefix {{call .Fail}}</body></html>"
+	if err := os.WriteFile(filepath.Join(handler.templatesPath, "broken.html"), []byte(broken), 0o600); err != nil {
+		t.Fatalf("write broken template: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler.renderTemplatePage(rr, "broken.html", broken, map[string]any{
+		"Fail": func() (string, error) {
+			return "", errors.New("boom")
+		},
+	})
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusInternalServerError)
+	}
+	if body := rr.Body.String(); strings.Contains(body, "prefix") {
+		t.Fatalf("expected no partial template body, got %q", body)
 	}
 }
 

@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -117,11 +118,14 @@ func (h *Handler) HandleDashboardUserInfo(w http.ResponseWriter, r *http.Request
 
 func (h *Handler) renderTemplatePage(w http.ResponseWriter, filename, fallback string, data any) {
 	tmpl := h.loadTemplateWithFallback(filename, fallback)
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := tmpl.Execute(w, data); err != nil {
+	var rendered bytes.Buffer
+	if err := tmpl.Execute(&rendered, data); err != nil {
 		log.Printf("Failed to execute template %s: %v", filename, err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
 	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = rendered.WriteTo(w)
 }
 
 func (h *Handler) loadTemplateWithFallback(filename, fallback string) *template.Template {

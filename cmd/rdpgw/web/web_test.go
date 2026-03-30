@@ -182,6 +182,34 @@ func TestHandler_HandleDownload(t *testing.T) {
 
 }
 
+func TestHandler_HandleDownloadRejectsInvalidRenderedHost(t *testing.T) {
+	req, err := http.NewRequest("GET", "/connect", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+	id := identity.NewUser()
+	id.SetUserName("bad:3389")
+	id.SetAuthenticated(true)
+	req = identity.AddToRequestCtx(id, req)
+
+	u, _ := url.Parse(gateway)
+	c := Config{
+		HostSelection:     "roundrobin",
+		Hosts:             []string{"lab-{{ preferred_username }}.internal:3389"},
+		PAATokenGenerator: paaTokenMock,
+		GatewayAddress:    u,
+	}
+	h := c.NewHandler()
+
+	http.HandlerFunc(h.HandleDownload).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusInternalServerError)
+	}
+}
+
 func TestHandler_HandleSignedDownload(t *testing.T) {
 	req, err := http.NewRequest("GET", "/connect", nil)
 	if err != nil {

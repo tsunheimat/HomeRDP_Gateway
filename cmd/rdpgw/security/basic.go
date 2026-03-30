@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"strings"
 )
 
 var (
@@ -28,8 +27,12 @@ func CheckHost(ctx context.Context, host string) (bool, error) {
 
 		log.Printf("Checking host for user %s", s.User.UserName())
 		for _, h := range Hosts {
-			h = strings.Replace(h, "{{ preferred_username }}", s.User.UserName(), 1)
-			if h == host {
+			resolved, err := ResolvePreferredUsernameHost(h, s.User.UserName())
+			if err != nil {
+				log.Printf("Ignoring invalid configured host template %q for user %s", h, s.User.UserName())
+				continue
+			}
+			if resolved == host {
 				return true, nil
 			}
 		}

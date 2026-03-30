@@ -28,6 +28,7 @@ func InitStore(sessionKey []byte, encryptionKey []byte, storeType string, maxLen
 	if storeType == "file" {
 		log.Println("Filesystem is used as session storage")
 		fs := sessions.NewFilesystemStore(os.TempDir(), sessionKey, encryptionKey)
+		fs.Options = defaultSessionOptions()
 
 		// set max length
 		if maxLength == 0 {
@@ -39,7 +40,9 @@ func InitStore(sessionKey []byte, encryptionKey []byte, storeType string, maxLen
 		sessionStore = fs
 	} else {
 		log.Println("Cookies are used as session storage")
-		sessionStore = sessions.NewCookieStore(sessionKey, encryptionKey)
+		cs := sessions.NewCookieStore(sessionKey, encryptionKey)
+		cs.Options = defaultSessionOptions()
+		sessionStore = cs
 	}
 }
 
@@ -82,4 +85,12 @@ func SaveSessionIdentity(r *http.Request, w http.ResponseWriter, id identity.Ide
 
 	return sessionStore.Save(r, w, session)
 
+}
+
+func defaultSessionOptions() *sessions.Options {
+	return &sessions.Options{
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	}
 }

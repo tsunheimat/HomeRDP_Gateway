@@ -23,6 +23,7 @@ import (
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/dashboard"
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/identity"
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/rdp"
+	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/security"
 )
 
 type TokenGeneratorFunc func(context.Context, string, string) (string, error)
@@ -431,7 +432,12 @@ func (h *Handler) HandleDownload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	host = strings.Replace(host, "{{ preferred_username }}", id.UserName(), 1)
+	host, err = security.ResolvePreferredUsernameHost(host, id.UserName())
+	if err != nil {
+		log.Printf("Invalid rendered host for user %s due to %s", id.UserName(), err)
+		http.Error(w, errors.New("invalid server configuration").Error(), http.StatusInternalServerError)
+		return
+	}
 
 	// split the username into user and domain
 	var user = id.UserName()

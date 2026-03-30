@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -14,6 +15,8 @@ const (
 	EntryTypeHost     EntryType = "host"
 	EntryTypeTemplate EntryType = "template"
 )
+
+var errValidation = errors.New("dashboard validation error")
 
 type Entry struct {
 	ID                   string    `json:"id"`
@@ -31,10 +34,10 @@ type Entry struct {
 
 func (e Entry) Validate() error {
 	if strings.TrimSpace(e.ID) == "" {
-		return fmt.Errorf("id is required")
+		return validationError("id is required")
 	}
 	if strings.TrimSpace(e.Name) == "" {
-		return fmt.Errorf("name is required")
+		return validationError("name is required")
 	}
 
 	validGroups := 0
@@ -44,25 +47,25 @@ func (e Entry) Validate() error {
 		}
 	}
 	if validGroups == 0 {
-		return fmt.Errorf("at least one allowed group is required")
+		return validationError("at least one allowed group is required")
 	}
 
 	switch e.Type {
 	case EntryTypeHost:
 		host, port, err := net.SplitHostPort(strings.TrimSpace(e.Host))
 		if err != nil || strings.TrimSpace(host) == "" {
-			return fmt.Errorf("host entry requires a valid host:port")
+			return validationError("host entry requires a valid host:port")
 		}
 		portNum, err := strconv.Atoi(port)
 		if err != nil || portNum < 1 || portNum > 65535 {
-			return fmt.Errorf("host entry requires a valid host:port")
+			return validationError("host entry requires a valid host:port")
 		}
 	case EntryTypeTemplate:
 		if !strings.HasSuffix(strings.ToLower(strings.TrimSpace(e.UploadedTemplatePath)), ".rdp") {
-			return fmt.Errorf("template entry requires an .rdp uploaded template path")
+			return validationError("template entry requires an .rdp uploaded template path")
 		}
 	default:
-		return fmt.Errorf("invalid entry type %q", e.Type)
+		return validationError(fmt.Sprintf("invalid entry type %q", e.Type))
 	}
 
 	return nil
@@ -95,4 +98,12 @@ func VisibleEntries(entries []Entry, groups []string) []Entry {
 		}
 	}
 	return visible
+}
+
+func IsValidationError(err error) bool {
+	return errors.Is(err, errValidation)
+}
+
+func validationError(message string) error {
+	return fmt.Errorf("%w: %s", errValidation, message)
 }

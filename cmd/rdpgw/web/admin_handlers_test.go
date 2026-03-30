@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -34,6 +35,7 @@ func TestAdminCreateHostEntry(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/entries/host", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "http://example.com")
 	req = withAdminIdentity(req)
 	rr := httptest.NewRecorder()
 
@@ -97,6 +99,7 @@ func TestAdminCreateTemplateEntryRejectsBadUpload(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/entries/template", &body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Origin", "http://example.com")
 	req = withAdminIdentity(req)
 	rr := httptest.NewRecorder()
 
@@ -136,6 +139,7 @@ func TestAdminDeleteEntryRemovesTemplate(t *testing.T) {
 	}
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/entries/template-1", nil)
+	req.Header.Set("Origin", "http://example.com")
 	req = mux.SetURLVars(req, map[string]string{"id": entry.ID})
 	req = withAdminIdentity(req)
 	rr := httptest.NewRecorder()
@@ -161,6 +165,7 @@ func TestAdminDeleteEntryMissingReturnsNotFound(t *testing.T) {
 	handler, _ := newAdminTestHandler(t)
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/entries/missing", nil)
+	req.Header.Set("Origin", "http://example.com")
 	req = mux.SetURLVars(req, map[string]string{"id": "missing"})
 	req = withAdminIdentity(req)
 	rr := httptest.NewRecorder()
@@ -206,6 +211,48 @@ func TestAdminListEntries(t *testing.T) {
 	}
 }
 
+func TestAdminListEntriesDoesNotExposeUploadedTemplatePath(t *testing.T) {
+	handler, store := newAdminTestHandler(t)
+
+	uploadPath, err := store.SaveUpload(strings.NewReader("full address:s:host.internal:3389\r\n"))
+	if err != nil {
+		t.Fatalf("save upload: %v", err)
+	}
+
+	entry := dashboard.Entry{
+		ID:                   "template-1",
+		Type:                 dashboard.EntryTypeTemplate,
+		Name:                 "Template",
+		AllowedGroups:        []string{"homelab-users"},
+		Enabled:              true,
+		UploadedTemplatePath: uploadPath,
+	}
+	if err := store.Put(entry); err != nil {
+		t.Fatalf("put entry: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/entries", nil)
+	req = withAdminIdentity(req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminListEntries(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	var entries []map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &entries); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("entry count = %d, want 1", len(entries))
+	}
+	if _, ok := entries[0]["uploadedTemplatePath"]; ok {
+		t.Fatalf("unexpected uploadedTemplatePath in response: %+v", entries[0])
+	}
+}
+
 func TestAdminUpdateEntry(t *testing.T) {
 	handler, store := newAdminTestHandler(t)
 
@@ -233,6 +280,7 @@ func TestAdminUpdateEntry(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/entries/host-1", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "http://example.com")
 	req = mux.SetURLVars(req, map[string]string{"id": entry.ID})
 	req = withAdminIdentity(req)
 	rr := httptest.NewRecorder()
@@ -279,6 +327,7 @@ func TestAdminCreateTemplateEntry(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/entries/template", &body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Origin", "http://example.com")
 	req = withAdminIdentity(req)
 	rr := httptest.NewRecorder()
 
@@ -288,14 +337,24 @@ func TestAdminCreateTemplateEntry(t *testing.T) {
 		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusCreated)
 	}
 
-	var created dashboard.Entry
+	var created map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &created); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if created.UploadedTemplatePath == "" {
-		t.Fatalf("expected uploaded template path to be set")
+	if _, ok := created["uploadedTemplatePath"]; ok {
+		t.Fatalf("unexpected uploadedTemplatePath in response: %+v", created)
 	}
-	if _, err := os.Stat(store.ResolveUpload(created.UploadedTemplatePath)); err != nil {
+	entries, err := store.List()
+	if err != nil {
+		t.Fatalf("list entries: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("entry count = %d, want 1", len(entries))
+	}
+	if entries[0].UploadedTemplatePath == "" {
+		t.Fatalf("expected stored uploaded template path to be set")
+	}
+	if _, err := os.Stat(store.ResolveUpload(entries[0].UploadedTemplatePath)); err != nil {
 		t.Fatalf("expected uploaded file to exist: %v", err)
 	}
 }
@@ -339,6 +398,86 @@ func TestAdminCreateHostEntryValidationReturnsBadRequest(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/entries/host", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "http://example.com")
+	req = withAdminIdentity(req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminCreateHostEntry(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusBadRequest)
+	}
+}
+
+func TestAdminCreateHostEntryRejectsCrossOriginRequest(t *testing.T) {
+	handler, _ := newAdminTestHandler(t)
+
+	payload := `{"name":"Lab Host","allowedGroups":["homelab-users"],"host":"lab.internal:3389"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/entries/host", strings.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "https://evil.example")
+	req = withAdminIdentity(req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminCreateHostEntry(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusForbidden)
+	}
+}
+
+func TestAdminCreateTemplateEntryRejectsCrossOriginRequest(t *testing.T) {
+	handler, _ := newAdminTestHandler(t)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	if err := writer.WriteField("name", "Good Template"); err != nil {
+		t.Fatalf("write form field name: %v", err)
+	}
+	if err := writer.WriteField("allowedGroups", "homelab-users"); err != nil {
+		t.Fatalf("write form field allowedGroups: %v", err)
+	}
+	fileWriter, err := writer.CreateFormFile("template", "good.rdp")
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
+	if _, err := fileWriter.Write([]byte("full address:s:template.internal:3389\r\n")); err != nil {
+		t.Fatalf("write upload content: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close multipart writer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/entries/template", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Origin", "https://evil.example")
+	req = withAdminIdentity(req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminCreateTemplateEntry(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusForbidden)
+	}
+}
+
+func TestAdminCreateHostEntryMapsStoreValidationErrorsToBadRequest(t *testing.T) {
+	putErr := (dashboard.Entry{}).Validate()
+	if putErr == nil {
+		t.Fatal("expected validation error")
+	}
+
+	handler := (&Config{
+		Hosts:          []string{"fallback.internal:3389"},
+		HostSelection:  "roundrobin",
+		DashboardStore: stubAdminStore{putErr: putErr},
+		AdminGroups:    []string{"rdpgw-admins"},
+	}).NewHandler()
+
+	payload := `{"name":"Lab Host","allowedGroups":["homelab-users"],"host":"lab.internal:3389"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/entries/host", strings.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "http://example.com")
 	req = withAdminIdentity(req)
 	rr := httptest.NewRecorder()
 
@@ -375,4 +514,32 @@ func withAdminIdentity(req *http.Request) *http.Request {
 	id.SetAuthenticated(true)
 	id.SetGroups([]string{"rdpgw-admins"})
 	return identity.AddToRequestCtx(id, req)
+}
+
+type stubAdminStore struct {
+	putErr error
+}
+
+func (s stubAdminStore) List() ([]dashboard.Entry, error) {
+	return nil, nil
+}
+
+func (s stubAdminStore) Get(id string) (dashboard.Entry, error) {
+	return dashboard.Entry{}, dashboard.ErrEntryNotFound
+}
+
+func (s stubAdminStore) Put(entry dashboard.Entry) error {
+	return s.putErr
+}
+
+func (s stubAdminStore) Delete(id string) error {
+	return nil
+}
+
+func (s stubAdminStore) SaveUpload(src io.Reader) (string, error) {
+	return "", nil
+}
+
+func (s stubAdminStore) ResolveUpload(path string) string {
+	return path
 }

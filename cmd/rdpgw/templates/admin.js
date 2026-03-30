@@ -34,6 +34,9 @@ async function adminRequest(url, init = {}) {
             throw new Error('authentication required');
         }
         const body = await response.text();
+        if (response.status >= 500) {
+            throw new Error(`server error (${response.status})`);
+        }
         throw new Error(body || `request failed (${response.status})`);
     }
 
@@ -83,7 +86,7 @@ function renderAdminEntries(entries) {
 
         const target = document.createElement('p');
         target.className = 'entry-meta';
-        target.textContent = entry.host || entry.targetHostOverride || entry.uploadedTemplatePath || '';
+        target.textContent = entry.host || entry.targetHostOverride || (entry.hasUploadedTemplate ? 'Uploaded template' : '');
 
         const groups = document.createElement('p');
         groups.className = 'entry-meta';
