@@ -14,7 +14,9 @@ Authenticated OpenID dashboard page (`/`) that renders:
 Authenticated OpenID admin page (`/admin`) for users in configured admin groups:
 - Host entry create form
 - Template upload form
+- Direct-auth user create form
 - Entry list management area
+- Direct-auth user management area
 
 ### `index.html`
 Legacy web interface template used by existing non-dashboard flows.
@@ -31,9 +33,12 @@ Dashboard logic:
 ### `admin.js`
 Admin panel logic:
 - Fetches `/api/v1/admin/entries`
+- Fetches `/api/v1/admin/auth-users`
 - Creates host entries with `POST /api/v1/admin/entries/host`
 - Uploads template entries with `POST /api/v1/admin/entries/template`
 - Updates/deletes entries via `PUT`/`DELETE /api/v1/admin/entries/{id}`
+- Creates direct-auth users with `POST /api/v1/admin/auth-users`
+- Updates/deletes direct-auth users via `PUT`/`DELETE /api/v1/admin/auth-users/{username}`
 - Surfaces API failures in-page
 
 ### `app.js`
@@ -64,6 +69,8 @@ Update this file to keep visual consistency across all pages.
 - `/api/v1/admin/entries/host` -> create host entry
 - `/api/v1/admin/entries/template` -> create template entry
 - `/api/v1/admin/entries/{id}` -> update/delete entry
-- `/connect` and `/connect/entries/{id}.rdp` -> RDP download routes
+- `/api/v1/admin/auth-users` -> direct-auth user list/create
+- `/api/v1/admin/auth-users/{username}` -> direct-auth user update/delete
+- `/connect/entries/{id}.rdp` -> dashboard RDP download route
 
 If `dashboard.html` or `admin.html` are missing, the server uses embedded fallback HTML.

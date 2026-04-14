@@ -1,6 +1,6 @@
 # NTLM Authentication
 
-RDPGW supports NTLM authentication for simple setup with Windows clients, particularly useful for small deployments with a limited number of users.
+RDPGW supports NTLM authentication for direct RDP clients such as the default Windows client `mstsc`. In the homelab dashboard deployment, NTLM and `local` direct auth both read from the same helper-managed user list.
 
 ## Advantages
 
@@ -29,10 +29,13 @@ Caps:
 
 ### 2. Authentication Helper Configuration
 
-Create configuration file for `rdpgw-auth` with user credentials:
+The `rdpgw-auth` helper reads user credentials from the YAML file pointed to by `RDPGW_AUTH_HELPER_CONFIG`.
+
+- In dashboard-managed deployments, this file is generated automatically from `/admin`.
+- In standalone deployments, you can still provide the file yourself.
 
 ```yaml
-# /etc/rdpgw-auth.yaml
+# /var/lib/rdpgw/dashboard/rdpgw-auth.yaml
 Users:
   - Username: "alice"
     Password: "secure_password_1"
@@ -47,7 +50,7 @@ Users:
 Run the `rdpgw-auth` helper with NTLM configuration:
 
 ```bash
-./rdpgw-auth -c /etc/rdpgw-auth.yaml -s /tmp/rdpgw-auth.sock
+./rdpgw-auth -c /var/lib/rdpgw/dashboard/rdpgw-auth.yaml -s /tmp/rdpgw-auth.sock
 ```
 
 ## Authentication Flow
@@ -59,27 +62,21 @@ Run the `rdpgw-auth` helper with NTLM configuration:
 
 ## User Management
 
-### Adding Users
+### Dashboard-Managed Mode
 
-Edit the configuration file and restart the helper:
+When OpenID Connect dashboard mode is enabled:
 
-```yaml
-Users:
-  - Username: "newuser"
-    Password: "new_secure_password"
-  - Username: "existing_user"
-    Password: "existing_password"
-```
+1. Sign in to `/admin` with an OIDC user in `Dashboard.AdminGroups`
+2. Create or update direct-auth users in the "Direct Auth Users" section
+3. The server writes `auth-users.json`
+4. The server regenerates `RDPGW_AUTH_HELPER_CONFIG`
+5. `rdpgw-auth` reloads the config automatically on the next auth request
 
-### Password Rotation
+No manual helper restart is required.
 
-1. Update passwords in configuration file
-2. Restart `rdpgw-auth` helper
-3. Notify users of password changes
+### Standalone Mode
 
-### User Removal
-
-Remove user entries from configuration and restart helper.
+If you are not using the dashboard, update the helper YAML directly and make sure `rdpgw-auth` can read the changed file.
 
 ## Deployment Options
 
@@ -95,7 +92,7 @@ After=network.target
 [Service]
 Type=simple
 User=rdpgw
-ExecStart=/usr/local/bin/rdpgw-auth -c /etc/rdpgw-auth.yaml -s /tmp/rdpgw-auth.sock
+ExecStart=/usr/local/bin/rdpgw-auth -c /var/lib/rdpgw/dashboard/rdpgw-auth.yaml -s /tmp/rdpgw-auth.sock
 Restart=always
 RestartSec=5
 
@@ -111,7 +108,7 @@ services:
   rdpgw-auth:
     image: rdpgw-auth
     volumes:
-      - ./rdpgw-auth.yaml:/etc/rdpgw-auth.yaml:ro
+      - ./data/dashboard:/var/lib/rdpgw/dashboard
       - auth-socket:/tmp
     restart: always
 
@@ -151,7 +148,7 @@ spec:
         image: rdpgw-auth
         volumeMounts:
         - name: config
-          mountPath: /etc/rdpgw-auth.yaml
+          mountPath: /var/lib/rdpgw/dashboard/rdpgw-auth.yaml
           subPath: rdpgw-auth.yaml
       volumes:
       - name: config
@@ -241,7 +238,7 @@ For production environments, consider migrating to more secure authentication me
 ps aux | grep rdpgw-auth
 
 # Verify configuration
-cat /etc/rdpgw-auth.yaml
+cat /var/lib/rdpgw/dashboard/rdpgw-auth.yaml
 
 # Test socket connectivity
 ls -la /tmp/rdpgw-auth.sock
@@ -255,7 +252,7 @@ journalctl -u rdpgw-auth -f
 Enable debug logging in `rdpgw-auth` for detailed NTLM protocol analysis:
 
 ```bash
-./rdpgw-auth -c /etc/rdpgw-auth.yaml -s /tmp/rdpgw-auth.sock -v
+./rdpgw-auth -c /var/lib/rdpgw/dashboard/rdpgw-auth.yaml -s /tmp/rdpgw-auth.sock -v
 ```
 
 ## Future Enhancements
