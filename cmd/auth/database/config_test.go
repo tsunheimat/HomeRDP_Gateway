@@ -2,10 +2,12 @@ package database
 
 import (
 	"github.com/bolkedebruin/rdpgw/cmd/auth/config"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
-func createTestDatabase () (Database) {
+func createTestDatabase() Database {
 	var users = []config.UserConfig{}
 
 	user1 := config.UserConfig{}
@@ -39,5 +41,53 @@ func TestDatabaseInvalidUsername(t *testing.T) {
 
 	if database.GetPassword("my_invalid_username") != "" {
 		t.Fatalf("Non empty password returned for invalid username")
+	}
+}
+
+func TestDatabaseReloadsUsersFromConfigFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "rdpgw-auth.yaml")
+	if err := os.WriteFile(path, []byte("Users:\n  - Username: alice\n    Password: first\n"), 0o600); err != nil {
+		t.Fatalf("write initial config: %v", err)
+	}
+
+	database, err := NewConfigFile(path)
+	if err != nil {
+		t.Fatalf("new config file database: %v", err)
+	}
+
+	if got := database.GetPassword("alice"); got != "first" {
+		t.Fatalf("password = %q, want %q", got, "first")
+	}
+
+	if err := os.WriteFile(path, []byte("Users:\n  - Username: alice\n    Password: second\n"), 0o600); err != nil {
+		t.Fatalf("write updated config: %v", err)
+	}
+
+	if got := database.GetPassword("alice"); got != "second" {
+		t.Fatalf("password after reload = %q, want %q", got, "second")
+	}
+}
+
+func TestDatabaseKeepsLastGoodConfigOnMalformedReload(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "rdpgw-auth.yaml")
+	if err := os.WriteFile(path, []byte("Users:\n  - Username: alice\n    Password: first\n"), 0o600); err != nil {
+		t.Fatalf("write initial config: %v", err)
+	}
+
+	database, err := NewConfigFile(path)
+	if err != nil {
+		t.Fatalf("new config file database: %v", err)
+	}
+
+	if got := database.GetPassword("alice"); got != "first" {
+		t.Fatalf("password = %q, want %q", got, "first")
+	}
+
+	if err := os.WriteFile(path, []byte("Users:\n  - Username: alice\n    Password: [\n"), 0o600); err != nil {
+		t.Fatalf("write malformed config: %v", err)
+	}
+
+	if got := database.GetPassword("alice"); got != "first" {
+		t.Fatalf("password after malformed reload = %q, want %q", got, "first")
 	}
 }
