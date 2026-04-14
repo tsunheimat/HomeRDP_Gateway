@@ -2,23 +2,6 @@
 
 USER=rdpgw
 
-file="/root/createusers.txt"
-if [ -f $file ]
-  then
-    while IFS=: read -r username password is_sudo
-        do
-            echo "Username: $username, Password: **** , Sudo: $is_sudo"
-
-            if getent passwd "$username" > /dev/null 2>&1
-              then
-                echo "User Exists"
-              else
-                adduser -s /sbin/nologin "$username"
-                echo "$username:$password" | chpasswd
-            fi
-    done <"$file"
-fi
-
 cd /opt/rdpgw || exit 1
 
 AUTH_MODES=$(echo "${RDPGW_SERVER__AUTHENTICATION}" | tr ',;' ' ')

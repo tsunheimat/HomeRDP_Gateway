@@ -2,7 +2,7 @@
 FROM golang:1.24-alpine as builder
 
 # Install CA certificates explicitly in builder
-RUN apk --no-cache add git gcc musl-dev linux-pam-dev openssl
+RUN apk --no-cache add git gcc musl-dev openssl
 
 # add user
 RUN adduser --disabled-password --gecos "" --home /opt/rdpgw --uid 1001 rdpgw
@@ -23,18 +23,17 @@ RUN git clone https://github.com/bolkedebruin/rdpgw.git /app && \
     cd /app && \
     go mod tidy -compat=1.19 && \
     CGO_ENABLED=0 GOOS=linux go build -trimpath -tags '' -ldflags '' -o '/opt/rdpgw/rdpgw' ./cmd/rdpgw && \
-    CGO_ENABLED=1 GOOS=linux go build -trimpath -tags '' -ldflags '' -o '/opt/rdpgw/rdpgw-auth' ./cmd/auth && \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -tags '' -ldflags '' -o '/opt/rdpgw/rdpgw-auth' ./cmd/auth && \
     chmod +x /opt/rdpgw/rdpgw && \
     chmod +x /opt/rdpgw/rdpgw-auth && \
     chmod u+s /opt/rdpgw/rdpgw-auth
 
 FROM alpine:latest
 # Install CA certificates in final stage
-RUN apk --no-cache add linux-pam musl tzdata ca-certificates && update-ca-certificates
+RUN apk --no-cache add musl tzdata ca-certificates && update-ca-certificates
 
 # make tempdir in case filestore is used
 ADD tmp.tar /
-COPY --chown=0 rdpgw-pam /etc/pam.d/rdpgw
 
 USER 1001
 COPY --chown=1001 run.sh run.sh

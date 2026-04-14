@@ -4,11 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/bolkedebruin/rdpgw/cmd/auth/config"
 	"github.com/bolkedebruin/rdpgw/cmd/auth/database"
 	"github.com/bolkedebruin/rdpgw/cmd/auth/ntlm"
 	"github.com/bolkedebruin/rdpgw/shared/auth"
-	"github.com/msteinert/pam/v2"
 	"github.com/thought-machine/go-flags"
 	"google.golang.org/grpc"
 	"log"
@@ -22,64 +20,33 @@ const (
 )
 
 var opts struct {
-	ServiceName string `short:"n" long:"name" default:"rdpgw" description:"the PAM service name to use"`
-	SocketAddr  string `short:"s" long:"socket" default:"/tmp/rdpgw-auth.sock" description:"the location of the socket"`
-	ConfigFile string `short:"c" long:"conf" default:"rdpgw-auth.yaml" description:"users config file for NTLM (yaml)"`
+	SocketAddr string `short:"s" long:"socket" default:"/tmp/rdpgw-auth.sock" description:"the location of the socket"`
+	ConfigFile string `short:"c" long:"conf" default:"rdpgw-auth.yaml" description:"users config file (yaml)"`
 }
 
 type AuthServiceImpl struct {
 	auth.UnimplementedAuthenticateServer
 
-	serviceName string
-	ntlm *ntlm.NTLMAuth
+	database database.Database
+	ntlm     *ntlm.NTLMAuth
 }
 
-var conf config.Configuration
 var _ auth.AuthenticateServer = (*AuthServiceImpl)(nil)
 
-func NewAuthService(serviceName string, database database.Database) auth.AuthenticateServer {
+func NewAuthService(database database.Database) auth.AuthenticateServer {
 	s := &AuthServiceImpl{
-		serviceName: serviceName,
-		ntlm: ntlm.NewNTLMAuth(database),
+		database: database,
+		ntlm:     ntlm.NewNTLMAuth(database),
 	}
 	return s
 }
 
 func (s *AuthServiceImpl) Authenticate(ctx context.Context, message *auth.UserPass) (*auth.AuthResponse, error) {
-	t, err := pam.StartFunc(s.serviceName, message.Username, func(s pam.Style, msg string) (string, error) {
-		switch s {
-		case pam.PromptEchoOff:
-			return message.Password, nil
-		case pam.PromptEchoOn, pam.ErrorMsg, pam.TextInfo:
-			return "", nil
-		}
-		return "", errors.New("unrecognized PAM message style")
-	})
-
 	r := &auth.AuthResponse{}
-	r.Authenticated = false
-
-	if err != nil {
-		log.Printf("Error authenticating user: %s due to: %s", message.Username, err)
-		r.Error = err.Error()
-		return r, err
-	}
-	defer func() {
-		err := t.End()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "end: %v\n", err)
-			os.Exit(1)
-		}
-	}()
-	if err = t.Authenticate(0); err != nil {
-		log.Printf("Authentication for user: %s failed due to: %s", message.Username, err)
-		r.Error = err.Error()
-		return r, nil
-	}
-
-	if err = t.AcctMgmt(0); err != nil {
-		log.Printf("Account authorization for user: %s failed due to %s", message.Username, err)
-		r.Error = err.Error()
+	storedPassword := s.database.GetPassword(message.Username)
+	if storedPassword == "" || storedPassword != message.Password {
+		log.Printf("Authentication for user: %s failed", message.Username)
+		r.Error = "Authentication failure"
 		return r, nil
 	}
 
@@ -115,8 +82,6 @@ func main() {
 		return
 	}
 
-	conf = config.Load(opts.ConfigFile)
-
 	log.Printf("Starting auth server on %s", opts.SocketAddr)
 	cleanup := func() {
 		if _, err := os.Stat(opts.SocketAddr); err == nil {
@@ -134,8 +99,11 @@ func main() {
 		log.Fatal(err)
 	}
 	server := grpc.NewServer()
-	db := database.NewConfig(conf.Users)
-	service := NewAuthService(opts.ServiceName, db)
+	db, err := database.NewConfigFile(opts.ConfigFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	service := NewAuthService(db)
 	auth.RegisterAuthenticateServer(server, service)
 	server.Serve(listener)
 }
