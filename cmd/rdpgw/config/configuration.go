@@ -72,10 +72,12 @@ type OpenIDConfig struct {
 }
 
 type DashboardConfig struct {
-	StorePath       string   `koanf:"storepath"`
-	UploadDir       string   `koanf:"uploaddir"`
-	AdminGroups     []string `koanf:"admingroups"`
-	MaxUploadSizeMb int      `koanf:"maxuploadsizemb"`
+	StorePath            string   `koanf:"storepath"`
+	UploadDir            string   `koanf:"uploaddir"`
+	AuthUsersPath        string   `koanf:"authuserspath"`
+	AuthHelperConfigPath string   `koanf:"authhelperconfigpath"`
+	AdminGroups          []string `koanf:"admingroups"`
+	MaxUploadSizeMb      int      `koanf:"maxuploadsizemb"`
 }
 
 type HeaderConfig struct {
@@ -155,11 +157,13 @@ func ToCamel(s string) string {
 }
 
 var envKeyOverrides = map[string]string{
-	"Openid.Groupsclaim":        "OpenId.GroupsClaim",
-	"Dashboard.Storepath":       "Dashboard.StorePath",
-	"Dashboard.Uploaddir":       "Dashboard.UploadDir",
-	"Dashboard.Admingroups":     "Dashboard.AdminGroups",
-	"Dashboard.Maxuploadsizemb": "Dashboard.MaxUploadSizeMb",
+	"Openid.Groupsclaim":             "OpenId.GroupsClaim",
+	"Dashboard.Storepath":            "Dashboard.StorePath",
+	"Dashboard.Uploaddir":            "Dashboard.UploadDir",
+	"Dashboard.Authuserspath":        "Dashboard.AuthUsersPath",
+	"Dashboard.Authhelperconfigpath": "Dashboard.AuthHelperConfigPath",
+	"Dashboard.Admingroups":          "Dashboard.AdminGroups",
+	"Dashboard.Maxuploadsizemb":      "Dashboard.MaxUploadSizeMb",
 }
 
 var Conf Configuration
@@ -172,6 +176,26 @@ func deriveUploadDir(storePath string) string {
 		return storePath + "uploads"
 	}
 	return storePath + "/uploads"
+}
+
+func deriveAuthUsersPath(storePath string) string {
+	if storePath == "" {
+		return "auth-users.json"
+	}
+	if strings.HasSuffix(storePath, "/") {
+		return storePath + "auth-users.json"
+	}
+	return storePath + "/auth-users.json"
+}
+
+func deriveAuthHelperConfigPath(storePath string) string {
+	if storePath == "" {
+		return "rdpgw-auth.yaml"
+	}
+	if strings.HasSuffix(storePath, "/") {
+		return storePath + "rdpgw-auth.yaml"
+	}
+	return storePath + "/rdpgw-auth.yaml"
 }
 
 func Load(configFile string) Configuration {
@@ -235,6 +259,12 @@ func Load(configFile string) Configuration {
 
 	if Conf.Dashboard.UploadDir == "" {
 		Conf.Dashboard.UploadDir = deriveUploadDir(Conf.Dashboard.StorePath)
+	}
+	if Conf.Dashboard.AuthUsersPath == "" {
+		Conf.Dashboard.AuthUsersPath = deriveAuthUsersPath(Conf.Dashboard.StorePath)
+	}
+	if Conf.Dashboard.AuthHelperConfigPath == "" {
+		Conf.Dashboard.AuthHelperConfigPath = deriveAuthHelperConfigPath(Conf.Dashboard.StorePath)
 	}
 
 	if len(Conf.Security.PAATokenEncryptionKey) != 32 {
