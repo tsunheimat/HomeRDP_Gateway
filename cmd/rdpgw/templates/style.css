@@ -264,6 +264,10 @@ body {
     margin-left: 0.5rem;
 }
 
+.admin-link[hidden] {
+    display: none;
+}
+
 .admin-link:hover {
     background: var(--secondary);
 }
@@ -392,6 +396,18 @@ body {
     padding: 0.9rem;
     margin-bottom: 0.75rem;
     background: var(--card);
+}
+
+.entry-row label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-bottom: 0.6rem;
+}
+
+.entry-row input {
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .entry-row-main {

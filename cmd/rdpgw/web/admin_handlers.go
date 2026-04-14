@@ -49,6 +49,24 @@ type adminEntryResponse struct {
 	UpdatedAt           time.Time `json:"updatedAt"`
 }
 
+type adminCreateAuthUserRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Enabled  *bool  `json:"enabled"`
+}
+
+type adminUpdateAuthUserRequest struct {
+	Password *string `json:"password"`
+	Enabled  *bool   `json:"enabled"`
+}
+
+type adminAuthUserResponse struct {
+	Username  string    `json:"username"`
+	Enabled   bool      `json:"enabled"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
 func (h *Handler) HandleAdminListEntries(w http.ResponseWriter, r *http.Request) {
 	if h.dashboardStore == nil {
 		http.Error(w, "dashboard store not configured", http.StatusServiceUnavailable)
@@ -283,6 +301,162 @@ func (h *Handler) HandleAdminDeleteEntry(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *Handler) HandleAdminListAuthUsers(w http.ResponseWriter, r *http.Request) {
+	if h.dashboardAuthUserStore == nil {
+		http.Error(w, "auth user store not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	users, err := h.dashboardAuthUserStore.List()
+	if err != nil {
+		http.Error(w, "unable to list auth users", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(adminAuthUserResponses(users))
+}
+
+func (h *Handler) HandleAdminCreateAuthUser(w http.ResponseWriter, r *http.Request) {
+	if !sameOriginAdminRequest(r) {
+		http.Error(w, "cross-origin admin request forbidden", http.StatusForbidden)
+		return
+	}
+	if h.dashboardAuthUserStore == nil || h.authHelperConfigPath == "" {
+		http.Error(w, "auth user management not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	var req adminCreateAuthUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	enabled := true
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+
+	user := dashboard.AuthUser{
+		Username: strings.TrimSpace(req.Username),
+		Password: req.Password,
+		Enabled:  enabled,
+	}
+	if err := h.dashboardAuthUserStore.Put(user); err != nil {
+		http.Error(w, err.Error(), statusForStorePutError(err))
+		return
+	}
+	if err := h.regenerateAuthHelperConfig(); err != nil {
+		http.Error(w, "unable to write auth helper config", http.StatusInternalServerError)
+		return
+	}
+
+	stored, err := h.dashboardAuthUserStore.Get(user.Username)
+	if err != nil {
+		http.Error(w, "unable to load auth user", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(newAdminAuthUserResponse(stored))
+}
+
+func (h *Handler) HandleAdminUpdateAuthUser(w http.ResponseWriter, r *http.Request) {
+	if !sameOriginAdminRequest(r) {
+		http.Error(w, "cross-origin admin request forbidden", http.StatusForbidden)
+		return
+	}
+	if h.dashboardAuthUserStore == nil || h.authHelperConfigPath == "" {
+		http.Error(w, "auth user management not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	username := strings.TrimSpace(mux.Vars(r)["username"])
+	if username == "" {
+		http.Error(w, "missing username", http.StatusBadRequest)
+		return
+	}
+
+	user, err := h.dashboardAuthUserStore.Get(username)
+	if err != nil {
+		if errors.Is(err, dashboard.ErrAuthUserNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, "unable to load auth user", http.StatusInternalServerError)
+		return
+	}
+
+	var req adminUpdateAuthUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Password != nil {
+		user.Password = *req.Password
+	}
+	if req.Enabled != nil {
+		user.Enabled = *req.Enabled
+	}
+
+	if err := h.dashboardAuthUserStore.Put(user); err != nil {
+		http.Error(w, err.Error(), statusForStorePutError(err))
+		return
+	}
+	if err := h.regenerateAuthHelperConfig(); err != nil {
+		http.Error(w, "unable to write auth helper config", http.StatusInternalServerError)
+		return
+	}
+
+	updated, err := h.dashboardAuthUserStore.Get(username)
+	if err != nil {
+		http.Error(w, "unable to load auth user", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(newAdminAuthUserResponse(updated))
+}
+
+func (h *Handler) HandleAdminDeleteAuthUser(w http.ResponseWriter, r *http.Request) {
+	if !sameOriginAdminRequest(r) {
+		http.Error(w, "cross-origin admin request forbidden", http.StatusForbidden)
+		return
+	}
+	if h.dashboardAuthUserStore == nil || h.authHelperConfigPath == "" {
+		http.Error(w, "auth user management not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	username := strings.TrimSpace(mux.Vars(r)["username"])
+	if username == "" {
+		http.Error(w, "missing username", http.StatusBadRequest)
+		return
+	}
+
+	if _, err := h.dashboardAuthUserStore.Get(username); err != nil {
+		if errors.Is(err, dashboard.ErrAuthUserNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, "unable to load auth user", http.StatusInternalServerError)
+		return
+	}
+	if err := h.dashboardAuthUserStore.Delete(username); err != nil {
+		http.Error(w, "unable to delete auth user", http.StatusInternalServerError)
+		return
+	}
+	if err := h.regenerateAuthHelperConfig(); err != nil {
+		http.Error(w, "unable to write auth helper config", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func newEntryID() (string, error) {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
@@ -360,6 +534,14 @@ func adminEntryResponses(entries []dashboard.Entry) []adminEntryResponse {
 	return out
 }
 
+func adminAuthUserResponses(users []dashboard.AuthUser) []adminAuthUserResponse {
+	out := make([]adminAuthUserResponse, 0, len(users))
+	for _, user := range users {
+		out = append(out, newAdminAuthUserResponse(user))
+	}
+	return out
+}
+
 func newAdminEntryResponse(entry dashboard.Entry) adminEntryResponse {
 	return adminEntryResponse{
 		ID:                  entry.ID,
@@ -374,4 +556,21 @@ func newAdminEntryResponse(entry dashboard.Entry) adminEntryResponse {
 		CreatedAt:           entry.CreatedAt,
 		UpdatedAt:           entry.UpdatedAt,
 	}
+}
+
+func newAdminAuthUserResponse(user dashboard.AuthUser) adminAuthUserResponse {
+	return adminAuthUserResponse{
+		Username:  user.Username,
+		Enabled:   user.Enabled,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+	}
+}
+
+func (h *Handler) regenerateAuthHelperConfig() error {
+	users, err := h.dashboardAuthUserStore.List()
+	if err != nil {
+		return err
+	}
+	return dashboard.WriteAuthHelperConfig(h.authHelperConfigPath, users)
 }

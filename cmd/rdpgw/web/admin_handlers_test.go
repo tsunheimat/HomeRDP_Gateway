@@ -359,6 +359,141 @@ func TestAdminCreateTemplateEntry(t *testing.T) {
 	}
 }
 
+func TestAdminCreateAuthUserWritesHelperConfig(t *testing.T) {
+	handler, authStore, helperConfigPath := newAdminAuthTestHandler(t)
+
+	body := strings.NewReader(`{"username":"alice","password":"secret","enabled":true}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/auth-users", body)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "http://example.com")
+	req = withAdminIdentity(req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminCreateAuthUser(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusCreated)
+	}
+
+	stored, err := authStore.Get("alice")
+	if err != nil {
+		t.Fatalf("get auth user: %v", err)
+	}
+	if stored.Password != "secret" || !stored.Enabled {
+		t.Fatalf("unexpected stored auth user: %+v", stored)
+	}
+
+	data, err := os.ReadFile(helperConfigPath)
+	if err != nil {
+		t.Fatalf("read helper config: %v", err)
+	}
+	text := string(data)
+	if !strings.Contains(text, "alice") || !strings.Contains(text, "secret") {
+		t.Fatalf("expected helper config to contain created user, got %q", text)
+	}
+}
+
+func TestAdminListAuthUsersDoesNotExposePassword(t *testing.T) {
+	handler, authStore, _ := newAdminAuthTestHandler(t)
+	if err := authStore.Put(dashboard.AuthUser{Username: "alice", Password: "secret", Enabled: true}); err != nil {
+		t.Fatalf("put auth user: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/auth-users", nil)
+	req = withAdminIdentity(req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminListAuthUsers(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	var payload []map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(payload) != 1 {
+		t.Fatalf("auth user count = %d, want 1", len(payload))
+	}
+	if _, ok := payload[0]["password"]; ok {
+		t.Fatalf("password should not be exposed in list response: %+v", payload[0])
+	}
+}
+
+func TestAdminUpdateAuthUserDisablesHelperAccess(t *testing.T) {
+	handler, authStore, helperConfigPath := newAdminAuthTestHandler(t)
+	if err := authStore.Put(dashboard.AuthUser{Username: "alice", Password: "secret", Enabled: true}); err != nil {
+		t.Fatalf("put auth user: %v", err)
+	}
+	if err := dashboard.WriteAuthHelperConfig(helperConfigPath, []dashboard.AuthUser{{Username: "alice", Password: "secret", Enabled: true}}); err != nil {
+		t.Fatalf("seed helper config: %v", err)
+	}
+
+	body := strings.NewReader(`{"password":"newsecret","enabled":false}`)
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/auth-users/alice", body)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "http://example.com")
+	req = mux.SetURLVars(req, map[string]string{"username": "alice"})
+	req = withAdminIdentity(req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminUpdateAuthUser(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	stored, err := authStore.Get("alice")
+	if err != nil {
+		t.Fatalf("get auth user: %v", err)
+	}
+	if stored.Password != "newsecret" || stored.Enabled {
+		t.Fatalf("unexpected stored auth user: %+v", stored)
+	}
+
+	data, err := os.ReadFile(helperConfigPath)
+	if err != nil {
+		t.Fatalf("read helper config: %v", err)
+	}
+	if strings.Contains(string(data), "alice") {
+		t.Fatalf("disabled auth user should be omitted from helper config, got %q", string(data))
+	}
+}
+
+func TestAdminDeleteAuthUserRemovesHelperEntry(t *testing.T) {
+	handler, authStore, helperConfigPath := newAdminAuthTestHandler(t)
+	if err := authStore.Put(dashboard.AuthUser{Username: "alice", Password: "secret", Enabled: true}); err != nil {
+		t.Fatalf("put auth user: %v", err)
+	}
+	if err := dashboard.WriteAuthHelperConfig(helperConfigPath, []dashboard.AuthUser{{Username: "alice", Password: "secret", Enabled: true}}); err != nil {
+		t.Fatalf("seed helper config: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/auth-users/alice", nil)
+	req.Header.Set("Origin", "http://example.com")
+	req = mux.SetURLVars(req, map[string]string{"username": "alice"})
+	req = withAdminIdentity(req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminDeleteAuthUser(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusNoContent)
+	}
+	if _, err := authStore.Get("alice"); err != dashboard.ErrAuthUserNotFound {
+		t.Fatalf("expected ErrAuthUserNotFound, got %v", err)
+	}
+
+	data, err := os.ReadFile(helperConfigPath)
+	if err != nil {
+		t.Fatalf("read helper config: %v", err)
+	}
+	if strings.Contains(string(data), "alice") {
+		t.Fatalf("deleted auth user should be removed from helper config, got %q", string(data))
+	}
+}
+
 func TestAdminOnlyRequiresAdmin(t *testing.T) {
 	handler, _ := newAdminTestHandler(t)
 
@@ -506,6 +641,33 @@ func newAdminTestHandler(t *testing.T) (*Handler, dashboard.Store) {
 	}).NewHandler()
 
 	return handler, store
+}
+
+func newAdminAuthTestHandler(t *testing.T) (*Handler, dashboard.AuthUserStore, string) {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	entryStore, err := dashboard.NewFileStore(filepath.Join(tmpDir, "catalog"), filepath.Join(tmpDir, "uploads"))
+	if err != nil {
+		t.Fatalf("new dashboard store: %v", err)
+	}
+	authUserStore, err := dashboard.NewFileAuthUserStore(filepath.Join(tmpDir, "catalog", "auth-users.json"))
+	if err != nil {
+		t.Fatalf("new auth user store: %v", err)
+	}
+	helperConfigPath := filepath.Join(tmpDir, "catalog", "rdpgw-auth.yaml")
+
+	handler := (&Config{
+		Hosts:                   []string{"fallback.internal:3389"},
+		HostSelection:           "roundrobin",
+		DashboardStore:          entryStore,
+		DashboardAuthUserStore:  authUserStore,
+		AuthHelperConfigPath:    helperConfigPath,
+		DashboardMaxUploadBytes: 1 << 20,
+		AdminGroups:             []string{"rdpgw-admins"},
+	}).NewHandler()
+
+	return handler, authUserStore, helperConfigPath
 }
 
 func withAdminIdentity(req *http.Request) *http.Request {

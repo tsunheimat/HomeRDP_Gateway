@@ -226,10 +226,23 @@ const fallbackAdminTemplate = `<!DOCTYPE html>
 					<button type="submit" class="primary-button">Upload Template Entry</button>
 				</form>
 			</section>
+			<section class="admin-panel">
+				<h2>Direct Auth User</h2>
+				<form id="authUserForm" class="stack-form">
+					<label>Username<input type="text" name="username" required></label>
+					<label>Password<input type="password" name="password" required></label>
+					<label><input type="checkbox" name="enabled" checked> Enabled</label>
+					<button type="submit" class="primary-button">Create Direct Auth User</button>
+				</form>
+			</section>
 			</div>
 			<section class="admin-panel">
 				<h2>Entries</h2>
 				<div id="adminEntries"></div>
+			</section>
+			<section class="admin-panel">
+				<h2>Direct Auth Users</h2>
+				<div id="adminAuthUsers"></div>
 			</section>
 		</div>
 	</main>

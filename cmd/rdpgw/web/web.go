@@ -37,7 +37,9 @@ type Config struct {
 	QueryTokenIssuer        string
 	EnableUserToken         bool
 	DashboardStore          dashboard.Store
+	DashboardAuthUserStore  dashboard.AuthUserStore
 	DashboardMaxUploadBytes int64
+	AuthHelperConfigPath    string
 	AdminGroups             []string
 	Hosts                   []string
 	HostSelection           string
@@ -87,7 +89,9 @@ type Handler struct {
 	queryTokenIssuer        string
 	adminGroups             []string
 	dashboardStore          dashboard.Store
+	dashboardAuthUserStore  dashboard.AuthUserStore
 	dashboardMaxUploadBytes int64
+	authHelperConfigPath    string
 	gatewayAddress          *url.URL
 	hosts                   []string
 	hostSelection           string
@@ -100,7 +104,7 @@ type Handler struct {
 }
 
 func (c *Config) NewHandler() *Handler {
-	if len(c.Hosts) < 1 {
+	if len(c.Hosts) < 1 && c.DashboardStore == nil {
 		log.Fatal("Not enough hosts to connect to specified")
 	}
 
@@ -112,7 +116,9 @@ func (c *Config) NewHandler() *Handler {
 		queryTokenIssuer:        c.QueryTokenIssuer,
 		adminGroups:             c.AdminGroups,
 		dashboardStore:          c.DashboardStore,
+		dashboardAuthUserStore:  c.DashboardAuthUserStore,
 		dashboardMaxUploadBytes: c.DashboardMaxUploadBytes,
+		authHelperConfigPath:    c.AuthHelperConfigPath,
 		gatewayAddress:          c.GatewayAddress,
 		hosts:                   c.Hosts,
 		hostSelection:           c.HostSelection,

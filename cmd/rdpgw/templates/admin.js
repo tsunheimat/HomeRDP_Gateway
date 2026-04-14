@@ -240,6 +240,132 @@ function renderAdminEntries(entries) {
     });
 }
 
+function renderAdminAuthUsers(users) {
+    const root = document.getElementById('adminAuthUsers');
+    root.innerHTML = '';
+
+    if (!users || users.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'muted';
+        empty.textContent = 'No direct auth users configured yet.';
+        root.appendChild(empty);
+        return;
+    }
+
+    users.forEach((user) => {
+        const wrapper = document.createElement('article');
+        wrapper.className = 'entry-row';
+
+        const mainRow = document.createElement('div');
+        mainRow.className = 'entry-row-main';
+
+        const title = document.createElement('strong');
+        title.textContent = user.username;
+        mainRow.appendChild(title);
+
+        const enabled = document.createElement('span');
+        enabled.className = 'entry-meta';
+        enabled.textContent = user.enabled ? 'enabled' : 'disabled';
+        mainRow.appendChild(enabled);
+
+        const passwordLabel = document.createElement('label');
+        passwordLabel.className = 'muted';
+        passwordLabel.textContent = 'New Password';
+        const passwordInput = document.createElement('input');
+        passwordInput.type = 'password';
+        passwordInput.placeholder = 'Leave blank to keep current password';
+        passwordLabel.appendChild(passwordInput);
+
+        const actions = document.createElement('div');
+        actions.className = 'entry-actions';
+
+        const saveButton = document.createElement('button');
+        saveButton.type = 'button';
+        saveButton.className = 'primary-button';
+        saveButton.textContent = 'Save';
+
+        const toggleButton = document.createElement('button');
+        toggleButton.type = 'button';
+        toggleButton.className = 'secondary-button';
+        toggleButton.textContent = 'Toggle Enabled';
+
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'danger-button';
+        deleteButton.textContent = 'Delete';
+
+        actions.appendChild(saveButton);
+        actions.appendChild(toggleButton);
+        actions.appendChild(deleteButton);
+
+        wrapper.appendChild(mainRow);
+        wrapper.appendChild(passwordLabel);
+        wrapper.appendChild(actions);
+
+        saveButton.addEventListener('click', async () => {
+            clearAdminError();
+            clearAdminSuccess();
+
+            const payload = {enabled: user.enabled};
+            if (passwordInput.value) {
+                payload.password = passwordInput.value;
+            }
+
+            try {
+                await adminRequest(`/api/v1/admin/auth-users/${encodeURIComponent(user.username)}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload),
+                });
+                setAdminSuccess(`Saved ${user.username}.`);
+                await loadAuthUsers();
+            } catch (error) {
+                if (error.message !== 'authentication required') {
+                    setAdminError(`Unable to save auth user: ${error.message}`);
+                }
+            }
+        });
+
+        toggleButton.addEventListener('click', async () => {
+            clearAdminError();
+            clearAdminSuccess();
+
+            try {
+                await adminRequest(`/api/v1/admin/auth-users/${encodeURIComponent(user.username)}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({enabled: !user.enabled}),
+                });
+                setAdminSuccess(`Updated ${user.username}.`);
+                await loadAuthUsers();
+            } catch (error) {
+                if (error.message !== 'authentication required') {
+                    setAdminError(`Unable to update auth user: ${error.message}`);
+                }
+            }
+        });
+
+        deleteButton.addEventListener('click', async () => {
+            clearAdminError();
+            clearAdminSuccess();
+
+            try {
+                await adminRequest(`/api/v1/admin/auth-users/${encodeURIComponent(user.username)}`, {
+                    method: 'DELETE',
+                });
+                setAdminSuccess(`Deleted ${user.username}.`);
+                await loadAuthUsers();
+            } catch (error) {
+                if (error.message !== 'authentication required') {
+                    setAdminError(`Unable to delete auth user: ${error.message}`);
+                }
+            }
+        });
+
+        root.appendChild(wrapper);
+    });
+}
+
 async function loadEntries() {
     try {
         const entries = await adminRequest('/api/v1/admin/entries');
@@ -247,6 +373,17 @@ async function loadEntries() {
     } catch (error) {
         if (error.message !== 'authentication required') {
             setAdminError(`Unable to load entries: ${error.message}`);
+        }
+    }
+}
+
+async function loadAuthUsers() {
+    try {
+        const users = await adminRequest('/api/v1/admin/auth-users');
+        renderAdminAuthUsers(users);
+    } catch (error) {
+        if (error.message !== 'authentication required') {
+            setAdminError(`Unable to load auth users: ${error.message}`);
         }
     }
 }
@@ -319,9 +456,46 @@ function bindTemplateForm() {
     });
 }
 
+function bindAuthUserForm() {
+    const form = document.getElementById('authUserForm');
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        clearAdminError();
+        clearAdminSuccess();
+
+        const data = new FormData(form);
+        const payload = {
+            username: String(data.get('username') || ''),
+            password: String(data.get('password') || ''),
+            enabled: data.get('enabled') === 'on',
+        };
+
+        try {
+            await adminRequest('/api/v1/admin/auth-users', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload),
+            });
+            setAdminSuccess('Direct auth user created.');
+            form.reset();
+            const enabled = form.querySelector('input[name="enabled"]');
+            if (enabled) {
+                enabled.checked = true;
+            }
+            await loadAuthUsers();
+        } catch (error) {
+            if (error.message !== 'authentication required') {
+                setAdminError(`Unable to create auth user: ${error.message}`);
+            }
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     bindHostForm();
     bindTemplateForm();
+    bindAuthUserForm();
     await loadCurrentUser();
     await loadEntries();
+    await loadAuthUsers();
 });
