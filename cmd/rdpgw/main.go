@@ -95,6 +95,7 @@ func main() {
 	security.QuerySigningKey = []byte(conf.Security.QueryTokenSigningKey)
 	security.HostSelection = conf.Server.HostSelection
 	security.Hosts = conf.Server.Hosts
+	security.ManagedHostList = nil
 
 	// init session store
 	web.InitStore([]byte(conf.Server.SessionKey),
@@ -102,6 +103,33 @@ func main() {
 		conf.Server.SessionStore,
 		conf.Server.MaxSessionLength,
 	)
+
+	var dashboardStore dashboard.Store
+	var authUserStore dashboard.AuthUserStore
+	if conf.Server.OpenIDEnabled() {
+		dashboardStore, err = dashboard.NewFileStore(conf.Dashboard.StorePath, conf.Dashboard.UploadDir)
+		if err != nil {
+			log.Fatalf("Cannot initialize dashboard store: %s", err)
+		}
+		authUserStore, err = dashboard.NewFileAuthUserStore(conf.Dashboard.AuthUsersPath)
+		if err != nil {
+			log.Fatalf("Cannot initialize auth user store: %s", err)
+		}
+		authUsers, err := authUserStore.List()
+		if err != nil {
+			log.Fatalf("Cannot list auth users: %s", err)
+		}
+		if err := dashboard.WriteAuthHelperConfig(conf.Dashboard.AuthHelperConfigPath, authUsers); err != nil {
+			log.Fatalf("Cannot write auth helper config: %s", err)
+		}
+		security.ManagedHostList = func() ([]string, error) {
+			entries, err := dashboardStore.List()
+			if err != nil {
+				return nil, err
+			}
+			return dashboard.EnabledHostAddresses(entries), nil
+		}
+	}
 
 	// configure web backend
 	w := &web.Config{
@@ -116,10 +144,13 @@ func main() {
 			SplitUserDomain:  conf.Client.SplitUserDomain,
 			NoUsername:       conf.Client.NoUsername,
 		},
-		GatewayAddress: url,
-		TemplateFile:   conf.Client.Defaults,
-		RdpSigningCert: conf.Client.SigningCert,
-		RdpSigningKey:  conf.Client.SigningKey,
+		GatewayAddress:         url,
+		TemplateFile:           conf.Client.Defaults,
+		RdpSigningCert:         conf.Client.SigningCert,
+		RdpSigningKey:          conf.Client.SigningKey,
+		DashboardStore:         dashboardStore,
+		DashboardAuthUserStore: authUserStore,
+		AuthHelperConfigPath:   conf.Dashboard.AuthHelperConfigPath,
 	}
 
 	if conf.Caps.TokenAuth {
@@ -129,11 +160,6 @@ func main() {
 		w.UserTokenGenerator = security.GenerateUserToken
 	}
 	if conf.Server.OpenIDEnabled() {
-		dashboardStore, err := dashboard.NewFileStore(conf.Dashboard.StorePath, conf.Dashboard.UploadDir)
-		if err != nil {
-			log.Fatalf("Cannot initialize dashboard store: %s", err)
-		}
-		w.DashboardStore = dashboardStore
 		w.DashboardMaxUploadBytes = int64(conf.Dashboard.MaxUploadSizeMb) * 1024 * 1024
 	}
 	h := w.NewHandler()
@@ -248,6 +274,10 @@ func main() {
 		api.Handle("/admin/entries/template", o.Authenticated(h.AdminOnly(http.HandlerFunc(h.HandleAdminCreateTemplateEntry)))).Methods(http.MethodPost)
 		api.Handle("/admin/entries/{id}", o.Authenticated(h.AdminOnly(http.HandlerFunc(h.HandleAdminUpdateEntry)))).Methods(http.MethodPut)
 		api.Handle("/admin/entries/{id}", o.Authenticated(h.AdminOnly(http.HandlerFunc(h.HandleAdminDeleteEntry)))).Methods(http.MethodDelete)
+		api.Handle("/admin/auth-users", o.Authenticated(h.AdminOnly(http.HandlerFunc(h.HandleAdminListAuthUsers)))).Methods(http.MethodGet)
+		api.Handle("/admin/auth-users", o.Authenticated(h.AdminOnly(http.HandlerFunc(h.HandleAdminCreateAuthUser)))).Methods(http.MethodPost)
+		api.Handle("/admin/auth-users/{username}", o.Authenticated(h.AdminOnly(http.HandlerFunc(h.HandleAdminUpdateAuthUser)))).Methods(http.MethodPut)
+		api.Handle("/admin/auth-users/{username}", o.Authenticated(h.AdminOnly(http.HandlerFunc(h.HandleAdminDeleteAuthUser)))).Methods(http.MethodDelete)
 
 		// Static files (no authentication required)
 		r.HandleFunc("/static/style.css", h.ServeStaticFile("style.css"))

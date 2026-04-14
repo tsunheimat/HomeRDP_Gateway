@@ -8,8 +8,9 @@ import (
 )
 
 var (
-	Hosts         []string
-	HostSelection string
+	Hosts           []string
+	HostSelection   string
+	ManagedHostList func() ([]string, error)
 )
 
 func CheckHost(ctx context.Context, host string) (bool, error) {
@@ -26,7 +27,15 @@ func CheckHost(ctx context.Context, host string) (bool, error) {
 		}
 
 		log.Printf("Checking host for user %s", s.User.UserName())
-		for _, h := range Hosts {
+		hosts := Hosts
+		if ManagedHostList != nil {
+			var err error
+			hosts, err = ManagedHostList()
+			if err != nil {
+				return false, err
+			}
+		}
+		for _, h := range hosts {
 			resolved, err := ResolvePreferredUsernameHost(h, s.User.UserName())
 			if err != nil {
 				log.Printf("Ignoring invalid configured host template %q for user %s", h, s.User.UserName())

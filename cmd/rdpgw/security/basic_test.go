@@ -18,6 +18,10 @@ var (
 )
 
 func TestCheckHost(t *testing.T) {
+	t.Cleanup(func() {
+		ManagedHostList = nil
+	})
+
 	info.User = identity.NewUser()
 	info.User.SetUserName("MYNAME")
 
@@ -47,4 +51,28 @@ func TestCheckHost(t *testing.T) {
 		t.Fatalf("%s should be allowed with host selection %s (err: %s)", host, HostSelection, err)
 	}
 
+}
+
+func TestCheckHostUsesManagedHostList(t *testing.T) {
+	t.Cleanup(func() {
+		ManagedHostList = nil
+	})
+
+	info.User = identity.NewUser()
+	info.User.SetUserName("MYNAME")
+
+	ctx := context.WithValue(context.Background(), protocol.CtxTunnel, &info)
+
+	Hosts = []string{"legacy.internal:3389"}
+	ManagedHostList = func() ([]string, error) {
+		return []string{"managed.internal:3389"}, nil
+	}
+	HostSelection = "roundrobin"
+
+	if ok, err := CheckHost(ctx, "managed.internal:3389"); !ok || err != nil {
+		t.Fatalf("managed host should be allowed, ok=%v err=%v", ok, err)
+	}
+	if ok, err := CheckHost(ctx, "legacy.internal:3389"); ok || err == nil {
+		t.Fatalf("legacy host should be ignored when managed host list is configured, ok=%v err=%v", ok, err)
+	}
 }
