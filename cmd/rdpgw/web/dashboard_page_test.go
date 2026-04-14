@@ -130,6 +130,22 @@ func TestHandleDashboardRendersTemplate(t *testing.T) {
 	}
 }
 
+func TestHandleDashboardRedirectsUnauthenticatedUsersToRoot(t *testing.T) {
+	handler, _ := newDashboardTestHandler(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rr := httptest.NewRecorder()
+
+	handler.HandleDashboard(rr, req)
+
+	if rr.Code != http.StatusFound {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusFound)
+	}
+	if location := rr.Header().Get("Location"); location != "/" {
+		t.Fatalf("location = %q, want %q", location, "/")
+	}
+}
+
 func TestRenderTemplatePageDoesNotPartiallyWriteOnExecuteError(t *testing.T) {
 	handler, _ := newDashboardTestHandler(t)
 

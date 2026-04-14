@@ -14,12 +14,27 @@ var (
 )
 
 func CheckHost(ctx context.Context, host string) (bool, error) {
+	if ManagedHostList == nil {
+		return false, errors.New("managed host inventory not configured")
+	}
+
+	hosts, err := ManagedHostList()
+	if err != nil {
+		return false, err
+	}
+	if len(hosts) == 0 {
+		return false, errors.New("no enabled managed hosts configured")
+	}
+
 	switch HostSelection {
 	case "any":
-		return true, nil
+		fallthrough
 	case "signed":
 		// todo get from context?
-		return false, errors.New("cannot verify host in 'signed' mode as token data is missing")
+		if HostSelection == "signed" {
+			return false, errors.New("cannot verify host in 'signed' mode as token data is missing")
+		}
+		fallthrough
 	case "roundrobin", "unsigned":
 		s := getTunnel(ctx)
 		if s.User.UserName() == "" {
@@ -27,14 +42,6 @@ func CheckHost(ctx context.Context, host string) (bool, error) {
 		}
 
 		log.Printf("Checking host for user %s", s.User.UserName())
-		hosts := Hosts
-		if ManagedHostList != nil {
-			var err error
-			hosts, err = ManagedHostList()
-			if err != nil {
-				return false, err
-			}
-		}
 		for _, h := range hosts {
 			resolved, err := ResolvePreferredUsernameHost(h, s.User.UserName())
 			if err != nil {

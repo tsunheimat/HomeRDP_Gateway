@@ -28,12 +28,19 @@ func TestCheckHost(t *testing.T) {
 	ctx := context.WithValue(context.Background(), protocol.CtxTunnel, &info)
 
 	Hosts = hosts
+	ManagedHostList = func() ([]string, error) {
+		return hosts, nil
+	}
 
 	// check any
 	HostSelection = "any"
-	host := "try.my.server:3389"
+	host := "localhost:3389"
 	if ok, err := CheckHost(ctx, host); !ok || err != nil {
 		t.Fatalf("%s should be allowed with host selection %s (err: %s)", host, HostSelection, err)
+	}
+	host = "try.my.server:3389"
+	if ok, err := CheckHost(ctx, host); ok || err == nil {
+		t.Fatalf("%s should NOT be allowed with host selection %s (err: %s)", host, HostSelection, err)
 	}
 
 	HostSelection = "signed"
@@ -74,5 +81,47 @@ func TestCheckHostUsesManagedHostList(t *testing.T) {
 	}
 	if ok, err := CheckHost(ctx, "legacy.internal:3389"); ok || err == nil {
 		t.Fatalf("legacy host should be ignored when managed host list is configured, ok=%v err=%v", ok, err)
+	}
+}
+
+func TestCheckHostFailsClosedWithoutManagedHostList(t *testing.T) {
+	t.Cleanup(func() {
+		ManagedHostList = nil
+	})
+
+	info.User = identity.NewUser()
+	info.User.SetUserName("MYNAME")
+
+	ctx := context.WithValue(context.Background(), protocol.CtxTunnel, &info)
+
+	Hosts = []string{"legacy.internal:3389"}
+	ManagedHostList = nil
+	HostSelection = "roundrobin"
+
+	if ok, err := CheckHost(ctx, "legacy.internal:3389"); ok || err == nil {
+		t.Fatalf("host auth should fail closed without a managed host list, ok=%v err=%v", ok, err)
+	}
+}
+
+func TestCheckHostIgnoresAnyModeWhenManagedHostsExist(t *testing.T) {
+	t.Cleanup(func() {
+		ManagedHostList = nil
+	})
+
+	info.User = identity.NewUser()
+	info.User.SetUserName("MYNAME")
+
+	ctx := context.WithValue(context.Background(), protocol.CtxTunnel, &info)
+
+	ManagedHostList = func() ([]string, error) {
+		return []string{"managed.internal:3389"}, nil
+	}
+	HostSelection = "any"
+
+	if ok, err := CheckHost(ctx, "managed.internal:3389"); !ok || err != nil {
+		t.Fatalf("managed host should be allowed in any mode, ok=%v err=%v", ok, err)
+	}
+	if ok, err := CheckHost(ctx, "unmanaged.internal:3389"); ok || err == nil {
+		t.Fatalf("unmanaged host should be rejected even in any mode, ok=%v err=%v", ok, err)
 	}
 }

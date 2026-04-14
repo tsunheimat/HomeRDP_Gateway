@@ -31,8 +31,9 @@ Caps:
 
 The `rdpgw-auth` helper reads user credentials from the YAML file pointed to by `RDPGW_AUTH_HELPER_CONFIG`.
 
-- In dashboard-managed deployments, this file is generated automatically from `/admin`.
-- In standalone deployments, you can still provide the file yourself.
+- In the supported managed deployment, this file is generated automatically from `/admin`.
+- `local` and `ntlm` direct auth require OpenID Connect to be enabled for the dashboard management surface.
+- Do not treat the helper YAML as an admin-editable source of truth.
 
 ```yaml
 # /var/lib/rdpgw/dashboard/rdpgw-auth.yaml
@@ -72,11 +73,7 @@ When OpenID Connect dashboard mode is enabled:
 4. The server regenerates `RDPGW_AUTH_HELPER_CONFIG`
 5. `rdpgw-auth` reloads the config automatically on the next auth request
 
-No manual helper restart is required.
-
-### Standalone Mode
-
-If you are not using the dashboard, update the helper YAML directly and make sure `rdpgw-auth` can read the changed file.
+No manual helper restart is required, and manual helper YAML editing is not part of the supported admin workflow.
 
 ## Deployment Options
 
@@ -105,55 +102,19 @@ WantedBy=multi-user.target
 ```yaml
 # docker-compose.yml
 services:
-  rdpgw-auth:
-    image: rdpgw-auth
+  rdpgw:
+    image: rdpgw
+    environment:
+      RDPGW_SERVER__AUTHENTICATION: openid ntlm
+      RDPGW_DASHBOARD__STOREPATH: /var/lib/rdpgw/dashboard
+      RDPGW_DASHBOARD__AUTHHELPERCONFIGPATH: /var/lib/rdpgw/dashboard/rdpgw-auth.yaml
+      RDPGW_AUTH_HELPER_CONFIG: /var/lib/rdpgw/dashboard/rdpgw-auth.yaml
     volumes:
       - ./data/dashboard:/var/lib/rdpgw/dashboard
       - auth-socket:/tmp
-    restart: always
-
-  rdpgw:
-    image: rdpgw
-    volumes:
-      - auth-socket:/tmp
-    depends_on:
-      - rdpgw-auth
 
 volumes:
   auth-socket:
-```
-
-### Kubernetes Deployment
-
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: rdpgw-auth-config
-data:
-  rdpgw-auth.yaml: |
-    Users:
-      - Username: "user1"
-        Password: "password1"
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: rdpgw-auth
-spec:
-  template:
-    spec:
-      containers:
-      - name: rdpgw-auth
-        image: rdpgw-auth
-        volumeMounts:
-        - name: config
-          mountPath: /var/lib/rdpgw/dashboard/rdpgw-auth.yaml
-          subPath: rdpgw-auth.yaml
-      volumes:
-      - name: config
-        configMap:
-          name: rdpgw-auth-config
 ```
 
 ## Client Configuration
@@ -182,8 +143,8 @@ NTLM is widely supported across RDP clients:
 Secure the configuration file:
 
 ```bash
-sudo chown rdpgw:rdpgw /etc/rdpgw-auth.yaml
-sudo chmod 600 /etc/rdpgw-auth.yaml
+sudo chown rdpgw:rdpgw /var/lib/rdpgw/dashboard/rdpgw-auth.yaml
+sudo chmod 600 /var/lib/rdpgw/dashboard/rdpgw-auth.yaml
 ```
 
 ### Password Policy

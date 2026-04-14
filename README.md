@@ -284,18 +284,18 @@ docker-compose -f docker-compose.yml up
 # or for arm64 with open id
 docker-compose -f docker-compose-arm64.yml up
 
-# or for local or pam
+# or for local
 docker-compose -f docker-compose-local.yml up
 
-# or for NTLM-only sample (listens on https://localhost:8080)
+# or for managed direct auth with OpenID dashboard state (listens on https://localhost:8080)
 docker compose -f docker-compose-ntlm.yml up --build
 ```
 
-### NTLM Docker Deployment (TLS-ready)
+### Managed Direct Auth Docker Deployment (TLS-ready)
 
-The NTLM sample now runs everything inside a single container. The main `rdpgw` process automatically starts the bundled `rdpgw-auth` helper (configured with the static user `matthew` / `matthewchiu`) whenever NTLM authentication is enabled. The gateway still terminates TLS directly with the self-signed certificate baked into the Docker image, which satisfies Windows `mstsc`. If you later put an HTTPS reverse proxy (nginx, Traefik, etc.) in front, you can set `RDPGW_SERVER__TLS=disable` and keep the proxy on TLS.
+The managed direct-auth sample runs everything inside a single container. The main `rdpgw` process automatically starts the bundled `rdpgw-auth` helper whenever `local` or `ntlm` authentication is enabled, but the actual direct-auth users and allowed hosts are managed from the OpenID-protected dashboard state. The gateway still terminates TLS directly with the self-signed certificate baked into the Docker image, which satisfies Windows `mstsc`. If you later put an HTTPS reverse proxy (nginx, Traefik, etc.) in front, you can set `RDPGW_SERVER__TLS=disable` and keep the proxy on TLS.
 
-1. Ensure `dev/docker/rdpgw-auth-ntlm.yaml` contains your desired credentials and is readable only by trusted users (`chmod 600`).
+1. Set the OpenID environment variables in `dev/docker/docker-compose-ntlm.yml`, then make sure the dashboard state directory is writable by the container.
 2. From the repository root run:
 
 ```bash
@@ -308,29 +308,25 @@ docker compose -f dev/docker/docker-compose-ntlm.yml up --build
 curl -k https://localhost:8080/
 ```
 
-5. Connect with an RDP client that supports NTLM (example using FreeRDP):
+4. Sign into `https://localhost:8080/admin`, create at least one enabled host entry, and create the direct-auth user you want to test.
+
+5. Connect with an RDP client that supports NTLM or basic auth. Example using FreeRDP against the managed direct-auth inventory:
 
 ```bash
-xfreerdp /g:localhost:8080 /gd:"" /u:matthew /p:matthewchiu /v:10.0.30.14 /cert-ignore
+xfreerdp /g:localhost:8080 /gd:"" /u:<direct-auth-user> /p:<direct-auth-password> /v:<enabled-dashboard-host> /cert-ignore
 ```
 
 Security reminders:
 
-- NTLM passwords inside `rdpgw-auth-ntlm.yaml` are stored in plain text—treat the file carefully and rotate frequently. Mount it into the container at `/opt/rdpgw/rdpgw-auth.yaml` (or set `RDPGW_AUTH_HELPER_CONFIG` to the desired path).
+- Direct-auth passwords are stored in plain text inside the managed dashboard state so the helper can serve NTLM and local auth. Treat the dashboard store carefully and rotate credentials frequently.
 - If you disable TLS for a reverse proxy deployment (`RDPGW_SERVER__TLS=disable`), never expose port 8080 directly to untrusted networks; terminate HTTPS in the proxy and forward plain HTTP only on a trusted network.
 - Replace the sample session/signing keys in `docker-compose-ntlm.yml` before production use.
 - The gateway issues an HTTP-only cookie named `rdpgw-ntlm-session` to keep NTLM handshakes consistent; make sure any reverse proxy preserves cookies and allows subsequent requests to reach the same backend instance during authentication.
     
-You can then connect to the gateway at `https://localhost:9443/connect` for the OpenID connect flavors which will start 
-the authentication flow. Or you can connect directly with the gateway set and the host set to ``xrdp`` if using the ``local`` 
-flavor. You can login with 'admin/admin'. The RDP file will download and you can open it with a remote 
-desktop client. Also for logging in 'admin/admin' will work.
+You can then connect to the gateway at `https://localhost:9443/` for the OpenID dashboard flows, which will start the authentication flow. For `local` or `ntlm`, use a native RDP client and authenticate with a direct-auth user that was created from `/admin`.
 
 ## Use
-Point your browser to `https://your-gateway/connect`. After authentication
-and RDP file will download to your desktop. This file can be opened by one
-of the remote desktop clients and it will try to connect to the gateway and
-desktop host behind it.
+Point your browser to `https://your-gateway/` for the dashboard or `https://your-gateway/admin` for administration. Direct `local` and `ntlm` authentication is intended for native RDP clients and uses the managed users and host inventory created from the web UI.
 
 ## Integration
 The gateway exposes an endpoint for the verification of user tokens at

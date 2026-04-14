@@ -76,6 +76,7 @@ Notes:
 
 - `RDPGW_DASHBOARD__ADMINGROUPS` is space-separated (for example: `rdpgw-admins homelab-admins`).
 - If `RDPGW_DASHBOARD__UPLOADDIR`, `RDPGW_DASHBOARD__AUTHUSERSPATH`, or `RDPGW_DASHBOARD__AUTHHELPERCONFIGPATH` are not set, they are derived from `StorePath`.
+- If `RDPGW_AUTH_HELPER_CONFIG` is set at runtime, the gateway writes the generated helper YAML there so the helper read path and generated output path stay aligned.
 
 ### Direct Auth Management
 
@@ -85,15 +86,16 @@ When dashboard mode is enabled, `/admin` manages two kinds of state:
 - direct-auth users for `ntlm` and `local` gateway logins
 
 The server regenerates the helper YAML after every direct-auth user change, and `rdpgw-auth` reloads that file automatically. Allowed hosts for direct gateway auth are also read from enabled dashboard host entries instead of only `Server.Hosts`.
+If the managed auth-user state or enabled host inventory is missing or invalid, direct `local` and `ntlm` auth fail closed.
 
 ## Authentication Flow
 
-1. User navigates to `https://your-gateway/connect`
+1. User navigates to `https://your-gateway/`
 2. Gateway redirects to OpenID Connect provider for authentication
 3. User authenticates with the provider (supports MFA)
 4. Provider redirects back to gateway with authentication token
-5. Gateway validates token and generates RDP file with temporary credentials
-6. User downloads RDP file and connects using remote desktop client
+5. Gateway validates token and loads the dashboard or admin UI
+6. Dashboard-managed direct-auth state is used by native RDP clients for `local` and `ntlm`
 
 ## Multi-Factor Authentication (MFA)
 

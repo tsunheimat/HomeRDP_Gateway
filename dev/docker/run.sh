@@ -6,7 +6,7 @@ cd /opt/rdpgw || exit 1
 
 AUTH_MODES=$(echo "${RDPGW_SERVER__AUTHENTICATION}" | tr ',;' ' ')
 AUTH_SOCKET=${RDPGW_SERVER__AUTH_SOCKET:-/tmp/rdpgw-auth.sock}
-AUTH_CONFIG=${RDPGW_AUTH_HELPER_CONFIG:-/opt/rdpgw/rdpgw-auth.yaml}
+AUTH_CONFIG=${RDPGW_AUTH_HELPER_CONFIG:-${RDPGW_DASHBOARD__AUTHHELPERCONFIGPATH:-/opt/rdpgw/data/dashboard/rdpgw-auth.yaml}}
 
 start_helper=false
 for mode in ${AUTH_MODES}; do
@@ -24,7 +24,7 @@ if [ "${start_helper}" = "true" ]; then
     echo "Using auth helper config ${AUTH_CONFIG}"
     AUTH_CMD="${AUTH_CMD} -c ${AUTH_CONFIG}"
   else
-    echo "Auth helper config ${AUTH_CONFIG} not found, proceeding without -c"
+    echo "Auth helper config ${AUTH_CONFIG} not found yet; starting helper and waiting for generated config"
   fi
   sh -c "${AUTH_CMD}" &
 fi

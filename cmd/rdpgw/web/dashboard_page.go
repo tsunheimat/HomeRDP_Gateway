@@ -36,7 +36,7 @@ type DashboardUserInfo struct {
 func (h *Handler) HandleDashboard(w http.ResponseWriter, r *http.Request) {
 	id := identity.FromRequestCtx(r)
 	if id == nil || !id.Authenticated() {
-		http.Redirect(w, r, "/connect", http.StatusFound)
+		http.Redirect(w, r, "/", http.StatusFound)
 		return
 	}
 

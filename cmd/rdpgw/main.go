@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/bolkedebruin/gokrb5/v8/keytab"
 	"github.com/bolkedebruin/gokrb5/v8/service"
@@ -37,6 +39,23 @@ var opts struct {
 }
 
 var conf config.Configuration
+
+func authHelperConfigPath(conf config.Configuration) string {
+	if runtimePath := strings.TrimSpace(os.Getenv("RDPGW_AUTH_HELPER_CONFIG")); runtimePath != "" {
+		return runtimePath
+	}
+	return conf.Dashboard.AuthHelperConfigPath
+}
+
+func validateManagedDirectAuthConfig(conf config.Configuration) error {
+	if !conf.Server.BasicAuthEnabled() && !conf.Server.NtlmEnabled() {
+		return nil
+	}
+	if !conf.Server.OpenIDEnabled() {
+		return errors.New("local and ntlm direct auth require openid-managed dashboard state")
+	}
+	return nil
+}
 
 func initOIDC(callbackUrl *url.URL) *web.OIDC {
 	// set oidc config
@@ -75,6 +94,10 @@ func main() {
 		panic(err)
 	}
 	conf = config.Load(opts.ConfigFile)
+	if err := validateManagedDirectAuthConfig(conf); err != nil {
+		log.Fatal(err)
+	}
+	helperConfigPath := authHelperConfigPath(conf)
 
 	// set callback url and external advertised gateway address
 	url, err := url.Parse(conf.Server.GatewayAddress)
@@ -94,7 +117,7 @@ func main() {
 	security.UserSigningKey = []byte(conf.Security.UserTokenSigningKey)
 	security.QuerySigningKey = []byte(conf.Security.QueryTokenSigningKey)
 	security.HostSelection = conf.Server.HostSelection
-	security.Hosts = conf.Server.Hosts
+	security.Hosts = nil
 	security.ManagedHostList = nil
 
 	// init session store
@@ -119,7 +142,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("Cannot list auth users: %s", err)
 		}
-		if err := dashboard.WriteAuthHelperConfig(conf.Dashboard.AuthHelperConfigPath, authUsers); err != nil {
+		if err := dashboard.WriteAuthHelperConfig(helperConfigPath, authUsers); err != nil {
 			log.Fatalf("Cannot write auth helper config: %s", err)
 		}
 		security.ManagedHostList = func() ([]string, error) {
@@ -150,7 +173,7 @@ func main() {
 		RdpSigningKey:          conf.Client.SigningKey,
 		DashboardStore:         dashboardStore,
 		DashboardAuthUserStore: authUserStore,
-		AuthHelperConfigPath:   conf.Dashboard.AuthHelperConfigPath,
+		AuthHelperConfigPath:   helperConfigPath,
 	}
 
 	if conf.Caps.TokenAuth {
@@ -260,7 +283,6 @@ func main() {
 	if conf.Server.OpenIDEnabled() {
 		log.Printf("enabling openid extended authentication")
 		o := initOIDC(url)
-		r.Handle("/connect", o.Authenticated(http.HandlerFunc(h.HandleDownload)))
 		r.Handle("/connect/entries/{id}.rdp", o.Authenticated(http.HandlerFunc(h.HandleEntryDownload)))
 		r.HandleFunc("/callback", o.HandleCallback)
 

@@ -1,7 +1,7 @@
 # Task List
 
 - [x] Create NTLM docker-compose configuration (`dev/docker/docker-compose-ntlm.yml`).
-- [x] Add NTLM auth helper user configuration (`dev/docker/rdpgw-auth-ntlm.yaml`).
+- [x] Replace the static helper YAML sample with managed dashboard-auth state and generated helper config.
 - [x] Update documentation with deployment and verification steps.
 - [x] Validate container startup and document manual test procedure.
 - [x] Ensure NTLM auth survives reverse proxies by persisting session identifiers (rdpgw web layer update).
