@@ -130,6 +130,166 @@ func TestHandleDashboardRendersTemplate(t *testing.T) {
 	}
 }
 
+func TestDashboardLocaleFromRequest(t *testing.T) {
+	tests := []struct {
+		name           string
+		query          string
+		acceptLanguage string
+		want           string
+	}{
+		{
+			name: "defaults to english",
+			want: dashboardLocaleEnglish,
+		},
+		{
+			name:  "query override wins",
+			query: "/?lang=zh-TW",
+			want:  dashboardLocaleTraditionalChinese,
+		},
+		{
+			name:           "accept language alone does not change dashboard locale",
+			acceptLanguage: "zh-HK,zh;q=0.9,en;q=0.8",
+			want:           dashboardLocaleEnglish,
+		},
+		{
+			name:           "unsupported locale falls back to english",
+			acceptLanguage: "fr-FR,fr;q=0.9",
+			want:           dashboardLocaleEnglish,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			target := tt.query
+			if target == "" {
+				target = "/"
+			}
+			req := httptest.NewRequest(http.MethodGet, target, nil)
+			if tt.acceptLanguage != "" {
+				req.Header.Set("Accept-Language", tt.acceptLanguage)
+			}
+
+			if got := dashboardLocaleFromRequest(req); got != tt.want {
+				t.Fatalf("dashboardLocaleFromRequest() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHandleDashboardRendersTraditionalChineseFromQueryLanguage(t *testing.T) {
+	handler, _ := newDashboardTestHandler(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/?lang=zh-Hant", nil)
+	req = identity.AddToRequestCtx(newIdentity(t, false), req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleDashboard(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	body := rr.Body.String()
+	if !strings.Contains(body, `<html lang="zh-Hant">`) {
+		t.Fatalf("expected zh-Hant html lang, body=%q", body)
+	}
+	if !strings.Contains(body, "連線儀表板") {
+		t.Fatalf("expected Traditional Chinese dashboard title, body=%q", body)
+	}
+	if !strings.Contains(body, "下載 RDP") {
+		t.Fatalf("expected Traditional Chinese button label in i18n payload, body=%q", body)
+	}
+}
+
+func TestHandleDashboardQueryLangOverrideBeatsHeader(t *testing.T) {
+	handler, _ := newDashboardTestHandler(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/?lang=en", nil)
+	req.Header.Set("Accept-Language", "zh-TW,zh;q=0.9")
+	req = identity.AddToRequestCtx(newIdentity(t, false), req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleDashboard(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	body := rr.Body.String()
+	if !strings.Contains(body, `<html lang="en">`) {
+		t.Fatalf("expected english html lang, body=%q", body)
+	}
+	if !strings.Contains(body, "Connection Dashboard") {
+		t.Fatalf("expected English dashboard title, body=%q", body)
+	}
+}
+
+func TestHandleDashboardFallbackTemplateAlsoUsesLocalizedCopy(t *testing.T) {
+	handler, _ := newDashboardTestHandler(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/?lang=zh-Hant", nil)
+	req = identity.AddToRequestCtx(newIdentity(t, false), req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleDashboard(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	body := rr.Body.String()
+	if !strings.Contains(body, "目前沒有可供您群組使用的項目。") {
+		t.Fatalf("expected localized fallback empty state, body=%q", body)
+	}
+}
+
+func TestHandleDashboardRendersLanguageSwitchLinks(t *testing.T) {
+	handler, _ := newDashboardTestHandler(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/?lang=zh-Hant", nil)
+	req = identity.AddToRequestCtx(newIdentity(t, false), req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleDashboard(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	body := rr.Body.String()
+	if !strings.Contains(body, `href="/?lang=en"`) {
+		t.Fatalf("expected English switch link, body=%q", body)
+	}
+	if !strings.Contains(body, `href="/?lang=zh-Hant"`) {
+		t.Fatalf("expected Traditional Chinese switch link, body=%q", body)
+	}
+	if !strings.Contains(body, `class="lang-switch-link is-active"`) {
+		t.Fatalf("expected active language switch class, body=%q", body)
+	}
+}
+
+func TestHandleDashboardRendersVisibleLoadingState(t *testing.T) {
+	handler, _ := newDashboardTestHandler(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req = identity.AddToRequestCtx(newIdentity(t, false), req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleDashboard(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	body := rr.Body.String()
+	if !strings.Contains(body, "Loading dashboard entries...") {
+		t.Fatalf("expected visible loading state text, body=%q", body)
+	}
+	if strings.Contains(body, `id="entriesLoading" hidden`) {
+		t.Fatalf("expected loading state to be visible by default, body=%q", body)
+	}
+}
+
 func TestHandleDashboardRedirectsUnauthenticatedUsersToRoot(t *testing.T) {
 	handler, _ := newDashboardTestHandler(t)
 

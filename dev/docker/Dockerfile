@@ -1,8 +1,21 @@
-# builder stage
-FROM golang:1.24-alpine as builder
+FROM golang:1.24 AS builder
 
-# Install CA certificates explicitly in builder
-RUN apk --no-cache add git gcc musl-dev openssl
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN go build -trimpath -o /out/rdpgw ./cmd/rdpgw && \
+    go build -trimpath -o /out/rdpgw-auth ./cmd/auth
+
+FROM debian:bookworm-slim
+
+# Install runtime dependencies and OpenSSL for local certificate generation.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates openssl tzdata && \
+    rm -rf /var/lib/apt/lists/* && \
+    update-ca-certificates
 
 # add user
 RUN adduser --disabled-password --gecos "" --home /opt/rdpgw --uid 1001 rdpgw
@@ -17,34 +30,18 @@ RUN mkdir -p /opt/rdpgw && cd /opt/rdpgw && \
     -subj "/C=US/ST=VA/L=SomeCity/O=MyCompany/OU=MyDivision/CN=rdpgw" && \
     openssl x509 -req -days 365 -in server.csr -signkey key.pem -out server.pem
 
-# build rdpgw and set rights
-ARG CACHEBUST
-RUN git clone https://github.com/bolkedebruin/rdpgw.git /app && \
-    cd /app && \
-    go mod tidy -compat=1.19 && \
-    CGO_ENABLED=0 GOOS=linux go build -trimpath -tags '' -ldflags '' -o '/opt/rdpgw/rdpgw' ./cmd/rdpgw && \
-    CGO_ENABLED=0 GOOS=linux go build -trimpath -tags '' -ldflags '' -o '/opt/rdpgw/rdpgw-auth' ./cmd/auth && \
-    chmod +x /opt/rdpgw/rdpgw && \
+# make tempdir in case filestore is used
+ADD dev/docker/tmp.tar /
+
+COPY --chown=1001 dev/docker/run.sh /run.sh
+COPY --from=builder --chown=1001 /out/rdpgw /opt/rdpgw/rdpgw
+COPY --from=builder --chown=1001 /out/rdpgw-auth /opt/rdpgw/rdpgw-auth
+COPY --chown=1001 cmd/rdpgw/templates /opt/rdpgw/templates
+COPY --chown=1001 assets /opt/rdpgw/assets
+
+RUN chmod +x /opt/rdpgw/rdpgw && \
     chmod +x /opt/rdpgw/rdpgw-auth && \
     chmod u+s /opt/rdpgw/rdpgw-auth
-
-FROM alpine:latest
-# Install CA certificates in final stage
-RUN apk --no-cache add musl tzdata ca-certificates && update-ca-certificates
-
-# make tempdir in case filestore is used
-ADD tmp.tar /
-
-USER 1001
-COPY --chown=1001 run.sh run.sh
-COPY --chown=1001 --from=builder /opt/rdpgw /opt/rdpgw
-COPY --chown=1001 --from=builder /etc/passwd /etc/passwd
-
-# Copy templates directory
-COPY --from=builder /app/cmd/rdpgw/templates /opt/rdpgw/templates
-
-# Copy assets directory from the app source
-COPY --chown=1001 --from=builder /app/assets /opt/rdpgw/assets
 
 USER 0
 WORKDIR /opt/rdpgw

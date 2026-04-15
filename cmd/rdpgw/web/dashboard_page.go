@@ -40,8 +40,14 @@ func (h *Handler) HandleDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	locale := dashboardLocaleFromRequest(r)
+	messages := dashboardMessagesForLocale(locale)
 	h.renderTemplatePage(w, "dashboard.html", fallbackDashboardTemplate, map[string]any{
-		"Title": "RDP Gateway Dashboard",
+		"Lang":          locale,
+		"LanguageLinks": dashboardLanguageLinks(r, locale),
+		"Messages":      messages,
+		"MessagesJSON":  dashboardMessagesJSON(messages),
+		"Title":         messages.WindowTitle,
 	})
 }
 
@@ -145,7 +151,7 @@ func (h *Handler) loadTemplateWithFallback(filename, fallback string) *template.
 }
 
 const fallbackDashboardTemplate = `<!DOCTYPE html>
-<html lang="en">
+<html lang="{{.Lang}}">
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -160,20 +166,24 @@ const fallbackDashboardTemplate = `<!DOCTYPE html>
 			RDP Gateway
 		</div>
 		<div class="user-info">
+			<div class="lang-switch" aria-label="Language switcher">{{range .LanguageLinks}}<a class="lang-switch-link{{if .Current}} is-active{{end}}" href="{{.URL}}">{{.Label}}</a>{{end}}</div>
 			<div class="user-avatar" id="userAvatar"></div>
-			<span id="dashboardUsername">Loading...</span>
-			<a class="admin-link" id="adminLink" href="/admin" hidden>Admin</a>
+			<span id="dashboardUsername">{{.Messages.LoadingUser}}</span>
+			<a class="admin-link" id="adminLink" href="/admin" hidden>{{.Messages.AdminLink}}</a>
 		</div>
 	</div>
 	<main class="main">
 		<div class="container dashboard-container">
-			<h1 class="title">Connection Dashboard</h1>
+			<h1 class="title">{{.Messages.Heading}}</h1>
+			<p class="subtitle">{{.Messages.Subtitle}}</p>
 			<div class="success" id="dashboardSuccess"></div>
 			<div class="error" id="dashboardError"></div>
-			<div class="empty-state" id="entriesEmpty" hidden>No entries are currently available for your groups.</div>
+			<div class="empty-state" id="entriesLoading">{{.Messages.LoadingEntries}}</div>
+			<div class="empty-state" id="entriesEmpty" hidden>{{.Messages.EmptyState}}</div>
 			<div class="entries-grid" id="entriesGrid"></div>
 		</div>
 	</main>
+	<script>window.dashboardMessages = {{.MessagesJSON}};</script>
 	<script src="/static/dashboard.js"></script>
 </body>
 </html>

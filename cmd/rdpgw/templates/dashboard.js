@@ -1,4 +1,19 @@
 let dashboardUser = null;
+const dashboardMessages = window.dashboardMessages || {};
+
+function t(key, fallback) {
+    const value = dashboardMessages[key];
+    return typeof value === 'string' && value.length > 0 ? value : fallback;
+}
+
+function formatMessage(template, value) {
+    return template.replace('%s', value);
+}
+
+function entryTypeLabel(type) {
+    const entryTypes = dashboardMessages.entryTypes || {};
+    return entryTypes[type] || type;
+}
 
 function setDashboardError(message) {
     const el = document.getElementById('dashboardError');
@@ -46,7 +61,9 @@ async function apiGetJSON(url) {
 function renderEntries(entries) {
     const grid = document.getElementById('entriesGrid');
     const empty = document.getElementById('entriesEmpty');
+    const loading = document.getElementById('entriesLoading');
     grid.innerHTML = '';
+    loading.hidden = true;
 
     if (!entries || entries.length === 0) {
         empty.hidden = false;
@@ -60,7 +77,7 @@ function renderEntries(entries) {
 
         const meta = document.createElement('div');
         meta.className = 'entry-meta';
-        meta.textContent = entry.type;
+        meta.textContent = entryTypeLabel(entry.type);
 
         const title = document.createElement('h3');
         title.className = 'entry-name';
@@ -68,18 +85,18 @@ function renderEntries(entries) {
 
         const description = document.createElement('p');
         description.className = 'entry-description';
-        description.textContent = entry.description || 'No description provided.';
+        description.textContent = entry.description || t('noDescription', 'No description provided.');
 
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'primary-button';
-        button.textContent = 'Download RDP';
+        button.textContent = t('downloadButton', 'Download RDP');
 
         button.addEventListener('click', () => {
             clearDashboardError();
             clearDashboardSuccess();
             window.location.href = entry.downloadUrl;
-            setDashboardSuccess(`Downloading ${entry.name}.`);
+            setDashboardSuccess(formatMessage(t('downloading', 'Downloading %s.'), entry.name));
         });
 
         card.appendChild(meta);
@@ -93,12 +110,14 @@ function renderEntries(entries) {
 async function loadDashboard() {
     clearDashboardError();
     clearDashboardSuccess();
+    document.getElementById('entriesLoading').hidden = false;
+    document.getElementById('entriesEmpty').hidden = true;
 
     try {
         dashboardUser = await apiGetJSON('/api/v1/user');
         const entries = await apiGetJSON('/api/v1/entries');
 
-        const username = dashboardUser.displayName || dashboardUser.username || 'Unknown User';
+        const username = dashboardUser.displayName || dashboardUser.username || t('unknownUser', 'Unknown User');
         document.getElementById('dashboardUsername').textContent = username;
         document.getElementById('userAvatar').textContent = userInitials(username);
         if (dashboardUser.isAdmin) {
@@ -107,8 +126,9 @@ async function loadDashboard() {
 
         renderEntries(entries);
     } catch (error) {
+        document.getElementById('entriesLoading').hidden = true;
         if (error.message !== 'authentication required') {
-            setDashboardError(`Unable to load dashboard: ${error.message}`);
+            setDashboardError(`${t('loadErrorPrefix', 'Unable to load dashboard:')} ${error.message}`);
         }
     }
 }

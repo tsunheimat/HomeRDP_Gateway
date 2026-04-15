@@ -84,6 +84,38 @@ body {
     color: var(--foreground);
 }
 
+.lang-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.lang-switch-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 3rem;
+    text-decoration: none;
+    color: var(--muted-foreground);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: var(--background);
+}
+
+.lang-switch-link:hover {
+    background: var(--secondary);
+    color: var(--foreground);
+}
+
+.lang-switch-link.is-active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--background);
+}
+
 .user-avatar {
     width: 40px;
     height: 40px;
@@ -449,6 +481,11 @@ body {
 @media (max-width: 768px) {
     .header {
         padding: 1rem;
+    }
+
+    .user-info {
+        flex-wrap: wrap;
+        justify-content: space-between;
     }
 
     .main {
