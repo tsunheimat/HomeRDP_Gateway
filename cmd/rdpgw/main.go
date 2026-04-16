@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -51,10 +50,40 @@ func validateManagedDirectAuthConfig(conf config.Configuration) error {
 	if !conf.Server.BasicAuthEnabled() && !conf.Server.NtlmEnabled() {
 		return nil
 	}
-	if !conf.Server.OpenIDEnabled() {
-		return errors.New("local and ntlm direct auth require openid-managed dashboard state")
-	}
 	return nil
+}
+
+func initDashboardState(conf config.Configuration, helperConfigPath string) (dashboard.Store, dashboard.AuthUserStore, error) {
+	dashboardStore, err := dashboard.NewFileStore(conf.Dashboard.StorePath, conf.Dashboard.UploadDir)
+	if err != nil {
+		return nil, nil, fmt.Errorf("initialize dashboard store: %w", err)
+	}
+
+	security.ManagedHostList = func() ([]string, error) {
+		entries, err := dashboardStore.List()
+		if err != nil {
+			return nil, err
+		}
+		return dashboard.EnabledHostAddresses(entries), nil
+	}
+
+	if !conf.Server.OpenIDEnabled() {
+		return dashboardStore, nil, nil
+	}
+
+	authUserStore, err := dashboard.NewFileAuthUserStore(conf.Dashboard.AuthUsersPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("initialize auth user store: %w", err)
+	}
+	authUsers, err := authUserStore.List()
+	if err != nil {
+		return nil, nil, fmt.Errorf("list auth users: %w", err)
+	}
+	if err := dashboard.WriteAuthHelperConfig(helperConfigPath, authUsers); err != nil {
+		return nil, nil, fmt.Errorf("write auth helper config: %w", err)
+	}
+
+	return dashboardStore, authUserStore, nil
 }
 
 func initOIDC(callbackUrl *url.URL) *web.OIDC {
@@ -127,31 +156,9 @@ func main() {
 		conf.Server.MaxSessionLength,
 	)
 
-	var dashboardStore dashboard.Store
-	var authUserStore dashboard.AuthUserStore
-	if conf.Server.OpenIDEnabled() {
-		dashboardStore, err = dashboard.NewFileStore(conf.Dashboard.StorePath, conf.Dashboard.UploadDir)
-		if err != nil {
-			log.Fatalf("Cannot initialize dashboard store: %s", err)
-		}
-		authUserStore, err = dashboard.NewFileAuthUserStore(conf.Dashboard.AuthUsersPath)
-		if err != nil {
-			log.Fatalf("Cannot initialize auth user store: %s", err)
-		}
-		authUsers, err := authUserStore.List()
-		if err != nil {
-			log.Fatalf("Cannot list auth users: %s", err)
-		}
-		if err := dashboard.WriteAuthHelperConfig(helperConfigPath, authUsers); err != nil {
-			log.Fatalf("Cannot write auth helper config: %s", err)
-		}
-		security.ManagedHostList = func() ([]string, error) {
-			entries, err := dashboardStore.List()
-			if err != nil {
-				return nil, err
-			}
-			return dashboard.EnabledHostAddresses(entries), nil
-		}
+	dashboardStore, authUserStore, err := initDashboardState(conf, helperConfigPath)
+	if err != nil {
+		log.Fatalf("Cannot initialize dashboard state: %s", err)
 	}
 
 	// configure web backend
