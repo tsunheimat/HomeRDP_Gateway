@@ -1,3 +1,23 @@
+const adminMessages = window.adminMessages || {};
+
+function t(key, fallback) {
+    const value = adminMessages[key];
+    return typeof value === 'string' && value.length > 0 ? value : fallback;
+}
+
+function formatMessage(template, value) {
+    return template.replace('%s', value);
+}
+
+function entryTypeLabel(type) {
+    const entryTypes = adminMessages.entryTypes || {};
+    return entryTypes[type] || type;
+}
+
+function statusLabel(enabled) {
+    return enabled ? t('enabledStatus', 'enabled') : t('disabledStatus', 'disabled');
+}
+
 function setAdminError(message) {
     const el = document.getElementById('adminError');
     el.textContent = message;
@@ -54,7 +74,7 @@ function renderAdminEntries(entries) {
     if (!entries || entries.length === 0) {
         const empty = document.createElement('p');
         empty.className = 'muted';
-        empty.textContent = 'No entries configured yet.';
+        empty.textContent = t('noEntriesConfigured', 'No entries configured yet.');
         root.appendChild(empty);
         return;
     }
@@ -72,32 +92,32 @@ function renderAdminEntries(entries) {
 
         const type = document.createElement('span');
         type.className = 'entry-meta';
-        type.textContent = entry.type;
+        type.textContent = entryTypeLabel(entry.type);
         mainRow.appendChild(type);
 
         const enabled = document.createElement('span');
         enabled.className = 'entry-meta';
-        enabled.textContent = entry.enabled ? 'enabled' : 'disabled';
+        enabled.textContent = statusLabel(entry.enabled);
         mainRow.appendChild(enabled);
 
         const description = document.createElement('p');
         description.className = 'entry-description';
-        description.textContent = entry.description || 'No description provided.';
+        description.textContent = entry.description || t('noDescription', 'No description provided.');
 
         const target = document.createElement('p');
         target.className = 'entry-meta';
-        target.textContent = entry.host || entry.targetHostOverride || (entry.hasUploadedTemplate ? 'Uploaded template' : '');
+        target.textContent = entry.host || entry.targetHostOverride || (entry.hasUploadedTemplate ? t('uploadedTemplateLabel', 'Uploaded template') : '');
 
         const groups = document.createElement('p');
         groups.className = 'entry-meta';
-        groups.textContent = `Allowed groups: ${(entry.allowedGroups || []).join(', ')}`;
+        groups.textContent = `${t('allowedGroupsLabel', 'Allowed Groups (comma separated)')}: ${(entry.allowedGroups || []).join(', ')}`;
 
         const actions = document.createElement('div');
         actions.className = 'entry-actions';
 
         const nameLabel = document.createElement('label');
         nameLabel.className = 'muted';
-        nameLabel.textContent = 'Name';
+        nameLabel.textContent = t('nameLabel', 'Name');
         const nameInput = document.createElement('input');
         nameInput.type = 'text';
         nameInput.value = entry.name || '';
@@ -105,7 +125,7 @@ function renderAdminEntries(entries) {
 
         const descriptionLabel = document.createElement('label');
         descriptionLabel.className = 'muted';
-        descriptionLabel.textContent = 'Description';
+        descriptionLabel.textContent = t('descriptionLabel', 'Description');
         const descriptionInput = document.createElement('input');
         descriptionInput.type = 'text';
         descriptionInput.value = entry.description || '';
@@ -113,7 +133,7 @@ function renderAdminEntries(entries) {
 
         const groupsLabel = document.createElement('label');
         groupsLabel.className = 'muted';
-        groupsLabel.textContent = 'Allowed Groups';
+        groupsLabel.textContent = t('allowedGroupsLabel', 'Allowed Groups (comma separated)');
         const groupsInput = document.createElement('input');
         groupsInput.type = 'text';
         groupsInput.value = (entry.allowedGroups || []).join(', ');
@@ -128,7 +148,7 @@ function renderAdminEntries(entries) {
         if (entry.type === 'host') {
             const hostLabel = document.createElement('label');
             hostLabel.className = 'muted';
-            hostLabel.textContent = 'Host';
+            hostLabel.textContent = t('hostLabel', 'Host (host:port)');
             hostInput = document.createElement('input');
             hostInput.type = 'text';
             hostInput.value = entry.host || '';
@@ -137,7 +157,7 @@ function renderAdminEntries(entries) {
         } else {
             const targetLabel = document.createElement('label');
             targetLabel.className = 'muted';
-            targetLabel.textContent = 'Target Host Override';
+            targetLabel.textContent = t('targetHostOverrideLabel', 'Target Host Override (optional)');
             targetHostInput = document.createElement('input');
             targetHostInput.type = 'text';
             targetHostInput.value = entry.targetHostOverride || '';
@@ -148,19 +168,19 @@ function renderAdminEntries(entries) {
         const saveButton = document.createElement('button');
         saveButton.type = 'button';
         saveButton.className = 'primary-button';
-        saveButton.textContent = 'Save';
+        saveButton.textContent = t('saveButton', 'Save');
 
         const toggleButton = document.createElement('button');
         toggleButton.type = 'button';
         toggleButton.className = 'secondary-button';
         toggleButton.dataset.action = 'toggle';
-        toggleButton.textContent = 'Toggle Enabled';
+        toggleButton.textContent = t('toggleEnabledButton', 'Toggle Enabled');
 
         const deleteButton = document.createElement('button');
         deleteButton.type = 'button';
         deleteButton.className = 'danger-button';
         deleteButton.dataset.action = 'delete';
-        deleteButton.textContent = 'Delete';
+        deleteButton.textContent = t('deleteButton', 'Delete');
 
         actions.appendChild(saveButton);
         actions.appendChild(toggleButton);
@@ -193,11 +213,11 @@ function renderAdminEntries(entries) {
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload),
                 });
-                setAdminSuccess(`Saved ${entry.name}.`);
+                setAdminSuccess(formatMessage(t('saveSuccess', 'Saved %s.'), entry.name));
                 await loadEntries();
             } catch (error) {
                 if (error.message !== 'authentication required') {
-                    setAdminError(`Unable to save entry: ${error.message}`);
+                    setAdminError(`${t('saveEntryErrorPrefix', 'Unable to save entry:')} ${error.message}`);
                 }
             }
         });
@@ -211,11 +231,11 @@ function renderAdminEntries(entries) {
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({enabled: !entry.enabled}),
                 });
-                setAdminSuccess(`Updated ${entry.name}.`);
+                setAdminSuccess(formatMessage(t('updateSuccess', 'Updated %s.'), entry.name));
                 await loadEntries();
             } catch (error) {
                 if (error.message !== 'authentication required') {
-                    setAdminError(`Unable to update entry: ${error.message}`);
+                    setAdminError(`${t('updateEntryErrorPrefix', 'Unable to update entry:')} ${error.message}`);
                 }
             }
         });
@@ -227,11 +247,11 @@ function renderAdminEntries(entries) {
                 await adminRequest(`/api/v1/admin/entries/${encodeURIComponent(entry.id)}`, {
                     method: 'DELETE',
                 });
-                setAdminSuccess(`Deleted ${entry.name}.`);
+                setAdminSuccess(formatMessage(t('deleteSuccess', 'Deleted %s.'), entry.name));
                 await loadEntries();
             } catch (error) {
                 if (error.message !== 'authentication required') {
-                    setAdminError(`Unable to delete entry: ${error.message}`);
+                    setAdminError(`${t('deleteEntryErrorPrefix', 'Unable to delete entry:')} ${error.message}`);
                 }
             }
         });
@@ -247,7 +267,7 @@ function renderAdminAuthUsers(users) {
     if (!users || users.length === 0) {
         const empty = document.createElement('p');
         empty.className = 'muted';
-        empty.textContent = 'No direct auth users configured yet.';
+        empty.textContent = t('noAuthUsersConfigured', 'No direct auth users configured yet.');
         root.appendChild(empty);
         return;
     }
@@ -265,15 +285,15 @@ function renderAdminAuthUsers(users) {
 
         const enabled = document.createElement('span');
         enabled.className = 'entry-meta';
-        enabled.textContent = user.enabled ? 'enabled' : 'disabled';
+        enabled.textContent = statusLabel(user.enabled);
         mainRow.appendChild(enabled);
 
         const passwordLabel = document.createElement('label');
         passwordLabel.className = 'muted';
-        passwordLabel.textContent = 'New Password';
+        passwordLabel.textContent = t('newPasswordLabel', 'New Password');
         const passwordInput = document.createElement('input');
         passwordInput.type = 'password';
-        passwordInput.placeholder = 'Leave blank to keep current password';
+        passwordInput.placeholder = t('passwordKeepPlaceholder', 'Leave blank to keep current password');
         passwordLabel.appendChild(passwordInput);
 
         const actions = document.createElement('div');
@@ -282,17 +302,17 @@ function renderAdminAuthUsers(users) {
         const saveButton = document.createElement('button');
         saveButton.type = 'button';
         saveButton.className = 'primary-button';
-        saveButton.textContent = 'Save';
+        saveButton.textContent = t('saveButton', 'Save');
 
         const toggleButton = document.createElement('button');
         toggleButton.type = 'button';
         toggleButton.className = 'secondary-button';
-        toggleButton.textContent = 'Toggle Enabled';
+        toggleButton.textContent = t('toggleEnabledButton', 'Toggle Enabled');
 
         const deleteButton = document.createElement('button');
         deleteButton.type = 'button';
         deleteButton.className = 'danger-button';
-        deleteButton.textContent = 'Delete';
+        deleteButton.textContent = t('deleteButton', 'Delete');
 
         actions.appendChild(saveButton);
         actions.appendChild(toggleButton);
@@ -317,11 +337,11 @@ function renderAdminAuthUsers(users) {
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload),
                 });
-                setAdminSuccess(`Saved ${user.username}.`);
+                setAdminSuccess(formatMessage(t('saveSuccess', 'Saved %s.'), user.username));
                 await loadAuthUsers();
             } catch (error) {
                 if (error.message !== 'authentication required') {
-                    setAdminError(`Unable to save auth user: ${error.message}`);
+                    setAdminError(`${t('saveAuthUserErrorPrefix', 'Unable to save auth user:')} ${error.message}`);
                 }
             }
         });
@@ -336,11 +356,11 @@ function renderAdminAuthUsers(users) {
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({enabled: !user.enabled}),
                 });
-                setAdminSuccess(`Updated ${user.username}.`);
+                setAdminSuccess(formatMessage(t('updateSuccess', 'Updated %s.'), user.username));
                 await loadAuthUsers();
             } catch (error) {
                 if (error.message !== 'authentication required') {
-                    setAdminError(`Unable to update auth user: ${error.message}`);
+                    setAdminError(`${t('updateAuthUserErrorPrefix', 'Unable to update auth user:')} ${error.message}`);
                 }
             }
         });
@@ -353,11 +373,11 @@ function renderAdminAuthUsers(users) {
                 await adminRequest(`/api/v1/admin/auth-users/${encodeURIComponent(user.username)}`, {
                     method: 'DELETE',
                 });
-                setAdminSuccess(`Deleted ${user.username}.`);
+                setAdminSuccess(formatMessage(t('deleteSuccess', 'Deleted %s.'), user.username));
                 await loadAuthUsers();
             } catch (error) {
                 if (error.message !== 'authentication required') {
-                    setAdminError(`Unable to delete auth user: ${error.message}`);
+                    setAdminError(`${t('deleteAuthUserErrorPrefix', 'Unable to delete auth user:')} ${error.message}`);
                 }
             }
         });
@@ -372,7 +392,7 @@ async function loadEntries() {
         renderAdminEntries(entries);
     } catch (error) {
         if (error.message !== 'authentication required') {
-            setAdminError(`Unable to load entries: ${error.message}`);
+            setAdminError(`${t('loadEntriesErrorPrefix', 'Unable to load entries:')} ${error.message}`);
         }
     }
 }
@@ -383,7 +403,7 @@ async function loadAuthUsers() {
         renderAdminAuthUsers(users);
     } catch (error) {
         if (error.message !== 'authentication required') {
-            setAdminError(`Unable to load auth users: ${error.message}`);
+            setAdminError(`${t('loadAuthUsersErrorPrefix', 'Unable to load auth users:')} ${error.message}`);
         }
     }
 }
@@ -391,10 +411,10 @@ async function loadAuthUsers() {
 async function loadCurrentUser() {
     try {
         const user = await adminRequest('/api/v1/user');
-        document.getElementById('adminUsername').textContent = user.displayName || user.username || 'Unknown User';
+        document.getElementById('adminUsername').textContent = user.displayName || user.username || t('unknownUser', 'Unknown User');
     } catch (error) {
         if (error.message !== 'authentication required') {
-            setAdminError(`Unable to load user information: ${error.message}`);
+            setAdminError(`${t('loadUserErrorPrefix', 'Unable to load user information:')} ${error.message}`);
         }
     }
 }
@@ -420,12 +440,12 @@ function bindHostForm() {
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(payload),
             });
-            setAdminSuccess('Host entry created.');
+            setAdminSuccess(t('createHostEntrySuccess', 'Host entry created.'));
             form.reset();
             await loadEntries();
         } catch (error) {
             if (error.message !== 'authentication required') {
-                setAdminError(`Unable to create host entry: ${error.message}`);
+                setAdminError(`${t('createHostEntryErrorPrefix', 'Unable to create host entry:')} ${error.message}`);
             }
         }
     });
@@ -445,12 +465,12 @@ function bindTemplateForm() {
                 method: 'POST',
                 body: formData,
             });
-            setAdminSuccess('Template entry uploaded.');
+            setAdminSuccess(t('uploadTemplateEntrySuccess', 'Template entry uploaded.'));
             form.reset();
             await loadEntries();
         } catch (error) {
             if (error.message !== 'authentication required') {
-                setAdminError(`Unable to upload template entry: ${error.message}`);
+                setAdminError(`${t('uploadTemplateEntryErrorPrefix', 'Unable to upload template entry:')} ${error.message}`);
             }
         }
     });
@@ -476,7 +496,7 @@ function bindAuthUserForm() {
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(payload),
             });
-            setAdminSuccess('Direct auth user created.');
+            setAdminSuccess(t('createDirectAuthUserSuccess', 'Direct auth user created.'));
             form.reset();
             const enabled = form.querySelector('input[name="enabled"]');
             if (enabled) {
@@ -485,7 +505,7 @@ function bindAuthUserForm() {
             await loadAuthUsers();
         } catch (error) {
             if (error.message !== 'authentication required') {
-                setAdminError(`Unable to create auth user: ${error.message}`);
+                setAdminError(`${t('createAuthUserErrorPrefix', 'Unable to create auth user:')} ${error.message}`);
             }
         }
     });

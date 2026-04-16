@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{.Lang}}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,105 +12,107 @@
     <div class="header">
         <div class="logo">
             <img src="/assets/icon.svg" alt="Logo">
-            RDP Gateway Admin
+            RDP Gateway
         </div>
         <div class="user-info">
-            <span id="adminUsername">Loading...</span>
-            <a class="admin-link" href="/">Back to Dashboard</a>
+            <div class="lang-switch" aria-label="Language switcher">{{range .LanguageLinks}}<a class="lang-switch-link{{if .Current}} is-active{{end}}" href="{{.URL}}">{{.Label}}</a>{{end}}</div>
+            <span id="adminUsername">{{.Messages.LoadingUser}}</span>
+            <a class="admin-link" href="/">{{.Messages.BackToDashboard}}</a>
         </div>
     </div>
 
     <main class="main">
         <div class="container admin-container">
-            <h1 class="title">Entry Administration</h1>
-            <p class="subtitle">Create and manage published hosts and template-based entries.</p>
+            <h1 class="title">{{.Messages.Heading}}</h1>
+            <p class="subtitle">{{.Messages.Subtitle}}</p>
 
             <div class="error" id="adminError"></div>
             <div class="success" id="adminSuccess"></div>
 
             <div class="admin-grid">
                 <section class="admin-panel">
-                    <h2>Create Host Entry</h2>
+                    <h2>{{.Messages.CreateHostEntryHeading}}</h2>
                     <form id="hostForm" class="stack-form">
                         <label>
-                            Name
+                            {{.Messages.NameLabel}}
                             <input type="text" name="name" required>
                         </label>
                         <label>
-                            Description
+                            {{.Messages.DescriptionLabel}}
                             <input type="text" name="description">
                         </label>
                         <label>
-                            Allowed Groups (comma separated)
-                            <input type="text" name="allowedGroups" placeholder="homelab-users,rdpgw-admins" required>
+                            {{.Messages.AllowedGroupsLabel}}
+                            <input type="text" name="allowedGroups" placeholder="{{.Messages.AllowedGroupsPlaceholder}}" required>
                         </label>
                         <label>
-                            Host (host:port)
-                            <input type="text" name="host" placeholder="lab.internal:3389" required>
+                            {{.Messages.HostLabel}}
+                            <input type="text" name="host" placeholder="{{.Messages.HostPlaceholder}}" required>
                         </label>
-                        <button type="submit" class="primary-button">Create Host Entry</button>
+                        <button type="submit" class="primary-button">{{.Messages.CreateHostEntryButton}}</button>
                     </form>
                 </section>
 
                 <section class="admin-panel">
-                    <h2>Create Template Entry</h2>
+                    <h2>{{.Messages.CreateTemplateEntryHeading}}</h2>
                     <form id="templateForm" class="stack-form" enctype="multipart/form-data">
                         <label>
-                            Name
+                            {{.Messages.NameLabel}}
                             <input type="text" name="name" required>
                         </label>
                         <label>
-                            Description
+                            {{.Messages.DescriptionLabel}}
                             <input type="text" name="description">
                         </label>
                         <label>
-                            Allowed Groups (comma separated)
-                            <input type="text" name="allowedGroups" placeholder="homelab-users,rdpgw-admins" required>
+                            {{.Messages.AllowedGroupsLabel}}
+                            <input type="text" name="allowedGroups" placeholder="{{.Messages.AllowedGroupsPlaceholder}}" required>
                         </label>
                         <label>
-                            Target Host Override (optional)
-                            <input type="text" name="targetHostOverride" placeholder="app.internal:3389">
+                            {{.Messages.TargetHostOverrideLabel}}
+                            <input type="text" name="targetHostOverride" placeholder="{{.Messages.TargetHostOverridePlaceholder}}">
                         </label>
                         <label>
-                            RDP Template File
+                            {{.Messages.RdpTemplateFileLabel}}
                             <input type="file" name="template" accept=".rdp" required>
                         </label>
-                        <button type="submit" class="primary-button">Upload Template Entry</button>
+                        <button type="submit" class="primary-button">{{.Messages.UploadTemplateEntryButton}}</button>
                     </form>
                 </section>
 
                 <section class="admin-panel">
-                    <h2>Create Direct Auth User</h2>
+                    <h2>{{.Messages.CreateDirectAuthUserHeading}}</h2>
                     <form id="authUserForm" class="stack-form">
                         <label>
-                            Username
+                            {{.Messages.UsernameLabel}}
                             <input type="text" name="username" required>
                         </label>
                         <label>
-                            Password
+                            {{.Messages.PasswordLabel}}
                             <input type="password" name="password" required>
                         </label>
                         <label class="checkbox-row">
                             <input type="checkbox" name="enabled" checked>
-                            Enabled
+                            {{.Messages.EnabledLabel}}
                         </label>
-                        <button type="submit" class="primary-button">Create Direct Auth User</button>
+                        <button type="submit" class="primary-button">{{.Messages.CreateDirectAuthUserButton}}</button>
                     </form>
                 </section>
             </div>
 
             <section class="admin-panel">
-                <h2>Current Entries</h2>
+                <h2>{{.Messages.CurrentEntriesHeading}}</h2>
                 <div id="adminEntries"></div>
             </section>
 
             <section class="admin-panel">
-                <h2>Current Direct Auth Users</h2>
+                <h2>{{.Messages.CurrentDirectAuthUsersHeading}}</h2>
                 <div id="adminAuthUsers"></div>
             </section>
         </div>
     </main>
 
+    <script>window.adminMessages = {{.MessagesJSON}};</script>
     <script src="/static/admin.js"></script>
 </body>
 </html>

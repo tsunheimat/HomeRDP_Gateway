@@ -290,6 +290,106 @@ func TestHandleDashboardRendersVisibleLoadingState(t *testing.T) {
 	}
 }
 
+func TestHandleAdminPageDefaultsToEnglishWithoutLangQuery(t *testing.T) {
+	handler, _ := newDashboardTestHandler(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	req = identity.AddToRequestCtx(newIdentity(t, true), req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminPage(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	body := rr.Body.String()
+	if !strings.Contains(body, `<html lang="en">`) {
+		t.Fatalf("expected english html lang, body=%q", body)
+	}
+	if !strings.Contains(body, "Entry Administration") {
+		t.Fatalf("expected english admin title, body=%q", body)
+	}
+	if !strings.Contains(body, "Back to Dashboard") {
+		t.Fatalf("expected english back link, body=%q", body)
+	}
+	if !strings.Contains(body, "Create RDP Gateway User") {
+		t.Fatalf("expected updated English direct-auth heading, body=%q", body)
+	}
+}
+
+func TestHandleAdminPageRendersTraditionalChineseFromQueryLanguage(t *testing.T) {
+	handler, _ := newDashboardTestHandler(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin?lang=zh-Hant", nil)
+	req = identity.AddToRequestCtx(newIdentity(t, true), req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminPage(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	body := rr.Body.String()
+	if !strings.Contains(body, `<html lang="zh-Hant">`) {
+		t.Fatalf("expected zh-Hant html lang, body=%q", body)
+	}
+	if !strings.Contains(body, "項目管理") {
+		t.Fatalf("expected Traditional Chinese admin title, body=%q", body)
+	}
+	if !strings.Contains(body, "返回儀表板") {
+		t.Fatalf("expected Traditional Chinese back link, body=%q", body)
+	}
+	if !strings.Contains(body, "建立主機項目") {
+		t.Fatalf("expected Traditional Chinese form heading, body=%q", body)
+	}
+}
+
+func TestHandleAdminPageRendersLanguageSwitchLinks(t *testing.T) {
+	handler, _ := newDashboardTestHandler(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin?lang=zh-Hant", nil)
+	req = identity.AddToRequestCtx(newIdentity(t, true), req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminPage(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	body := rr.Body.String()
+	if !strings.Contains(body, `href="/admin?lang=en"`) {
+		t.Fatalf("expected english switch link, body=%q", body)
+	}
+	if !strings.Contains(body, `href="/admin?lang=zh-Hant"`) {
+		t.Fatalf("expected Traditional Chinese switch link, body=%q", body)
+	}
+	if !strings.Contains(body, `class="lang-switch-link is-active"`) {
+		t.Fatalf("expected active language switch class, body=%q", body)
+	}
+}
+
+func TestHandleAdminPageFallbackTemplateAlsoUsesLocalizedCopy(t *testing.T) {
+	handler, _ := newDashboardTestHandler(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin?lang=zh-Hant", nil)
+	req = identity.AddToRequestCtx(newIdentity(t, true), req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminPage(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	body := rr.Body.String()
+	if !strings.Contains(body, "目前沒有已設定的項目。") {
+		t.Fatalf("expected localized admin empty-state payload, body=%q", body)
+	}
+}
+
 func TestHandleDashboardRedirectsUnauthenticatedUsersToRoot(t *testing.T) {
 	handler, _ := newDashboardTestHandler(t)
 

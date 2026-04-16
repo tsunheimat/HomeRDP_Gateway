@@ -62,8 +62,14 @@ func (h *Handler) HandleAdminPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	locale := dashboardLocaleFromRequest(r)
+	messages := adminMessagesForLocale(locale)
 	h.renderTemplatePage(w, "admin.html", fallbackAdminTemplate, map[string]any{
-		"Title": "RDP Gateway Admin",
+		"Lang":          locale,
+		"LanguageLinks": dashboardLanguageLinks(r, locale),
+		"Messages":      messages,
+		"MessagesJSON":  adminMessagesJSON(messages),
+		"Title":         messages.WindowTitle,
 	})
 }
 
@@ -190,7 +196,7 @@ const fallbackDashboardTemplate = `<!DOCTYPE html>
 `
 
 const fallbackAdminTemplate = `<!DOCTYPE html>
-<html lang="en">
+<html lang="{{.Lang}}">
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -202,60 +208,63 @@ const fallbackAdminTemplate = `<!DOCTYPE html>
 	<div class="header">
 		<div class="logo">
 			<img src="/assets/icon.svg" alt="Logo">
-			RDP Gateway Admin
+			RDP Gateway
 		</div>
 		<div class="user-info">
-			<span id="adminUsername">Loading...</span>
-			<a class="admin-link" href="/">Dashboard</a>
+			<div class="lang-switch" aria-label="Language switcher">{{range .LanguageLinks}}<a class="lang-switch-link{{if .Current}} is-active{{end}}" href="{{.URL}}">{{.Label}}</a>{{end}}</div>
+			<span id="adminUsername">{{.Messages.LoadingUser}}</span>
+			<a class="admin-link" href="/">{{.Messages.BackToDashboard}}</a>
 		</div>
 	</div>
 	<main class="main">
 		<div class="container admin-container">
-			<h1 class="title">Admin</h1>
+			<h1 class="title">{{.Messages.Heading}}</h1>
+			<p class="subtitle">{{.Messages.Subtitle}}</p>
 			<div class="success" id="adminSuccess"></div>
 			<div class="error" id="adminError"></div>
 			<div class="admin-grid">
 			<section class="admin-panel">
-				<h2>Host Entry</h2>
+				<h2>{{.Messages.CreateHostEntryHeading}}</h2>
 				<form id="hostForm" class="stack-form">
-					<label>Name<input type="text" name="name" required></label>
-					<label>Description<input type="text" name="description"></label>
-					<label>Allowed Groups<input type="text" name="allowedGroups" required></label>
-					<label>Host<input type="text" name="host" required></label>
-					<button type="submit" class="primary-button">Create Host Entry</button>
+					<label>{{.Messages.NameLabel}}<input type="text" name="name" required></label>
+					<label>{{.Messages.DescriptionLabel}}<input type="text" name="description"></label>
+					<label>{{.Messages.AllowedGroupsLabel}}<input type="text" name="allowedGroups" placeholder="{{.Messages.AllowedGroupsPlaceholder}}" required></label>
+					<label>{{.Messages.HostLabel}}<input type="text" name="host" placeholder="{{.Messages.HostPlaceholder}}" required></label>
+					<button type="submit" class="primary-button">{{.Messages.CreateHostEntryButton}}</button>
 				</form>
 			</section>
 			<section class="admin-panel">
-				<h2>Template Entry</h2>
+				<h2>{{.Messages.CreateTemplateEntryHeading}}</h2>
 				<form id="templateForm" class="stack-form" enctype="multipart/form-data">
-					<label>Name<input type="text" name="name" required></label>
-					<label>Description<input type="text" name="description"></label>
-					<label>Allowed Groups<input type="text" name="allowedGroups" required></label>
-					<label>Target Host Override<input type="text" name="targetHostOverride"></label>
-					<label>RDP Template File<input type="file" name="template" accept=".rdp" required></label>
-					<button type="submit" class="primary-button">Upload Template Entry</button>
+					<label>{{.Messages.NameLabel}}<input type="text" name="name" required></label>
+					<label>{{.Messages.DescriptionLabel}}<input type="text" name="description"></label>
+					<label>{{.Messages.AllowedGroupsLabel}}<input type="text" name="allowedGroups" placeholder="{{.Messages.AllowedGroupsPlaceholder}}" required></label>
+					<label>{{.Messages.TargetHostOverrideLabel}}<input type="text" name="targetHostOverride" placeholder="{{.Messages.TargetHostOverridePlaceholder}}"></label>
+					<label>{{.Messages.RdpTemplateFileLabel}}<input type="file" name="template" accept=".rdp" required></label>
+					<button type="submit" class="primary-button">{{.Messages.UploadTemplateEntryButton}}</button>
 				</form>
 			</section>
 			<section class="admin-panel">
-				<h2>Direct Auth User</h2>
+				<h2>{{.Messages.CreateDirectAuthUserHeading}}</h2>
 				<form id="authUserForm" class="stack-form">
-					<label>Username<input type="text" name="username" required></label>
-					<label>Password<input type="password" name="password" required></label>
-					<label><input type="checkbox" name="enabled" checked> Enabled</label>
-					<button type="submit" class="primary-button">Create Direct Auth User</button>
+					<label>{{.Messages.UsernameLabel}}<input type="text" name="username" required></label>
+					<label>{{.Messages.PasswordLabel}}<input type="password" name="password" required></label>
+					<label><input type="checkbox" name="enabled" checked> {{.Messages.EnabledLabel}}</label>
+					<button type="submit" class="primary-button">{{.Messages.CreateDirectAuthUserButton}}</button>
 				</form>
 			</section>
 			</div>
 			<section class="admin-panel">
-				<h2>Entries</h2>
+				<h2>{{.Messages.CurrentEntriesHeading}}</h2>
 				<div id="adminEntries"></div>
 			</section>
 			<section class="admin-panel">
-				<h2>Direct Auth Users</h2>
+				<h2>{{.Messages.CurrentDirectAuthUsersHeading}}</h2>
 				<div id="adminAuthUsers"></div>
 			</section>
 		</div>
 	</main>
+	<script>window.adminMessages = {{.MessagesJSON}};</script>
 	<script src="/static/admin.js"></script>
 </body>
 </html>
