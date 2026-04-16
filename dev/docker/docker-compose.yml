@@ -1,0 +1,26 @@
+services:
+  rdpgw-openid:
+    container_name: rdpgw-openid
+    hostname: rdpgw-openid
+    build:
+      context: ../..
+      dockerfile: dev/docker/Dockerfile
+    ports:
+      - "8443:8443"
+    restart: unless-stopped
+    volumes:
+      - ./rdpgw-openid.yaml:/opt/rdpgw/rdpgw.yaml:ro
+      - ./data/dashboard:/var/lib/rdpgw/dashboard
+
+  rdpgw-direct:
+    container_name: rdpgw-direct
+    hostname: rdpgw-direct
+    build:
+      context: ../..
+      dockerfile: dev/docker/Dockerfile
+    ports:
+      - "9443:9443"
+    restart: unless-stopped
+    volumes:
+      - ./rdpgw-direct.yaml:/opt/rdpgw/rdpgw.yaml:ro
+      - ./data/dashboard:/var/lib/rdpgw/dashboard
