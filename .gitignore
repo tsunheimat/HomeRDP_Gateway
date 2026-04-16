@@ -84,3 +84,6 @@ config.yml
 # Backup files
 *.bak
 *.backup
+
+
+dev/docker/data/
