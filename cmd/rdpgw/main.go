@@ -116,6 +116,34 @@ func initOIDC(callbackUrl *url.URL) *web.OIDC {
 	return o.New()
 }
 
+func buildGateway(conf config.Configuration, tokenAuth bool) protocol.Gateway {
+	gw := protocol.Gateway{
+		RedirectFlags: protocol.RedirectFlags{
+			Clipboard:  conf.Caps.EnableClipboard,
+			Drive:      conf.Caps.EnableDrive,
+			Printer:    conf.Caps.EnablePrinter,
+			Port:       conf.Caps.EnablePort,
+			Pnp:        conf.Caps.EnablePnp,
+			DisableAll: conf.Caps.DisableRedirect,
+			EnableAll:  conf.Caps.RedirectAll,
+		},
+		IdleTimeout:   conf.Caps.IdleTimeout,
+		SmartCardAuth: conf.Caps.SmartCardAuth,
+		TokenAuth:     tokenAuth,
+		ReceiveBuf:    conf.Server.ReceiveBuf,
+		SendBuf:       conf.Server.SendBuf,
+	}
+
+	if tokenAuth {
+		gw.CheckPAACookie = security.CheckPAACookie
+		gw.CheckHost = security.CheckSession(nil)
+	} else {
+		gw.CheckHost = security.CheckHost
+	}
+
+	return gw
+}
+
 func main() {
 	// load config
 	_, err := flags.Parse(&opts)
@@ -244,30 +272,9 @@ func main() {
 		}
 	}
 
-	// gateway confg
-	gw := protocol.Gateway{
-		RedirectFlags: protocol.RedirectFlags{
-			Clipboard:  conf.Caps.EnableClipboard,
-			Drive:      conf.Caps.EnableDrive,
-			Printer:    conf.Caps.EnablePrinter,
-			Port:       conf.Caps.EnablePort,
-			Pnp:        conf.Caps.EnablePnp,
-			DisableAll: conf.Caps.DisableRedirect,
-			EnableAll:  conf.Caps.RedirectAll,
-		},
-		IdleTimeout:   conf.Caps.IdleTimeout,
-		SmartCardAuth: conf.Caps.SmartCardAuth,
-		TokenAuth:     conf.Caps.TokenAuth,
-		ReceiveBuf:    conf.Server.ReceiveBuf,
-		SendBuf:       conf.Server.SendBuf,
-	}
-
-	if conf.Caps.TokenAuth {
-		gw.CheckPAACookie = security.CheckPAACookie
-		gw.CheckHost = security.CheckSession(nil)
-	} else {
-		gw.CheckHost = security.CheckHost
-	}
+	// gateway config
+	tokenGateway := buildGateway(conf, conf.Caps.TokenAuth)
+	directGateway := buildGateway(conf, false)
 
 	r := mux.NewRouter()
 
@@ -318,7 +325,7 @@ func main() {
 
 		// only enable un-auth endpoint for openid only config
 		if !conf.Server.KerberosEnabled() && !conf.Server.BasicAuthEnabled() && !conf.Server.NtlmEnabled() && !conf.Server.HeaderEnabled() {
-			rdp.Name("gw").HandlerFunc(gw.HandleGatewayProtocol)
+			rdp.Name("gw").HandlerFunc(tokenGateway.HandleGatewayProtocol)
 		}
 	}
 
@@ -348,7 +355,7 @@ func main() {
 
 		// only enable un-auth endpoint for header only config
 		if !conf.Server.KerberosEnabled() && !conf.Server.BasicAuthEnabled() && !conf.Server.NtlmEnabled() && !conf.Server.OpenIDEnabled() {
-			rdp.Name("gw").HandlerFunc(gw.HandleGatewayProtocol)
+			rdp.Name("gw").HandlerFunc(tokenGateway.HandleGatewayProtocol)
 		}
 	}
 
@@ -360,8 +367,8 @@ func main() {
 	if conf.Server.NtlmEnabled() {
 		log.Printf("enabling NTLM authentication")
 		ntlm := web.NTLMAuthHandler{SocketAddress: conf.Server.AuthSocket, Timeout: conf.Server.BasicAuthTimeout}
-		rdp.NewRoute().HeadersRegexp("Authorization", "NTLM").HandlerFunc(ntlm.NTLMAuth(gw.HandleGatewayProtocol))
-		rdp.NewRoute().HeadersRegexp("Authorization", "Negotiate").HandlerFunc(ntlm.NTLMAuth(gw.HandleGatewayProtocol))
+		rdp.NewRoute().HeadersRegexp("Authorization", "NTLM").HandlerFunc(ntlm.NTLMAuth(directGateway.HandleGatewayProtocol))
+		rdp.NewRoute().HeadersRegexp("Authorization", "Negotiate").HandlerFunc(ntlm.NTLMAuth(directGateway.HandleGatewayProtocol))
 		auth.Register([]string{`NTLM`, `Negotiate`}, func(r *http.Request) bool {
 			return r.Header.Get("Sec-WebSocket-Protocol") != "binary" // rdp client for ios is incompatible with this NTLM method.
 		})
@@ -371,7 +378,7 @@ func main() {
 	if conf.Server.BasicAuthEnabled() {
 		log.Printf("enabling basic authentication")
 		q := web.BasicAuthHandler{SocketAddress: conf.Server.AuthSocket, Timeout: conf.Server.BasicAuthTimeout}
-		rdp.NewRoute().HeadersRegexp("Authorization", "Basic").HandlerFunc(q.BasicAuth(gw.HandleGatewayProtocol))
+		rdp.NewRoute().HeadersRegexp("Authorization", "Basic").HandlerFunc(q.BasicAuth(directGateway.HandleGatewayProtocol))
 		auth.Register([]string{`Basic realm="restricted", charset="UTF-8"`}, nil)
 	}
 
@@ -383,7 +390,7 @@ func main() {
 			log.Fatalf("Cannot load keytab: %s", err)
 		}
 		rdp.NewRoute().HeadersRegexp("Authorization", "Negotiate").Handler(
-			spnego.SPNEGOKRB5Authenticate(web.TransposeSPNEGOContext(http.HandlerFunc(gw.HandleGatewayProtocol)),
+			spnego.SPNEGOKRB5Authenticate(web.TransposeSPNEGOContext(http.HandlerFunc(directGateway.HandleGatewayProtocol)),
 				keytab,
 				service.Logger(log.Default())))
 

@@ -65,6 +65,46 @@ func TestValidateManagedDirectAuthConfigAllowsOpenIDManagedDirectAuth(t *testing
 	}
 }
 
+func TestBuildGatewayWithTokenAuthUsesPAAValidation(t *testing.T) {
+	cfg := config.Configuration{
+		Caps: config.RDGCapsConfig{
+			TokenAuth: true,
+		},
+	}
+
+	gw := buildGateway(cfg, true)
+
+	if !gw.TokenAuth {
+		t.Fatal("expected token-auth gateway to require token auth")
+	}
+	if gw.CheckPAACookie == nil {
+		t.Fatal("expected token-auth gateway to validate PAA cookies")
+	}
+	if gw.CheckHost == nil {
+		t.Fatal("expected token-auth gateway to validate hosts from session token")
+	}
+}
+
+func TestBuildGatewayForDirectAuthSkipsPAAValidation(t *testing.T) {
+	cfg := config.Configuration{
+		Caps: config.RDGCapsConfig{
+			TokenAuth: true,
+		},
+	}
+
+	gw := buildGateway(cfg, false)
+
+	if gw.TokenAuth {
+		t.Fatal("expected direct-auth gateway to skip token auth")
+	}
+	if gw.CheckPAACookie != nil {
+		t.Fatal("expected direct-auth gateway not to require PAA cookies")
+	}
+	if gw.CheckHost == nil {
+		t.Fatal("expected direct-auth gateway to validate hosts directly")
+	}
+}
+
 func TestInitDashboardStateLoadsManagedHostsWithoutOpenID(t *testing.T) {
 	t.Cleanup(func() {
 		security.ManagedHostList = nil
@@ -221,5 +261,77 @@ func TestDockerRunScriptReadsShortConfigFlag(t *testing.T) {
 	want := configPath + "\ntrue\n"
 	if got := stdout.String(); got != want {
 		t.Fatalf("expected config path and startup decision %q, got %q", want, got)
+	}
+}
+
+func TestDockerRunScriptUsesConfiguredAuthHelperPath(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "rdpgw.yaml")
+	configBody := "Dashboard:\n  AuthHelperConfigPath: /var/lib/rdpgw/custom-auth.yaml\n"
+	if err := os.WriteFile(configPath, []byte(configBody), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	scriptPath := filepath.Join("..", "..", "dev", "docker", "run.lib.sh")
+	cmd := exec.Command(
+		"sh",
+		"-c",
+		`. "$1"; rdpgw_auth_helper_config_path --conf "$2"`,
+		"sh",
+		scriptPath,
+		configPath,
+	)
+	cmd.Env = append(os.Environ(),
+		"RDPGW_AUTH_HELPER_CONFIG=",
+		"RDPGW_DASHBOARD__AUTHHELPERCONFIGPATH=",
+		"RDPGW_DASHBOARD__STOREPATH=",
+	)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("run shell helper: %v stderr=%q", err, stderr.String())
+	}
+
+	if got := stdout.String(); got != "/var/lib/rdpgw/custom-auth.yaml\n" {
+		t.Fatalf("expected configured auth helper path, got %q", got)
+	}
+}
+
+func TestDockerRunScriptDerivesAuthHelperPathFromStorePath(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "rdpgw.yaml")
+	configBody := "Dashboard:\n  StorePath: /var/lib/rdpgw/dashboard\n"
+	if err := os.WriteFile(configPath, []byte(configBody), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	scriptPath := filepath.Join("..", "..", "dev", "docker", "run.lib.sh")
+	cmd := exec.Command(
+		"sh",
+		"-c",
+		`. "$1"; rdpgw_auth_helper_config_path --conf "$2"`,
+		"sh",
+		scriptPath,
+		configPath,
+	)
+	cmd.Env = append(os.Environ(),
+		"RDPGW_AUTH_HELPER_CONFIG=",
+		"RDPGW_DASHBOARD__AUTHHELPERCONFIGPATH=",
+		"RDPGW_DASHBOARD__STOREPATH=",
+	)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("run shell helper: %v stderr=%q", err, stderr.String())
+	}
+
+	if got := stdout.String(); got != "/var/lib/rdpgw/dashboard/rdpgw-auth.yaml\n" {
+		t.Fatalf("expected derived auth helper path, got %q", got)
 	}
 }

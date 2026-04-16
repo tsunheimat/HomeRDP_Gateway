@@ -19,10 +19,6 @@ func EnrichContext(next http.Handler) http.Handler {
 
 		if id == nil {
 			id = identity.NewUser()
-			if err := SaveSessionIdentity(r, w, id); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
 		}
 
 		log.Printf("Identity SessionId: %s, UserName: %s: Authenticated: %t",

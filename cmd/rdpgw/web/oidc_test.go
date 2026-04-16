@@ -1,11 +1,13 @@
 package web
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
 
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/identity"
+	"golang.org/x/oauth2"
 )
 
 func TestFindUserNameInClaims(t *testing.T) {
@@ -115,6 +117,66 @@ func TestOIDCStateManagement(t *testing.T) {
 			t.Fatal("Expected state not to be found in empty session, but it was found")
 		}
 	})
+}
+
+func TestOIDCAuthenticatedRedirectSetsSingleSessionCookie(t *testing.T) {
+	sessionKey := []byte("testsessionkeytestsessionkey1234")
+	encryptionKey := []byte("testencryptionkeytestencrypt1234")
+	InitStore(sessionKey, encryptionKey, "cookie", 8192)
+
+	oidc := (&OIDCConfig{
+		OAuth2Config: &oauth2.Config{
+			ClientID: "rdpgw",
+			Endpoint: oauth2.Endpoint{
+				AuthURL: "https://issuer.example/authorize",
+			},
+		},
+	}).New()
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+
+	handler := EnrichContext(oidc.Authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("unexpected downstream handler call")
+	})))
+	handler.ServeHTTP(w, req)
+
+	res := w.Result()
+	var sessionCookies []*http.Cookie
+	for _, cookie := range res.Cookies() {
+		if cookie.Name == rdpGwSession {
+			sessionCookies = append(sessionCookies, cookie)
+		}
+	}
+
+	if len(sessionCookies) != 1 {
+		t.Fatalf("expected exactly one %s cookie, got %d", rdpGwSession, len(sessionCookies))
+	}
+
+	location := res.Header.Get("Location")
+	if location == "" {
+		t.Fatal("expected redirect location to be set")
+	}
+
+	callbackReq := httptest.NewRequest(http.MethodGet, "/callback", nil)
+	callbackReq.AddCookie(sessionCookies[0])
+	state := ""
+	redirectReq := req
+	if parsedURL, err := http.NewRequest(http.MethodGet, location, nil); err == nil {
+		state = parsedURL.URL.Query().Get("state")
+		redirectReq = parsedURL
+	}
+	if state == "" {
+		t.Fatalf("expected redirect location %q to include a state parameter", location)
+	}
+
+	retrievedURL, found := getOIDCState(callbackReq, state)
+	if !found {
+		t.Fatal("expected to find OIDC state from the redirect session cookie")
+	}
+	if retrievedURL != redirectReq.RequestURI && retrievedURL != "/" {
+		t.Fatalf("expected redirect URL to be preserved, got %q", retrievedURL)
+	}
 }
 
 func TestPopulateIdentityFromClaims(t *testing.T) {

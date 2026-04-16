@@ -7,7 +7,7 @@ cd /opt/rdpgw || exit 1
 . /run.lib.sh
 
 AUTH_SOCKET=${RDPGW_SERVER__AUTH_SOCKET:-/tmp/rdpgw-auth.sock}
-AUTH_CONFIG=${RDPGW_AUTH_HELPER_CONFIG:-${RDPGW_DASHBOARD__AUTHHELPERCONFIGPATH:-/opt/rdpgw/data/dashboard/rdpgw-auth.yaml}}
+AUTH_CONFIG=$(rdpgw_auth_helper_config_path "$@")
 
 start_helper=$(rdpgw_should_start_auth_helper "$@")
 
