@@ -265,65 +265,50 @@ make install
 ```
 
 ## Testing locally
-A convenience docker-compose allows you to test the RDPGW locally. It uses [Keycloak](http://www.keycloak.org) 
-and [xrdp](http://www.xrdp.org) and exposes it services on port 9443. You will need to allow your browser
+A convenience docker-compose allows you to test the combined OIDC plus NTLM gateway locally on port 9443. The checked-in compose file starts the gateway container only; point it at your own OpenID Connect provider and managed RDP hosts before use. You will need to allow your browser
 to connect to localhost with and self signed security certificate. For chrome set `chrome://flags/#allow-insecure-localhost`.
-The username to login to both Keycloak and xrdp is `admin` as is the password.
-
-__NOTE__: The redirecting relies on DNS. Make sure to add ``127.0.0.1	keycloak`` to your `/etc/hosts` file to ensure
-that the redirect works.
 
 __NOTE__: The local testing environment uses a self signed certificate. This works for MAC clients, but not for Windows.
 If you want to test it on Windows you will need to provide a valid certificate.
 
 ```bash
-# with open id
 cd dev/docker
-docker-compose -f docker-compose.yml up
-
-# or for arm64 with open id
-docker-compose -f docker-compose-arm64.yml up
-
-# or for local
-docker-compose -f docker-compose-local.yml up
-
-# or for managed direct auth with OpenID dashboard state (listens on https://localhost:8080)
-docker compose -f docker-compose-ntlm.yml up --build
+docker compose -f docker-compose.yml up --build
 ```
 
 ### Managed Direct Auth Docker Deployment (TLS-ready)
 
-The managed direct-auth sample runs everything inside a single container. The main `rdpgw` process automatically starts the bundled `rdpgw-auth` helper whenever `local` or `ntlm` authentication is enabled, but the actual direct-auth users and allowed hosts are managed from the OpenID-protected dashboard state. The gateway still terminates TLS directly with the self-signed certificate baked into the Docker image, which satisfies Windows `mstsc`. If you later put an HTTPS reverse proxy (nginx, Traefik, etc.) in front, you can set `RDPGW_SERVER__TLS=disable` and keep the proxy on TLS.
+The managed direct-auth sample runs everything inside a single container and a single listener port. The main `rdpgw` process automatically starts the bundled `rdpgw-auth` helper whenever `local` or `ntlm` authentication is enabled, while the actual direct-auth users and allowed hosts are managed from the OpenID-protected dashboard state. The checked-in sample keeps one canonical gateway address and one shared HTTPS port; browser OIDC routes and native RDP gateway NTLM routes coexist on that same listener.
 
-1. Set the OpenID environment variables in `dev/docker/docker-compose-ntlm.yml`, then make sure the dashboard state directory is writable by the container.
+1. Set the OpenID values in [`dev/docker/rdpgw.yaml`](/mnt/vibe-coding-share/rdpgw/dev/docker/rdpgw.yaml), then make sure the dashboard state directory is writable by the container.
 2. From the repository root run:
 
 ```bash
-docker compose -f dev/docker/docker-compose-ntlm.yml up --build
+docker compose -f dev/docker/docker-compose.yml up --build
 ```
 
 3. Watch the `rdpgw` logs for: `Starting rdpgw-auth (socket: /tmp/rdpgw-auth.sock)` followed by `enabling NTLM authentication`, then verify the HTTPS listener is up:
 
 ```bash
-curl -k https://localhost:8080/
+curl -k https://localhost:9443/
 ```
 
-4. Sign into `https://localhost:8080/admin`, create at least one enabled host entry, and create the direct-auth user you want to test.
+4. Sign into `https://localhost:9443/admin`, create at least one enabled host entry, and create the direct-auth user you want to test.
 
 5. Connect with an RDP client that supports NTLM or basic auth. Example using FreeRDP against the managed direct-auth inventory:
 
 ```bash
-xfreerdp /g:localhost:8080 /gd:"" /u:<direct-auth-user> /p:<direct-auth-password> /v:<enabled-dashboard-host> /cert-ignore
+xfreerdp /g:localhost:9443 /gd:"" /u:<direct-auth-user> /p:<direct-auth-password> /v:<enabled-dashboard-host> /cert-ignore
 ```
 
 Security reminders:
 
 - Direct-auth passwords are stored in plain text inside the managed dashboard state so the helper can serve NTLM and local auth. Treat the dashboard store carefully and rotate credentials frequently.
-- If you disable TLS for a reverse proxy deployment (`RDPGW_SERVER__TLS=disable`), never expose port 8080 directly to untrusted networks; terminate HTTPS in the proxy and forward plain HTTP only on a trusted network.
-- Replace the sample session/signing keys in `docker-compose-ntlm.yml` before production use.
+- If you later disable TLS for a reverse proxy deployment, never expose the plain HTTP listener directly to untrusted networks; terminate HTTPS in the proxy and forward HTTP only on a trusted network.
+- Replace the sample session/signing keys in [`dev/docker/rdpgw.yaml`](/mnt/vibe-coding-share/rdpgw/dev/docker/rdpgw.yaml) before production use.
 - The gateway issues an HTTP-only cookie named `rdpgw-ntlm-session` to keep NTLM handshakes consistent; make sure any reverse proxy preserves cookies and allows subsequent requests to reach the same backend instance during authentication.
-    
-You can then connect to the gateway at `https://localhost:9443/` for the OpenID dashboard flows, which will start the authentication flow. For `local` or `ntlm`, use a native RDP client and authenticate with a direct-auth user that was created from `/admin`.
+
+Bootstrap configuration still lives in `rdpgw.yaml` or environment variables: listener port, gateway address, TLS, OpenID provider settings, and admin groups. Operational configuration is dashboard-managed: allowed hosts, uploaded templates, and direct-auth users for `local` and `ntlm`.
 
 ## Use
 Point your browser to `https://your-gateway/` for the dashboard or `https://your-gateway/admin` for administration. Direct `local` and `ntlm` authentication is intended for native RDP clients and uses the managed users and host inventory created from the web UI.

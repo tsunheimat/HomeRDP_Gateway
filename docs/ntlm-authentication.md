@@ -104,18 +104,14 @@ WantedBy=multi-user.target
 services:
   rdpgw:
     image: rdpgw
-    environment:
-      RDPGW_SERVER__AUTHENTICATION: openid ntlm
-      RDPGW_DASHBOARD__STOREPATH: /var/lib/rdpgw/dashboard
-      RDPGW_DASHBOARD__AUTHHELPERCONFIGPATH: /var/lib/rdpgw/dashboard/rdpgw-auth.yaml
-      RDPGW_AUTH_HELPER_CONFIG: /var/lib/rdpgw/dashboard/rdpgw-auth.yaml
+    ports:
+      - "9443:9443"
     volumes:
+      - ./rdpgw.yaml:/opt/rdpgw/rdpgw.yaml:ro
       - ./data/dashboard:/var/lib/rdpgw/dashboard
-      - auth-socket:/tmp
-
-volumes:
-  auth-socket:
 ```
+
+Use a combined gateway config with both `openid` and `ntlm` enabled. In the supported topology, `/admin` on the same gateway instance manages direct-auth users and enabled hosts, then the bundled `rdpgw-auth` helper consumes the generated `rdpgw-auth.yaml` from the shared dashboard store.
 
 ## Client Configuration
 

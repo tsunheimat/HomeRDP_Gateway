@@ -4,18 +4,12 @@ USER=rdpgw
 
 cd /opt/rdpgw || exit 1
 
-AUTH_MODES=$(echo "${RDPGW_SERVER__AUTHENTICATION}" | tr ',;' ' ')
+. /run.lib.sh
+
 AUTH_SOCKET=${RDPGW_SERVER__AUTH_SOCKET:-/tmp/rdpgw-auth.sock}
 AUTH_CONFIG=${RDPGW_AUTH_HELPER_CONFIG:-${RDPGW_DASHBOARD__AUTHHELPERCONFIGPATH:-/opt/rdpgw/data/dashboard/rdpgw-auth.yaml}}
 
-start_helper=false
-for mode in ${AUTH_MODES}; do
-  case "${mode}" in
-    local|ntlm)
-      start_helper=true
-      ;;
-  esac
-done
+start_helper=$(rdpgw_should_start_auth_helper "$@")
 
 if [ "${start_helper}" = "true" ]; then
   echo "Starting rdpgw-auth (socket: ${AUTH_SOCKET})"

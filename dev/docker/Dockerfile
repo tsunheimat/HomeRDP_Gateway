@@ -34,6 +34,7 @@ RUN mkdir -p /opt/rdpgw && cd /opt/rdpgw && \
 ADD dev/docker/tmp.tar /
 
 COPY --chown=1001 dev/docker/run.sh /run.sh
+COPY --chown=1001 dev/docker/run.lib.sh /run.lib.sh
 COPY --from=builder --chown=1001 /out/rdpgw /opt/rdpgw/rdpgw
 COPY --from=builder --chown=1001 /out/rdpgw-auth /opt/rdpgw/rdpgw-auth
 COPY --chown=1001 cmd/rdpgw/templates /opt/rdpgw/templates

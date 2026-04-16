@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -227,5 +228,41 @@ func TestLoadDashboardSettingsDerivesUploadDirFromStorePath(t *testing.T) {
 	}
 	if cfg.Dashboard.AuthHelperConfigPath != "/tmp/rdpgw-dashboard/rdpgw-auth.yaml" {
 		t.Fatalf("expected derived Dashboard.AuthHelperConfigPath to be /tmp/rdpgw-dashboard/rdpgw-auth.yaml, got %q", cfg.Dashboard.AuthHelperConfigPath)
+	}
+}
+
+func TestCombinedDockerSampleConfig(t *testing.T) {
+	unsetEnvWithCleanup(t, "RDPGW_SERVER__AUTHENTICATION")
+	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__STOREPATH")
+	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__AUTHHELPERCONFIGPATH")
+	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__ADMINGROUPS")
+
+	configPath := filepath.Join("..", "..", "..", "dev", "docker", "rdpgw.yaml")
+	cfg := Load(configPath)
+
+	expectedAuth := []string{"openid", "ntlm"}
+	if !reflect.DeepEqual(cfg.Server.Authentication, expectedAuth) {
+		t.Fatalf("expected combined docker auth modes %v, got %v", expectedAuth, cfg.Server.Authentication)
+	}
+
+	if cfg.Server.Port != 9443 {
+		t.Fatalf("expected combined docker sample port 9443, got %d", cfg.Server.Port)
+	}
+
+	if cfg.Dashboard.StorePath != "/var/lib/rdpgw/dashboard" {
+		t.Fatalf("expected Dashboard.StorePath to be /var/lib/rdpgw/dashboard, got %q", cfg.Dashboard.StorePath)
+	}
+
+	if cfg.Dashboard.AuthHelperConfigPath != "/var/lib/rdpgw/dashboard/rdpgw-auth.yaml" {
+		t.Fatalf("expected Dashboard.AuthHelperConfigPath to be /var/lib/rdpgw/dashboard/rdpgw-auth.yaml, got %q", cfg.Dashboard.AuthHelperConfigPath)
+	}
+
+	expectedGroups := []string{"admin"}
+	if !reflect.DeepEqual(cfg.Dashboard.AdminGroups, expectedGroups) {
+		t.Fatalf("expected Dashboard.AdminGroups to be %v, got %v", expectedGroups, cfg.Dashboard.AdminGroups)
+	}
+
+	if !cfg.Caps.TokenAuth {
+		t.Fatal("expected combined docker sample to keep token auth enabled for OIDC")
 	}
 }

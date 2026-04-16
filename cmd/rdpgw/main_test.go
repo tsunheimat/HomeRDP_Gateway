@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -121,5 +123,103 @@ func TestInitDashboardStateLoadsManagedHostsWithoutOpenID(t *testing.T) {
 
 	if _, err := os.Stat(helperConfigPath); !os.IsNotExist(err) {
 		t.Fatalf("expected helper config to remain untouched without openid, stat err=%v", err)
+	}
+}
+
+func TestDockerRunScriptStartsAuthHelperWhenConfigEnablesNTLM(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "rdpgw.yaml")
+	if err := os.WriteFile(configPath, []byte("Server:\n  Authentication:\n    - ntlm\n"), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	scriptPath := filepath.Join("..", "..", "dev", "docker", "run.lib.sh")
+	cmd := exec.Command(
+		"sh",
+		"-c",
+		`. "$1"; rdpgw_should_start_auth_helper --conf "$2"`,
+		"sh",
+		scriptPath,
+		configPath,
+	)
+	cmd.Env = append(os.Environ(), "RDPGW_SERVER__AUTHENTICATION=")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		t.Fatalf("run shell helper: %v stderr=%q", err, stderr.String())
+	}
+
+	if got := stdout.String(); got != "true\n" {
+		t.Fatalf("expected helper startup decision true, got %q", got)
+	}
+}
+
+func TestDockerRunScriptSkipsAuthHelperForOpenIDOnlyConfig(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "rdpgw.yaml")
+	if err := os.WriteFile(configPath, []byte("Server:\n  Authentication:\n    - openid\n"), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	scriptPath := filepath.Join("..", "..", "dev", "docker", "run.lib.sh")
+	cmd := exec.Command(
+		"sh",
+		"-c",
+		`. "$1"; rdpgw_should_start_auth_helper --conf "$2"`,
+		"sh",
+		scriptPath,
+		configPath,
+	)
+	cmd.Env = append(os.Environ(), "RDPGW_SERVER__AUTHENTICATION=")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		t.Fatalf("run shell helper: %v stderr=%q", err, stderr.String())
+	}
+
+	if got := stdout.String(); got != "false\n" {
+		t.Fatalf("expected helper startup decision false, got %q", got)
+	}
+}
+
+func TestDockerRunScriptReadsShortConfigFlag(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "rdpgw.yaml")
+	if err := os.WriteFile(configPath, []byte("Server:\n  Authentication:\n    - local\n"), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	scriptPath := filepath.Join("..", "..", "dev", "docker", "run.lib.sh")
+	cmd := exec.Command(
+		"sh",
+		"-c",
+		`. "$1"; printf '%s\n' "$(rdpgw_config_path "$@")" "$(rdpgw_should_start_auth_helper "$@")"`,
+		"sh",
+		scriptPath,
+		"-c",
+		configPath,
+	)
+	cmd.Env = append(os.Environ(), "RDPGW_SERVER__AUTHENTICATION=")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		t.Fatalf("run shell helper: %v stderr=%q", err, stderr.String())
+	}
+
+	want := configPath + "\ntrue\n"
+	if got := stdout.String(); got != want {
+		t.Fatalf("expected config path and startup decision %q, got %q", want, got)
 	}
 }
