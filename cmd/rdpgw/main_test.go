@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -333,5 +334,151 @@ func TestDockerRunScriptDerivesAuthHelperPathFromStorePath(t *testing.T) {
 
 	if got := stdout.String(); got != "/var/lib/rdpgw/dashboard/rdpgw-auth.yaml\n" {
 		t.Fatalf("expected derived auth helper path, got %q", got)
+	}
+}
+
+func TestDockerRunScriptStartsAuthHelperForSplitDirectAuth(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "rdpgw.yaml")
+	configBody := strings.Join([]string{
+		"Server:",
+		"  Authentication:",
+		"    - openid",
+		"GatewaySplit:",
+		"  Enabled: true",
+		"  OIDC:",
+		"    Hostname: rdapp.example.com",
+		"    Port: 8443",
+		"  Direct:",
+		"    Hostname: rdp-direct.example.com",
+		"    Port: 9443",
+		"    Authentication:",
+		"      - ntlm",
+	}, "\n") + "\n"
+	if err := os.WriteFile(configPath, []byte(configBody), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	scriptPath := filepath.Join("..", "..", "dev", "docker", "run.lib.sh")
+	cmd := exec.Command(
+		"sh",
+		"-c",
+		`. "$1"; rdpgw_should_start_auth_helper --conf "$2"`,
+		"sh",
+		scriptPath,
+		configPath,
+	)
+	cmd.Env = append(os.Environ(), "RDPGW_SERVER__AUTHENTICATION=")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("run shell helper: %v stderr=%q", err, stderr.String())
+	}
+
+	if got := stdout.String(); got != "true\n" {
+		t.Fatalf("expected helper startup decision true for split direct auth, got %q", got)
+	}
+}
+
+func TestDockerRunScriptRuntimeEnvForSplitOIDCListener(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "rdpgw.yaml")
+	configBody := strings.Join([]string{
+		"GatewaySplit:",
+		"  Enabled: true",
+		"  OIDC:",
+		"    Hostname: rdapp.example.com",
+		"    Port: 8443",
+		"  Direct:",
+		"    Hostname: rdp-direct.example.com",
+		"    Port: 9443",
+		"    Authentication:",
+		"      - ntlm",
+		"      - local",
+	}, "\n") + "\n"
+	if err := os.WriteFile(configPath, []byte(configBody), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	scriptPath := filepath.Join("..", "..", "dev", "docker", "run.lib.sh")
+	cmd := exec.Command(
+		"sh",
+		"-c",
+		`. "$1"; rdpgw_runtime_exports oidc --conf "$2"`,
+		"sh",
+		scriptPath,
+		configPath,
+	)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("run shell helper: %v stderr=%q", err, stderr.String())
+	}
+
+	want := strings.Join([]string{
+		"export RDPGW_SERVER__PORT='8443'",
+		"export RDPGW_SERVER__GATEWAYADDRESS='rdapp.example.com'",
+		"export RDPGW_SERVER__AUTHENTICATION='openid'",
+		"export RDPGW_CAPS__TOKENAUTH='true'",
+		"",
+	}, "\n")
+	if got := stdout.String(); got != want {
+		t.Fatalf("expected oidc runtime exports %q, got %q", want, got)
+	}
+}
+
+func TestDockerRunScriptRuntimeEnvForSplitDirectListener(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "rdpgw.yaml")
+	configBody := strings.Join([]string{
+		"GatewaySplit:",
+		"  Enabled: true",
+		"  OIDC:",
+		"    Hostname: rdapp.example.com",
+		"    Port: 8443",
+		"  Direct:",
+		"    Hostname: rdp-direct.example.com",
+		"    Port: 9443",
+		"    Authentication:",
+		"      - ntlm",
+		"      - local",
+	}, "\n") + "\n"
+	if err := os.WriteFile(configPath, []byte(configBody), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	scriptPath := filepath.Join("..", "..", "dev", "docker", "run.lib.sh")
+	cmd := exec.Command(
+		"sh",
+		"-c",
+		`. "$1"; rdpgw_runtime_exports direct --conf "$2"`,
+		"sh",
+		scriptPath,
+		configPath,
+	)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("run shell helper: %v stderr=%q", err, stderr.String())
+	}
+
+	want := strings.Join([]string{
+		"export RDPGW_SERVER__PORT='9443'",
+		"export RDPGW_SERVER__GATEWAYADDRESS='rdp-direct.example.com'",
+		"export RDPGW_SERVER__AUTHENTICATION='ntlm local'",
+		"export RDPGW_CAPS__TOKENAUTH='false'",
+		"",
+	}, "\n")
+	if got := stdout.String(); got != want {
+		t.Fatalf("expected direct runtime exports %q, got %q", want, got)
 	}
 }

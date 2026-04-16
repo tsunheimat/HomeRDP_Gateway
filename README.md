@@ -265,7 +265,7 @@ make install
 ```
 
 ## Testing locally
-A convenience docker-compose allows you to test the combined OIDC plus NTLM gateway locally on port 9443. The checked-in compose file starts the gateway container only; point it at your own OpenID Connect provider and managed RDP hosts before use. You will need to allow your browser
+A convenience docker-compose allows you to test the split OIDC plus direct-auth gateway locally on ports 8443 and 9443. The checked-in compose file starts the gateway container only; point it at your own OpenID Connect provider and managed RDP hosts before use. You will need to allow your browser
 to connect to localhost with and self signed security certificate. For chrome set `chrome://flags/#allow-insecure-localhost`.
 
 __NOTE__: The local testing environment uses a self signed certificate. This works for MAC clients, but not for Windows.
@@ -278,7 +278,12 @@ docker compose -f docker-compose.yml up --build
 
 ### Managed Direct Auth Docker Deployment (TLS-ready)
 
-The managed direct-auth sample runs everything inside a single container and a single listener port. The main `rdpgw` process automatically starts the bundled `rdpgw-auth` helper whenever `local` or `ntlm` authentication is enabled, while the actual direct-auth users and allowed hosts are managed from the OpenID-protected dashboard state. The checked-in sample keeps one canonical gateway address and one shared HTTPS port; browser OIDC routes and native RDP gateway NTLM routes coexist on that same listener.
+The managed direct-auth sample runs everything inside a single container with two listeners:
+
+- OIDC listener on port `8443`
+- direct-auth listener on port `9443`
+
+The container starts two `rdpgw` processes plus the bundled `rdpgw-auth` helper. The OIDC listener owns the browser routes, `/admin`, and dashboard-generated `.rdp` files. The direct listener owns native `ntlm` and `local` RDP gateway traffic. Both listeners share the same dashboard-managed host inventory and direct-auth user list.
 
 1. Set the OpenID values in [`dev/docker/rdpgw.yaml`](/mnt/vibe-coding-share/rdpgw/dev/docker/rdpgw.yaml), then make sure the dashboard state directory is writable by the container.
 2. From the repository root run:
@@ -287,13 +292,14 @@ The managed direct-auth sample runs everything inside a single container and a s
 docker compose -f dev/docker/docker-compose.yml up --build
 ```
 
-3. Watch the `rdpgw` logs for: `Starting rdpgw-auth (socket: /tmp/rdpgw-auth.sock)` followed by `enabling NTLM authentication`, then verify the HTTPS listener is up:
+3. Watch the `rdpgw` logs for: `Starting rdpgw-auth (socket: /tmp/rdpgw-auth.sock)` and `Split gateway mode enabled`, then verify both HTTPS listeners are up:
 
 ```bash
+curl -k https://localhost:8443/
 curl -k https://localhost:9443/
 ```
 
-4. Sign into `https://localhost:9443/admin`, create at least one enabled host entry, and create the direct-auth user you want to test.
+4. Sign into `https://localhost:8443/admin`, create at least one enabled host entry, and create the direct-auth user you want to test.
 
 5. Connect with an RDP client that supports NTLM or basic auth. Example using FreeRDP against the managed direct-auth inventory:
 
@@ -308,10 +314,10 @@ Security reminders:
 - Replace the sample session/signing keys in [`dev/docker/rdpgw.yaml`](/mnt/vibe-coding-share/rdpgw/dev/docker/rdpgw.yaml) before production use.
 - The gateway issues an HTTP-only cookie named `rdpgw-ntlm-session` to keep NTLM handshakes consistent; make sure any reverse proxy preserves cookies and allows subsequent requests to reach the same backend instance during authentication.
 
-Bootstrap configuration still lives in `rdpgw.yaml` or environment variables: listener port, gateway address, TLS, OpenID provider settings, and admin groups. Operational configuration is dashboard-managed: allowed hosts, uploaded templates, and direct-auth users for `local` and `ntlm`.
+Bootstrap configuration still lives in `rdpgw.yaml` or environment variables: listener ports, external hostnames, TLS, OpenID provider settings, and admin groups. Operational configuration is dashboard-managed: allowed hosts, uploaded templates, and direct-auth users for `local` and `ntlm`.
 
 ## Use
-Point your browser to `https://your-gateway/` for the dashboard or `https://your-gateway/admin` for administration. Direct `local` and `ntlm` authentication is intended for native RDP clients and uses the managed users and host inventory created from the web UI.
+Point your browser to the OIDC hostname, `https://your-oidc-gateway/`, for the dashboard or `https://your-oidc-gateway/admin` for administration. Direct `local` and `ntlm` authentication is intended for native RDP clients and should target the direct-auth hostname, `https://your-direct-gateway/`, while still using the managed users and host inventory created from the web UI.
 
 ## Integration
 The gateway exposes an endpoint for the verification of user tokens at

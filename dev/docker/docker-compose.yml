@@ -6,6 +6,7 @@ services:
       context: ../..
       dockerfile: dev/docker/Dockerfile
     ports:
+      - "8443:8443"
       - "9443:9443"
     restart: unless-stopped
     volumes:

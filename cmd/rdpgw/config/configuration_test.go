@@ -240,13 +240,13 @@ func TestCombinedDockerSampleConfig(t *testing.T) {
 	configPath := filepath.Join("..", "..", "..", "dev", "docker", "rdpgw.yaml")
 	cfg := Load(configPath)
 
-	expectedAuth := []string{"openid", "ntlm"}
+	expectedAuth := []string{"openid"}
 	if !reflect.DeepEqual(cfg.Server.Authentication, expectedAuth) {
 		t.Fatalf("expected combined docker auth modes %v, got %v", expectedAuth, cfg.Server.Authentication)
 	}
 
-	if cfg.Server.Port != 9443 {
-		t.Fatalf("expected combined docker sample port 9443, got %d", cfg.Server.Port)
+	if cfg.Server.Port != 8443 {
+		t.Fatalf("expected combined docker sample port 8443, got %d", cfg.Server.Port)
 	}
 
 	if cfg.Dashboard.StorePath != "/var/lib/rdpgw/dashboard" {

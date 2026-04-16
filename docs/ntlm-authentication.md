@@ -105,13 +105,20 @@ services:
   rdpgw:
     image: rdpgw
     ports:
+      - "8443:8443"
       - "9443:9443"
     volumes:
       - ./rdpgw.yaml:/opt/rdpgw/rdpgw.yaml:ro
       - ./data/dashboard:/var/lib/rdpgw/dashboard
 ```
 
-Use a combined gateway config with both `openid` and `ntlm` enabled. In the supported topology, `/admin` on the same gateway instance manages direct-auth users and enabled hosts, then the bundled `rdpgw-auth` helper consumes the generated `rdpgw-auth.yaml` from the shared dashboard store.
+Use the split gateway topology in one container:
+
+- OIDC web UI, `/admin`, callback handling, and downloaded `.rdp` clients on the OIDC listener
+- NTLM or `local` direct RDP clients on the direct listener
+- one shared dashboard store and one shared `rdpgw-auth` helper
+
+In the supported topology, `/admin` on the OIDC listener manages direct-auth users and enabled hosts, then the bundled `rdpgw-auth` helper consumes the generated `rdpgw-auth.yaml` from the shared dashboard store. Direct-auth clients connect only to the direct listener hostname.
 
 ## Client Configuration
 
