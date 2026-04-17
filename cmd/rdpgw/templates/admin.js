@@ -112,41 +112,61 @@ function renderAdminEntries(entries) {
         return;
     }
 
+    const list = document.createElement('div');
+    list.className = 'inventory-list';
+
     entries.forEach((entry) => {
         const wrapper = document.createElement('article');
         wrapper.className = 'entry-row';
 
-        const mainRow = document.createElement('div');
-        mainRow.className = 'entry-row-main';
+        const summary = document.createElement('div');
+        summary.className = 'entry-row-summary';
 
-        const title = document.createElement('strong');
+        const info = document.createElement('div');
+        info.className = 'entry-row-info';
+
+        const title = document.createElement('span');
+        title.className = 'entry-row-title';
         title.textContent = entry.name;
-        mainRow.appendChild(title);
+        info.appendChild(title);
 
         const type = document.createElement('span');
-        type.className = 'entry-meta';
+        type.className = 'entry-meta-badge';
         type.textContent = entryTypeLabel(entry.type);
-        mainRow.appendChild(type);
+        info.appendChild(type);
 
         const enabled = document.createElement('span');
-        enabled.className = 'entry-meta';
+        enabled.className = 'entry-meta-badge';
         enabled.textContent = statusLabel(entry.enabled);
-        mainRow.appendChild(enabled);
+        info.appendChild(enabled);
 
-        const description = document.createElement('p');
-        description.className = 'entry-description';
-        description.textContent = entry.description || t('noDescription', 'No description provided.');
-
-        const target = document.createElement('p');
-        target.className = 'entry-meta';
+        const target = document.createElement('span');
+        target.className = 'entry-row-target';
         target.textContent = entry.host || entry.targetHostOverride || (entry.hasUploadedTemplate ? t('uploadedTemplateLabel', 'Uploaded template') : '');
-
-        const groups = document.createElement('p');
-        groups.className = 'entry-meta';
-        groups.textContent = `${t('allowedGroupsLabel', 'Allowed Groups (comma separated)')}: ${(entry.allowedGroups || []).join(', ')}`;
+        info.appendChild(target);
 
         const actions = document.createElement('div');
-        actions.className = 'entry-actions';
+        actions.className = 'entry-row-actions';
+
+        const editToggle = document.createElement('button');
+        editToggle.type = 'button';
+        editToggle.className = 'secondary-button';
+        editToggle.textContent = t('editButton', 'Edit');
+
+        const toggleEnabledButton = document.createElement('button');
+        toggleEnabledButton.type = 'button';
+        toggleEnabledButton.className = 'secondary-button';
+        toggleEnabledButton.textContent = t('toggleEnabledButton', 'Toggle Enabled');
+
+        actions.appendChild(editToggle);
+        actions.appendChild(toggleEnabledButton);
+
+        summary.appendChild(info);
+        summary.appendChild(actions);
+
+        const editPanel = document.createElement('div');
+        editPanel.className = 'entry-edit-panel';
+        editPanel.hidden = true;
 
         const nameLabel = document.createElement('label');
         nameLabel.className = 'muted';
@@ -172,9 +192,9 @@ function renderAdminEntries(entries) {
         groupsInput.value = (entry.allowedGroups || []).join(', ');
         groupsLabel.appendChild(groupsInput);
 
-        wrapper.appendChild(nameLabel);
-        wrapper.appendChild(descriptionLabel);
-        wrapper.appendChild(groupsLabel);
+        editPanel.appendChild(nameLabel);
+        editPanel.appendChild(descriptionLabel);
+        editPanel.appendChild(groupsLabel);
 
         let hostInput = null;
         let targetHostInput = null;
@@ -186,7 +206,7 @@ function renderAdminEntries(entries) {
             hostInput.type = 'text';
             hostInput.value = entry.host || '';
             hostLabel.appendChild(hostInput);
-            wrapper.appendChild(hostLabel);
+            editPanel.appendChild(hostLabel);
         } else {
             const targetLabel = document.createElement('label');
             targetLabel.className = 'muted';
@@ -195,35 +215,36 @@ function renderAdminEntries(entries) {
             targetHostInput.type = 'text';
             targetHostInput.value = entry.targetHostOverride || '';
             targetLabel.appendChild(targetHostInput);
-            wrapper.appendChild(targetLabel);
+            editPanel.appendChild(targetLabel);
         }
+
+        const editActions = document.createElement('div');
+        editActions.className = 'entry-edit-actions';
 
         const saveButton = document.createElement('button');
         saveButton.type = 'button';
         saveButton.className = 'primary-button';
         saveButton.textContent = t('saveButton', 'Save');
 
-        const toggleButton = document.createElement('button');
-        toggleButton.type = 'button';
-        toggleButton.className = 'secondary-button';
-        toggleButton.dataset.action = 'toggle';
-        toggleButton.textContent = t('toggleEnabledButton', 'Toggle Enabled');
-
         const deleteButton = document.createElement('button');
         deleteButton.type = 'button';
         deleteButton.className = 'danger-button';
-        deleteButton.dataset.action = 'delete';
         deleteButton.textContent = t('deleteButton', 'Delete');
 
-        actions.appendChild(saveButton);
-        actions.appendChild(toggleButton);
-        actions.appendChild(deleteButton);
+        editActions.appendChild(saveButton);
+        editActions.appendChild(deleteButton);
+        
+        editPanel.appendChild(editActions);
 
-        wrapper.appendChild(mainRow);
-        wrapper.appendChild(description);
-        wrapper.appendChild(target);
-        wrapper.appendChild(groups);
-        wrapper.appendChild(actions);
+        wrapper.appendChild(summary);
+        wrapper.appendChild(editPanel);
+
+        editToggle.addEventListener('click', () => {
+            editPanel.hidden = !editPanel.hidden;
+            if (!editPanel.hidden) {
+                nameInput.focus();
+            }
+        });
 
         saveButton.addEventListener('click', async () => {
             clearEntriesError();
@@ -255,7 +276,7 @@ function renderAdminEntries(entries) {
             }
         });
 
-        toggleButton.addEventListener('click', async () => {
+        toggleEnabledButton.addEventListener('click', async () => {
             clearEntriesError();
             clearEntriesSuccess();
             try {
@@ -274,6 +295,7 @@ function renderAdminEntries(entries) {
         });
 
         deleteButton.addEventListener('click', async () => {
+            if (!confirm(formatMessage(t('deleteConfirm', 'Are you sure you want to delete %s?'), entry.name))) return;
             clearEntriesError();
             clearEntriesSuccess();
             try {
@@ -289,8 +311,10 @@ function renderAdminEntries(entries) {
             }
         });
 
-        root.appendChild(wrapper);
+        list.appendChild(wrapper);
     });
+
+    root.appendChild(list);
 }
 
 function renderAdminAuthUsers(users) {
@@ -432,7 +456,7 @@ function renderAdminAuthUsers(users) {
         });
 
         deleteButton.addEventListener('click', async () => {
-            if (!confirm(`Are you sure you want to delete ${user.username}?`)) return;
+            if (!confirm(formatMessage(t('deleteConfirm', 'Are you sure you want to delete %s?'), user.username))) return;
             clearAuthUsersError();
             clearAuthUsersSuccess();
 

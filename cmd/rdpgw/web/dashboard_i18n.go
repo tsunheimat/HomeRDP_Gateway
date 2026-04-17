@@ -51,6 +51,7 @@ type adminMessages struct {
 	CurrentDirectAuthUsersHeading  string            `json:"currentDirectAuthUsersHeading"`
 	CurrentEntriesHeading          string            `json:"currentEntriesHeading"`
 	DeleteButton                   string            `json:"deleteButton"`
+	DeleteConfirm                  string            `json:"deleteConfirm"`
 	DeleteAuthUserErrorPrefix      string            `json:"deleteAuthUserErrorPrefix"`
 	DeleteEntryErrorPrefix         string            `json:"deleteEntryErrorPrefix"`
 	DeleteSuccess                  string            `json:"deleteSuccess"`
@@ -145,6 +146,7 @@ func dashboardMessagesForLocale(locale string) dashboardMessages {
 			SummaryTemplates:  "範本",
 			SummaryTotal:      "總項目",
 			UnknownUser:       "未知使用者",
+			UploadedTemplateLabel: "已上傳範本",
 			WindowTitle:     "RDP Gateway 儀表板",
 		}
 	}
@@ -205,6 +207,7 @@ func adminMessagesForLocale(locale string) adminMessages {
 			CurrentDirectAuthUsersHeading: "目前的直接驗證使用者",
 			CurrentEntriesHeading:         "目前的項目",
 			DeleteButton:                  "刪除",
+			DeleteConfirm:                 "確定要刪除 %s 嗎？",
 			DeleteAuthUserErrorPrefix:     "無法刪除直接驗證使用者：",
 			DeleteEntryErrorPrefix:        "無法刪除項目：",
 			DeleteSuccess:                 "已刪除 %s。",
@@ -237,6 +240,8 @@ func adminMessagesForLocale(locale string) adminMessages {
 			SaveEntryErrorPrefix:           "無法儲存項目：",
 			SaveSuccess:                    "已儲存 %s。",
 			Subtitle:                       "建立並管理已發布的主機與範本式項目。",
+			TabDirectAuthUsers:             "直接驗證使用者",
+			TabPublishedEntries:            "已發布項目",
 			TargetHostOverrideLabel:        "目標主機覆寫（可選）",
 			TargetHostOverridePlaceholder:  "app.internal:3389",
 			ToggleEnabledButton:            "切換啟用狀態",
@@ -269,6 +274,7 @@ func adminMessagesForLocale(locale string) adminMessages {
 		CurrentDirectAuthUsersHeading: "Current Direct Auth Users",
 		CurrentEntriesHeading:         "Current Entries",
 		DeleteButton:                  "Delete",
+		DeleteConfirm:                 "Are you sure you want to delete %s?",
 		DeleteAuthUserErrorPrefix:     "Unable to delete auth user:",
 		DeleteEntryErrorPrefix:        "Unable to delete entry:",
 		DeleteSuccess:                 "Deleted %s.",

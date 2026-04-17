@@ -82,14 +82,17 @@ function updateSummary(entries) {
     const total = entries.length;
 
     strip.innerHTML = `
-        <div style="font-size: 0.9rem; color: var(--muted-foreground)">
-            <strong style="color: var(--foreground)">${total}</strong> ${t('summaryTotal', 'Total entries')}
+        <div class="summary-chip">
+            <span class="summary-value">${total}</span>
+            <span class="summary-label">${t('summaryTotal', 'Total entries')}</span>
         </div>
-        <div style="font-size: 0.9rem; color: var(--muted-foreground)">
-            <strong style="color: var(--foreground)">${hosts}</strong> ${t('summaryHosts', 'Hosts')}
+        <div class="summary-chip">
+            <span class="summary-value">${hosts}</span>
+            <span class="summary-label">${t('summaryHosts', 'Hosts')}</span>
         </div>
-        <div style="font-size: 0.9rem; color: var(--muted-foreground)">
-            <strong style="color: var(--foreground)">${templates}</strong> ${t('summaryTemplates', 'Templates')}
+        <div class="summary-chip">
+            <span class="summary-value">${templates}</span>
+            <span class="summary-label">${t('summaryTemplates', 'Templates')}</span>
         </div>
     `;
     strip.hidden = false;
@@ -142,7 +145,8 @@ function renderEntries(entries) {
         }
         
         if (targetText) {
-            targetDiv.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>${targetText}`;
+            targetDiv.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>`;
+            targetDiv.appendChild(document.createTextNode(targetText));
         } else {
             targetDiv.innerHTML = '&nbsp;';
         }
