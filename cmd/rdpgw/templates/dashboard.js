@@ -114,31 +114,52 @@ function renderEntries(entries) {
         card.className = 'entry-card';
 
         const header = document.createElement('header');
-        header.style.display = 'flex';
-        header.style.justifyContent = 'space-between';
-        header.style.alignItems = 'flex-start';
+        header.className = 'entry-header';
+
+        const titleInfo = document.createElement('div');
+        titleInfo.className = 'entry-title-info';
 
         const title = document.createElement('h3');
         title.className = 'entry-name';
         title.textContent = entry.name;
 
-        const meta = document.createElement('div');
-        meta.className = 'entry-meta';
+        const meta = document.createElement('span');
+        meta.className = 'entry-meta-badge';
         meta.textContent = entryTypeLabel(entry.type);
 
-        header.appendChild(title);
-        header.appendChild(meta);
+        titleInfo.appendChild(title);
+        titleInfo.appendChild(meta);
+        header.appendChild(titleInfo);
+
+        const targetDiv = document.createElement('div');
+        targetDiv.className = 'entry-target';
+        
+        let targetText = '';
+        if (entry.target) {
+            targetText = entry.target;
+        } else if (entry.hasUploadedTemplate) {
+            targetText = t('uploadedTemplateLabel', 'Uploaded template');
+        }
+        
+        if (targetText) {
+            targetDiv.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>${targetText}`;
+        } else {
+            targetDiv.innerHTML = '&nbsp;';
+        }
 
         const description = document.createElement('p');
         description.className = 'entry-description';
-        description.style.flex = '1';
         description.textContent = entry.description || t('noDescription', 'No description provided.');
+
+        const body = document.createElement('div');
+        body.className = 'entry-body';
+        body.appendChild(targetDiv);
+        body.appendChild(description);
 
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'primary-button';
         button.textContent = t('downloadButton', 'Download RDP');
-        button.style.marginTop = 'auto';
 
         button.addEventListener('click', () => {
             clearDashboardError();
@@ -148,7 +169,7 @@ function renderEntries(entries) {
         });
 
         card.appendChild(header);
-        card.appendChild(description);
+        card.appendChild(body);
         card.appendChild(button);
         grid.appendChild(card);
     });

@@ -8,15 +8,15 @@ This directory contains the web UI templates and static assets used by the gatew
 Authenticated OpenID dashboard page (`/`) that renders:
 - The common `app-shell` structure (topbar, main content area)
 - Current user details in the topbar
-- A summary strip and entry cards loaded from `/api/v1/entries`
+- A summary strip with chips (`.summary-chip`) and entry cards loaded from `/api/v1/entries`
 - Admin link (shown only when `/api/v1/user` reports `isAdmin: true`)
 
 ### `admin.html`
 Authenticated OpenID admin page (`/admin`) for users in configured admin groups. It uses the `app-shell` layout with an inventory-first approach:
 - **Topbar**: Shared navigation and user info
 - **Section Switcher**: Toggles between Published Entries and Direct-Auth Users
-- **Published Entries Section**: Entry list management, host entry create form, template upload form
-- **Direct-Auth Users Section**: User management and creation form
+- **Published Entries Section**: Inventory list (`.inventory-list`, `.entry-row-summary`, `.entry-edit-panel`), host entry create form, template upload form
+- **Direct-Auth Users Section**: Inventory list with inline edit toggle, user creation form
 
 ### `index.html`
 Legacy web interface template used by existing non-dashboard flows. Does not use the `app-shell` structure.

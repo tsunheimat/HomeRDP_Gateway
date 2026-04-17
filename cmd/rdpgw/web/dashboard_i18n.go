@@ -31,6 +31,7 @@ type dashboardMessages struct {
 	SummaryTemplates string            `json:"summaryTemplates"`
 	SummaryTotal     string            `json:"summaryTotal"`
 	UnknownUser      string            `json:"unknownUser"`
+	UploadedTemplateLabel string       `json:"uploadedTemplateLabel"`
 	WindowTitle      string            `json:"windowTitle"`
 }
 
@@ -55,6 +56,7 @@ type adminMessages struct {
 	DeleteSuccess                  string            `json:"deleteSuccess"`
 	DescriptionLabel               string            `json:"descriptionLabel"`
 	DisabledStatus                 string            `json:"disabledStatus"`
+	EditButton                     string            `json:"editButton"`
 	EnabledLabel                   string            `json:"enabledLabel"`
 	EnabledStatus                  string            `json:"enabledStatus"`
 	EntryTypes                     map[string]string `json:"entryTypes"`
@@ -168,6 +170,7 @@ func dashboardMessagesForLocale(locale string) dashboardMessages {
 		SummaryTemplates: "Templates",
 		SummaryTotal:     "Total entries",
 		UnknownUser:      "Unknown User",
+		UploadedTemplateLabel: "Uploaded template",
 		WindowTitle:      "RDP Gateway Dashboard",
 	}
 }
@@ -207,6 +210,7 @@ func adminMessagesForLocale(locale string) adminMessages {
 			DeleteSuccess:                 "已刪除 %s。",
 			DescriptionLabel:              "描述",
 			DisabledStatus:                "已停用",
+			EditButton:                    "編輯",
 			EnabledLabel:                  "啟用",
 			EnabledStatus:                 "已啟用",
 			EntryTypes: map[string]string{
@@ -270,6 +274,7 @@ func adminMessagesForLocale(locale string) adminMessages {
 		DeleteSuccess:                 "Deleted %s.",
 		DescriptionLabel:              "Description",
 		DisabledStatus:                "disabled",
+		EditButton:                    "Edit",
 		EnabledLabel:                  "Enabled",
 		EnabledStatus:                 "enabled",
 		EntryTypes: map[string]string{

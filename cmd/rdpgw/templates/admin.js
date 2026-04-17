@@ -306,55 +306,87 @@ function renderAdminAuthUsers(users) {
         return;
     }
 
+    const list = document.createElement('div');
+    list.className = 'inventory-list';
+
     users.forEach((user) => {
         const wrapper = document.createElement('article');
         wrapper.className = 'entry-row';
 
-        const mainRow = document.createElement('div');
-        mainRow.className = 'entry-row-main';
+        const summary = document.createElement('div');
+        summary.className = 'entry-row-summary';
 
-        const title = document.createElement('strong');
+        const info = document.createElement('div');
+        info.className = 'entry-row-info';
+
+        const title = document.createElement('span');
+        title.className = 'entry-row-title';
         title.textContent = user.username;
-        mainRow.appendChild(title);
+        info.appendChild(title);
 
         const enabled = document.createElement('span');
-        enabled.className = 'entry-meta';
+        enabled.className = 'entry-meta-badge';
         enabled.textContent = statusLabel(user.enabled);
-        mainRow.appendChild(enabled);
+        info.appendChild(enabled);
+
+        const actions = document.createElement('div');
+        actions.className = 'entry-row-actions';
+
+        const editToggle = document.createElement('button');
+        editToggle.type = 'button';
+        editToggle.className = 'secondary-button';
+        editToggle.textContent = t('editButton', 'Edit');
+
+        const toggleEnabledButton = document.createElement('button');
+        toggleEnabledButton.type = 'button';
+        toggleEnabledButton.className = 'secondary-button';
+        toggleEnabledButton.textContent = t('toggleEnabledButton', 'Toggle Enabled');
+
+        actions.appendChild(editToggle);
+        actions.appendChild(toggleEnabledButton);
+
+        summary.appendChild(info);
+        summary.appendChild(actions);
+
+        const editPanel = document.createElement('div');
+        editPanel.className = 'entry-edit-panel';
+        editPanel.hidden = true;
 
         const passwordLabel = document.createElement('label');
-        passwordLabel.className = 'muted';
         passwordLabel.textContent = t('newPasswordLabel', 'New Password');
         const passwordInput = document.createElement('input');
         passwordInput.type = 'password';
         passwordInput.placeholder = t('passwordKeepPlaceholder', 'Leave blank to keep current password');
         passwordLabel.appendChild(passwordInput);
 
-        const actions = document.createElement('div');
-        actions.className = 'entry-actions';
+        editPanel.appendChild(passwordLabel);
+
+        const editActions = document.createElement('div');
+        editActions.className = 'entry-edit-actions';
 
         const saveButton = document.createElement('button');
         saveButton.type = 'button';
         saveButton.className = 'primary-button';
         saveButton.textContent = t('saveButton', 'Save');
 
-        const toggleButton = document.createElement('button');
-        toggleButton.type = 'button';
-        toggleButton.className = 'secondary-button';
-        toggleButton.textContent = t('toggleEnabledButton', 'Toggle Enabled');
-
         const deleteButton = document.createElement('button');
         deleteButton.type = 'button';
         deleteButton.className = 'danger-button';
         deleteButton.textContent = t('deleteButton', 'Delete');
 
-        actions.appendChild(saveButton);
-        actions.appendChild(toggleButton);
-        actions.appendChild(deleteButton);
+        editActions.appendChild(saveButton);
+        editActions.appendChild(deleteButton);
+        editPanel.appendChild(editActions);
 
-        wrapper.appendChild(mainRow);
-        wrapper.appendChild(passwordLabel);
-        wrapper.appendChild(actions);
+        wrapper.appendChild(summary);
+        wrapper.appendChild(editPanel);
+
+        editToggle.addEventListener('click', () => {
+            editPanel.hidden = !editPanel.hidden;
+            if (!editPanel.hidden) {
+                passwordInput.focus();
+            }
+        });
 
         saveButton.addEventListener('click', async () => {
             clearAuthUsersError();
@@ -380,7 +412,7 @@ function renderAdminAuthUsers(users) {
             }
         });
 
-        toggleButton.addEventListener('click', async () => {
+        toggleEnabledButton.addEventListener('click', async () => {
             clearAuthUsersError();
             clearAuthUsersSuccess();
 
@@ -400,6 +432,7 @@ function renderAdminAuthUsers(users) {
         });
 
         deleteButton.addEventListener('click', async () => {
+            if (!confirm(`Are you sure you want to delete ${user.username}?`)) return;
             clearAuthUsersError();
             clearAuthUsersSuccess();
 
@@ -416,8 +449,10 @@ function renderAdminAuthUsers(users) {
             }
         });
 
-        root.appendChild(wrapper);
+        list.appendChild(wrapper);
     });
+
+    root.appendChild(list);
 }
 
 async function loadEntries() {

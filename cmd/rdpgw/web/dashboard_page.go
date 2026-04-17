@@ -16,11 +16,13 @@ import (
 )
 
 type DashboardEntrySummary struct {
-	ID          string `json:"id"`
-	Type        string `json:"type"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	DownloadURL string `json:"downloadUrl"`
+	ID                  string `json:"id"`
+	Type                string `json:"type"`
+	Name                string `json:"name"`
+	Description         string `json:"description"`
+	Target              string `json:"target"`
+	HasUploadedTemplate bool   `json:"hasUploadedTemplate"`
+	DownloadURL         string `json:"downloadUrl"`
 }
 
 type DashboardUserInfo struct {
@@ -94,12 +96,19 @@ func (h *Handler) HandleEntryList(w http.ResponseWriter, r *http.Request) {
 	visible := dashboard.VisibleEntries(entries, id.Groups())
 	summaries := make([]DashboardEntrySummary, 0, len(visible))
 	for _, entry := range visible {
+		target := entry.Host
+		if entry.Type == dashboard.EntryTypeTemplate && entry.TargetHostOverride != "" {
+			target = entry.TargetHostOverride
+		}
+
 		summaries = append(summaries, DashboardEntrySummary{
-			ID:          entry.ID,
-			Type:        string(entry.Type),
-			Name:        entry.Name,
-			Description: entry.Description,
-			DownloadURL: fmt.Sprintf("/connect/entries/%s.rdp", entry.ID),
+			ID:                  entry.ID,
+			Type:                string(entry.Type),
+			Name:                entry.Name,
+			Description:         entry.Description,
+			Target:              target,
+			HasUploadedTemplate: entry.UploadedTemplatePath != "",
+			DownloadURL:         fmt.Sprintf("/connect/entries/%s.rdp", entry.ID),
 		})
 	}
 
@@ -297,7 +306,7 @@ const fallbackAdminTemplate = `<!DOCTYPE html>
 						<form id="authUserForm" class="stack-form">
 							<label>{{.Messages.UsernameLabel}}<input type="text" name="username" required></label>
 							<label>{{.Messages.PasswordLabel}}<input type="password" name="password" required></label>
-							<label><input type="checkbox" name="enabled" checked> {{.Messages.EnabledLabel}}</label>
+							<label class="checkbox-row"><input type="checkbox" name="enabled" checked> {{.Messages.EnabledLabel}}</label>
 							<button type="submit" class="primary-button">{{.Messages.CreateDirectAuthUserButton}}</button>
 						</form>
 					</section>
