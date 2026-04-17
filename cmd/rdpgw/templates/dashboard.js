@@ -1,4 +1,5 @@
 let dashboardUser = null;
+let allEntries = [];
 const dashboardMessages = window.dashboardMessages || {};
 
 function t(key, fallback) {
@@ -15,20 +16,30 @@ function entryTypeLabel(type) {
     return entryTypes[type] || type;
 }
 
-function setDashboardError(message) {
+function setDashboardError(message, showRetry = false) {
     const el = document.getElementById('dashboardError');
-    el.textContent = message;
-    el.style.display = 'block';
+    document.getElementById('dashboardErrorText').textContent = message;
+    
+    const retryBtn = document.getElementById('dashboardRetryBtn');
+    if (retryBtn) {
+        retryBtn.hidden = !showRetry;
+    }
+    
+    el.style.display = 'flex';
 }
 
 function clearDashboardError() {
     document.getElementById('dashboardError').style.display = 'none';
+    const retryBtn = document.getElementById('dashboardRetryBtn');
+    if (retryBtn) {
+        retryBtn.hidden = true;
+    }
 }
 
 function setDashboardSuccess(message) {
     const el = document.getElementById('dashboardSuccess');
     el.textContent = message;
-    el.style.display = 'block';
+    el.style.display = 'flex';
 }
 
 function clearDashboardSuccess() {
@@ -58,6 +69,33 @@ async function apiGetJSON(url) {
     return response.json();
 }
 
+function updateSummary(entries) {
+    const strip = document.getElementById('summaryStrip');
+    if (!entries || entries.length === 0) {
+        strip.hidden = true;
+        document.getElementById('dashboardControls').hidden = true;
+        return;
+    }
+    
+    const hosts = entries.filter(e => e.type === 'host').length;
+    const templates = entries.filter(e => e.type === 'template').length;
+    const total = entries.length;
+
+    strip.innerHTML = `
+        <div style="font-size: 0.9rem; color: var(--muted-foreground)">
+            <strong style="color: var(--foreground)">${total}</strong> ${t('summaryTotal', 'Total entries')}
+        </div>
+        <div style="font-size: 0.9rem; color: var(--muted-foreground)">
+            <strong style="color: var(--foreground)">${hosts}</strong> ${t('summaryHosts', 'Hosts')}
+        </div>
+        <div style="font-size: 0.9rem; color: var(--muted-foreground)">
+            <strong style="color: var(--foreground)">${templates}</strong> ${t('summaryTemplates', 'Templates')}
+        </div>
+    `;
+    strip.hidden = false;
+    document.getElementById('dashboardControls').hidden = false;
+}
+
 function renderEntries(entries) {
     const grid = document.getElementById('entriesGrid');
     const empty = document.getElementById('entriesEmpty');
@@ -75,22 +113,32 @@ function renderEntries(entries) {
         const card = document.createElement('article');
         card.className = 'entry-card';
 
-        const meta = document.createElement('div');
-        meta.className = 'entry-meta';
-        meta.textContent = entryTypeLabel(entry.type);
+        const header = document.createElement('header');
+        header.style.display = 'flex';
+        header.style.justifyContent = 'space-between';
+        header.style.alignItems = 'flex-start';
 
         const title = document.createElement('h3');
         title.className = 'entry-name';
         title.textContent = entry.name;
 
+        const meta = document.createElement('div');
+        meta.className = 'entry-meta';
+        meta.textContent = entryTypeLabel(entry.type);
+
+        header.appendChild(title);
+        header.appendChild(meta);
+
         const description = document.createElement('p');
         description.className = 'entry-description';
+        description.style.flex = '1';
         description.textContent = entry.description || t('noDescription', 'No description provided.');
 
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'primary-button';
         button.textContent = t('downloadButton', 'Download RDP');
+        button.style.marginTop = 'auto';
 
         button.addEventListener('click', () => {
             clearDashboardError();
@@ -99,8 +147,7 @@ function renderEntries(entries) {
             setDashboardSuccess(formatMessage(t('downloading', 'Downloading %s.'), entry.name));
         });
 
-        card.appendChild(meta);
-        card.appendChild(title);
+        card.appendChild(header);
         card.appendChild(description);
         card.appendChild(button);
         grid.appendChild(card);
@@ -112,27 +159,61 @@ async function loadDashboard() {
     clearDashboardSuccess();
     document.getElementById('entriesLoading').hidden = false;
     document.getElementById('entriesEmpty').hidden = true;
+    document.getElementById('entriesGrid').innerHTML = '';
 
     try {
         dashboardUser = await apiGetJSON('/api/v1/user');
         const entries = await apiGetJSON('/api/v1/entries');
+        allEntries = entries;
 
         const username = dashboardUser.displayName || dashboardUser.username || t('unknownUser', 'Unknown User');
         document.getElementById('dashboardUsername').textContent = username;
         document.getElementById('userAvatar').textContent = userInitials(username);
+        
         if (dashboardUser.isAdmin) {
             document.getElementById('adminLink').hidden = false;
         }
 
-        renderEntries(entries);
+        updateSummary(entries);
+        
+        // Apply filter if one exists (e.g. on retry)
+        const searchInput = document.getElementById('entrySearch');
+        if (searchInput && searchInput.value) {
+            const query = searchInput.value.toLowerCase();
+            renderEntries(allEntries.filter(entry => 
+                entry.name.toLowerCase().includes(query) || 
+                (entry.description && entry.description.toLowerCase().includes(query))
+            ));
+        } else {
+            renderEntries(entries);
+        }
     } catch (error) {
         document.getElementById('entriesLoading').hidden = true;
         if (error.message !== 'authentication required') {
-            setDashboardError(`${t('loadErrorPrefix', 'Unable to load dashboard:')} ${error.message}`);
+            setDashboardError(`${t('loadErrorPrefix', 'Unable to load dashboard:')} ${error.message}`, true);
         }
     }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     loadDashboard();
+    
+    const searchInput = document.getElementById('entrySearch');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            const filtered = allEntries.filter(entry => 
+                entry.name.toLowerCase().includes(query) || 
+                (entry.description && entry.description.toLowerCase().includes(query))
+            );
+            renderEntries(filtered);
+        });
+    }
+
+    const retryBtn = document.getElementById('dashboardRetryBtn');
+    if (retryBtn) {
+        retryBtn.addEventListener('click', () => {
+            loadDashboard();
+        });
+    }
 });

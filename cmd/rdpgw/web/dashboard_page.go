@@ -166,29 +166,49 @@ const fallbackDashboardTemplate = `<!DOCTYPE html>
 	<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
 </head>
 <body>
-	<div class="header">
-		<div class="logo">
-			<img src="/assets/icon.svg" alt="Logo">
-			RDP Gateway
-		</div>
-		<div class="user-info">
-			<div class="lang-switch" aria-label="Language switcher">{{range .LanguageLinks}}<a class="lang-switch-link{{if .Current}} is-active{{end}}" href="{{.URL}}">{{.Label}}</a>{{end}}</div>
-			<div class="user-avatar" id="userAvatar"></div>
-			<span id="dashboardUsername">{{.Messages.LoadingUser}}</span>
-			<a class="admin-link" id="adminLink" href="/admin" hidden>{{.Messages.AdminLink}}</a>
-		</div>
+	<div class="app-shell" id="app-shell">
+		<header class="shell-topbar" id="app-topbar">
+			<div class="logo">
+				<img src="/assets/icon.svg" alt="Logo">
+				RDP Gateway
+			</div>
+			<div class="user-info">
+				<div class="lang-switch" aria-label="Language switcher">{{range .LanguageLinks}}<a class="lang-switch-link{{if .Current}} is-active{{end}}" href="{{.URL}}">{{.Label}}</a>{{end}}</div>
+				<div class="user-avatar" id="userAvatar"></div>
+				<span id="dashboardUsername">{{.Messages.LoadingUser}}</span>
+				<a class="admin-link" id="adminLink" href="/admin" hidden>{{.Messages.AdminLink}}</a>
+			</div>
+		</header>
+		<main class="shell-main" id="app-main">
+			<div class="page-intro" id="app-intro">
+				<h1 class="title">{{.Messages.Heading}}</h1>
+				<p class="subtitle">{{.Messages.Subtitle}}</p>
+				<div id="summaryStrip" class="summary-strip" hidden></div>
+			</div>
+			<div class="dashboard-controls" id="dashboardControls" hidden>
+				<input type="search" id="entrySearch" class="search-input" placeholder="{{.Messages.SearchPlaceholder}}">
+			</div>
+			<div class="inline-alert is-error" id="dashboardError">
+				<span id="dashboardErrorText"></span>
+				<button type="button" id="dashboardRetryBtn" class="secondary-button retry-btn" hidden>{{.Messages.RetryButton}}</button>
+			</div>
+			<div class="inline-alert is-success" id="dashboardSuccess"></div>
+			<div class="content-section">
+				<div id="entriesLoading" class="entries-grid">
+					<div class="skeleton-row"></div>
+					<div class="skeleton-row"></div>
+					<div class="skeleton-row"></div>
+				</div>
+				<div class="entries-grid" id="entriesGrid"></div>
+				<div class="empty-state" id="entriesEmpty" hidden>
+					<div class="empty-icon">
+						<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+					</div>
+					<p>{{.Messages.EmptyState}}</p>
+				</div>
+			</div>
+		</main>
 	</div>
-	<main class="main">
-		<div class="container dashboard-container">
-			<h1 class="title">{{.Messages.Heading}}</h1>
-			<p class="subtitle">{{.Messages.Subtitle}}</p>
-			<div class="success" id="dashboardSuccess"></div>
-			<div class="error" id="dashboardError"></div>
-			<div class="empty-state" id="entriesLoading">{{.Messages.LoadingEntries}}</div>
-			<div class="empty-state" id="entriesEmpty" hidden>{{.Messages.EmptyState}}</div>
-			<div class="entries-grid" id="entriesGrid"></div>
-		</div>
-	</main>
 	<script>window.dashboardMessages = {{.MessagesJSON}};</script>
 	<script src="/static/dashboard.js"></script>
 </body>
@@ -205,65 +225,87 @@ const fallbackAdminTemplate = `<!DOCTYPE html>
 	<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
 </head>
 <body>
-	<div class="header">
-		<div class="logo">
-			<img src="/assets/icon.svg" alt="Logo">
-			RDP Gateway
-		</div>
-		<div class="user-info">
-			<div class="lang-switch" aria-label="Language switcher">{{range .LanguageLinks}}<a class="lang-switch-link{{if .Current}} is-active{{end}}" href="{{.URL}}">{{.Label}}</a>{{end}}</div>
-			<span id="adminUsername">{{.Messages.LoadingUser}}</span>
-			<a class="admin-link" href="/">{{.Messages.BackToDashboard}}</a>
-		</div>
-	</div>
-	<main class="main">
-		<div class="container admin-container">
-			<h1 class="title">{{.Messages.Heading}}</h1>
-			<p class="subtitle">{{.Messages.Subtitle}}</p>
-			<div class="success" id="adminSuccess"></div>
-			<div class="error" id="adminError"></div>
-			<div class="admin-grid">
-			<section class="admin-panel">
-				<h2>{{.Messages.CreateHostEntryHeading}}</h2>
-				<form id="hostForm" class="stack-form">
-					<label>{{.Messages.NameLabel}}<input type="text" name="name" required></label>
-					<label>{{.Messages.DescriptionLabel}}<input type="text" name="description"></label>
-					<label>{{.Messages.AllowedGroupsLabel}}<input type="text" name="allowedGroups" placeholder="{{.Messages.AllowedGroupsPlaceholder}}" required></label>
-					<label>{{.Messages.HostLabel}}<input type="text" name="host" placeholder="{{.Messages.HostPlaceholder}}" required></label>
-					<button type="submit" class="primary-button">{{.Messages.CreateHostEntryButton}}</button>
-				</form>
-			</section>
-			<section class="admin-panel">
-				<h2>{{.Messages.CreateTemplateEntryHeading}}</h2>
-				<form id="templateForm" class="stack-form" enctype="multipart/form-data">
-					<label>{{.Messages.NameLabel}}<input type="text" name="name" required></label>
-					<label>{{.Messages.DescriptionLabel}}<input type="text" name="description"></label>
-					<label>{{.Messages.AllowedGroupsLabel}}<input type="text" name="allowedGroups" placeholder="{{.Messages.AllowedGroupsPlaceholder}}" required></label>
-					<label>{{.Messages.TargetHostOverrideLabel}}<input type="text" name="targetHostOverride" placeholder="{{.Messages.TargetHostOverridePlaceholder}}"></label>
-					<label>{{.Messages.RdpTemplateFileLabel}}<input type="file" name="template" accept=".rdp" required></label>
-					<button type="submit" class="primary-button">{{.Messages.UploadTemplateEntryButton}}</button>
-				</form>
-			</section>
-			<section class="admin-panel">
-				<h2>{{.Messages.CreateDirectAuthUserHeading}}</h2>
-				<form id="authUserForm" class="stack-form">
-					<label>{{.Messages.UsernameLabel}}<input type="text" name="username" required></label>
-					<label>{{.Messages.PasswordLabel}}<input type="password" name="password" required></label>
-					<label><input type="checkbox" name="enabled" checked> {{.Messages.EnabledLabel}}</label>
-					<button type="submit" class="primary-button">{{.Messages.CreateDirectAuthUserButton}}</button>
-				</form>
-			</section>
+	<div class="app-shell" id="app-shell">
+		<header class="shell-topbar" id="app-topbar">
+			<div class="logo">
+				<img src="/assets/icon.svg" alt="Logo">
+				RDP Gateway
 			</div>
-			<section class="admin-panel">
-				<h2>{{.Messages.CurrentEntriesHeading}}</h2>
-				<div id="adminEntries"></div>
-			</section>
-			<section class="admin-panel">
-				<h2>{{.Messages.CurrentDirectAuthUsersHeading}}</h2>
-				<div id="adminAuthUsers"></div>
-			</section>
-		</div>
-	</main>
+			<div class="user-info">
+				<div class="lang-switch" aria-label="Language switcher">{{range .LanguageLinks}}<a class="lang-switch-link{{if .Current}} is-active{{end}}" href="{{.URL}}">{{.Label}}</a>{{end}}</div>
+				<span id="adminUsername">{{.Messages.LoadingUser}}</span>
+				<a class="admin-link" href="/">{{.Messages.BackToDashboard}}</a>
+			</div>
+		</header>
+		<main class="shell-main" id="app-main">
+			<div class="page-intro" id="app-intro">
+				<h1 class="title">{{.Messages.Heading}}</h1>
+				<p class="subtitle">{{.Messages.Subtitle}}</p>
+			</div>
+			<nav class="section-switcher" aria-label="Admin sections">
+				<button type="button" class="switcher-tab is-active" data-target="section-entries">{{.Messages.TabPublishedEntries}}</button>
+				<button type="button" class="switcher-tab" data-target="section-auth-users">{{.Messages.TabDirectAuthUsers}}</button>
+			</nav>
+			<div id="section-entries" class="admin-section">
+				<div class="inline-alert is-error" id="entriesError" role="alert"></div>
+				<div class="inline-alert is-success" id="entriesSuccess" aria-live="polite"></div>
+				<div class="content-section">
+					<section class="admin-panel">
+						<h2 class="section-header">{{.Messages.CurrentEntriesHeading}}</h2>
+						<div id="adminEntries"></div>
+					</section>
+				</div>
+				<div class="content-section">
+					<div class="admin-grid">
+					<section class="admin-panel">
+						<h2 class="section-header">{{.Messages.CreateHostEntryHeading}}</h2>
+						<form id="hostForm" class="stack-form">
+							<label>{{.Messages.NameLabel}}<input type="text" name="name" required></label>
+							<label>{{.Messages.DescriptionLabel}}<input type="text" name="description"></label>
+							<label>{{.Messages.AllowedGroupsLabel}}<input type="text" name="allowedGroups" placeholder="{{.Messages.AllowedGroupsPlaceholder}}" required></label>
+							<label>{{.Messages.HostLabel}}<input type="text" name="host" placeholder="{{.Messages.HostPlaceholder}}" required></label>
+							<button type="submit" class="primary-button">{{.Messages.CreateHostEntryButton}}</button>
+						</form>
+					</section>
+					<section class="admin-panel">
+						<h2 class="section-header">{{.Messages.CreateTemplateEntryHeading}}</h2>
+						<form id="templateForm" class="stack-form" enctype="multipart/form-data">
+							<label>{{.Messages.NameLabel}}<input type="text" name="name" required></label>
+							<label>{{.Messages.DescriptionLabel}}<input type="text" name="description"></label>
+							<label>{{.Messages.AllowedGroupsLabel}}<input type="text" name="allowedGroups" placeholder="{{.Messages.AllowedGroupsPlaceholder}}" required></label>
+							<label>{{.Messages.TargetHostOverrideLabel}}<input type="text" name="targetHostOverride" placeholder="{{.Messages.TargetHostOverridePlaceholder}}"></label>
+							<label>{{.Messages.RdpTemplateFileLabel}}<input type="file" name="template" accept=".rdp" required></label>
+							<button type="submit" class="primary-button">{{.Messages.UploadTemplateEntryButton}}</button>
+						</form>
+					</section>
+					</div>
+				</div>
+			</div>
+			<div id="section-auth-users" class="admin-section" hidden>
+				<div class="inline-alert is-error" id="authUsersError"></div>
+				<div class="inline-alert is-success" id="authUsersSuccess"></div>
+				<div class="content-section">
+					<section class="admin-panel">
+						<h2 class="section-header">{{.Messages.CurrentDirectAuthUsersHeading}}</h2>
+						<div id="adminAuthUsers"></div>
+					</section>
+				</div>
+				<div class="content-section">
+					<div class="admin-grid">
+					<section class="admin-panel">
+						<h2 class="section-header">{{.Messages.CreateDirectAuthUserHeading}}</h2>
+						<form id="authUserForm" class="stack-form">
+							<label>{{.Messages.UsernameLabel}}<input type="text" name="username" required></label>
+							<label>{{.Messages.PasswordLabel}}<input type="password" name="password" required></label>
+							<label><input type="checkbox" name="enabled" checked> {{.Messages.EnabledLabel}}</label>
+							<button type="submit" class="primary-button">{{.Messages.CreateDirectAuthUserButton}}</button>
+						</form>
+					</section>
+					</div>
+				</div>
+			</div>
+		</main>
+	</div>
 	<script>window.adminMessages = {{.MessagesJSON}};</script>
 	<script src="/static/admin.js"></script>
 </body>

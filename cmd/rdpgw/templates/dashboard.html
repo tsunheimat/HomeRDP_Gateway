@@ -9,32 +9,53 @@
     <link rel="alternate icon" type="image/x-icon" href="/assets/icon.svg">
 </head>
 <body>
-    <div class="header">
-        <div class="logo">
-            <img src="/assets/icon.svg" alt="Logo" id="logoImage">
-            RDP Gateway
-        </div>
-        <div class="user-info">
-            <div class="lang-switch" aria-label="Language switcher">{{range .LanguageLinks}}<a class="lang-switch-link{{if .Current}} is-active{{end}}" href="{{.URL}}">{{.Label}}</a>{{end}}</div>
-            <div class="user-avatar" id="userAvatar"></div>
-            <span id="dashboardUsername">{{.Messages.LoadingUser}}</span>
-            <a class="admin-link" id="adminLink" href="/admin" hidden>{{.Messages.AdminLink}}</a>
-        </div>
+    <div class="app-shell" id="app-shell">
+        <header class="shell-topbar" id="app-topbar">
+            <div class="logo">
+                <img src="/assets/icon.svg" alt="Logo" id="logoImage">
+                RDP Gateway
+            </div>
+            <div class="user-info">
+                <div class="lang-switch" aria-label="Language switcher">{{range .LanguageLinks}}<a class="lang-switch-link{{if .Current}} is-active{{end}}" href="{{.URL}}">{{.Label}}</a>{{end}}</div>
+                <div class="user-avatar" id="userAvatar"></div>
+                <span id="dashboardUsername">{{.Messages.LoadingUser}}</span>
+                <a class="admin-link" id="adminLink" href="/admin" hidden>{{.Messages.AdminLink}}</a>
+            </div>
+        </header>
+
+        <main class="shell-main" id="app-main">
+            <div class="page-intro" id="app-intro">
+                <h1 class="title">{{.Messages.Heading}}</h1>
+                <p class="subtitle">{{.Messages.Subtitle}}</p>
+                <div id="summaryStrip" class="summary-strip" hidden></div>
+            </div>
+
+            <div class="dashboard-controls" id="dashboardControls" hidden>
+                <input type="search" id="entrySearch" class="search-input" placeholder="{{.Messages.SearchPlaceholder}}">
+            </div>
+
+            <div class="inline-alert is-error" id="dashboardError" role="alert">
+                <span id="dashboardErrorText"></span>
+                <button type="button" id="dashboardRetryBtn" class="secondary-button retry-btn" hidden>{{.Messages.RetryButton}}</button>
+            </div>
+            <div class="inline-alert is-success" id="dashboardSuccess" aria-live="polite"></div>
+
+            <div class="content-section">
+                <div id="entriesLoading" class="entries-grid">
+                    <div class="skeleton-row"></div>
+                    <div class="skeleton-row"></div>
+                    <div class="skeleton-row"></div>
+                </div>
+                <div class="entries-grid" id="entriesGrid"></div>
+                <div class="empty-state" id="entriesEmpty" hidden>
+                    <div class="empty-icon">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                    </div>
+                    <p>{{.Messages.EmptyState}}</p>
+                </div>
+            </div>
+        </main>
     </div>
-
-    <main class="main">
-        <div class="container dashboard-container">
-            <h1 class="title">{{.Messages.Heading}}</h1>
-            <p class="subtitle">{{.Messages.Subtitle}}</p>
-
-            <div class="error" id="dashboardError"></div>
-            <div class="success" id="dashboardSuccess"></div>
-
-            <div class="empty-state" id="entriesLoading">{{.Messages.LoadingEntries}}</div>
-            <div class="entries-grid" id="entriesGrid"></div>
-            <div class="empty-state" id="entriesEmpty" hidden>{{.Messages.EmptyState}}</div>
-        </div>
-    </main>
 
     <script>window.dashboardMessages = {{.MessagesJSON}};</script>
     <script src="/static/dashboard.js"></script>
