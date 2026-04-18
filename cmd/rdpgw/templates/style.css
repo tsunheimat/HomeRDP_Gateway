@@ -67,6 +67,10 @@
     box-sizing: border-box;
 }
 
+[hidden] {
+    display: none !important;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
     background: var(--background);
@@ -341,6 +345,40 @@ button:focus-visible, input:focus-visible, a:focus-visible, select:focus-visible
     background: var(--surface);
     color: var(--muted-foreground);
     border: 1px solid var(--border);
+}
+
+.entry-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    align-self: flex-start;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 0.24rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+}
+
+.entry-status-badge::before {
+    content: '';
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 999px;
+    background: currentColor;
+    opacity: 0.85;
+}
+
+.entry-status-badge.is-enabled {
+    background: color-mix(in oklch, var(--primary) 14%, transparent);
+    color: var(--primary);
+    border-color: color-mix(in oklch, var(--primary) 28%, transparent);
+}
+
+.entry-status-badge.is-disabled {
+    background: color-mix(in oklch, var(--destructive) 10%, transparent);
+    color: var(--destructive);
+    border-color: color-mix(in oklch, var(--destructive) 22%, transparent);
 }
 
 .entry-body {

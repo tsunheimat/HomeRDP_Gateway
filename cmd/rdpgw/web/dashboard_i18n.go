@@ -14,25 +14,25 @@ const (
 )
 
 type dashboardMessages struct {
-	AdminLink        string            `json:"adminLink"`
-	DownloadButton   string            `json:"downloadButton"`
-	Downloading      string            `json:"downloading"`
-	EmptyState       string            `json:"emptyState"`
-	EntryTypes       map[string]string `json:"entryTypes"`
-	Heading          string            `json:"heading"`
-	LoadErrorPrefix  string            `json:"loadErrorPrefix"`
-	LoadingEntries   string            `json:"loadingEntries"`
-	LoadingUser      string            `json:"loadingUser"`
-	NoDescription     string            `json:"noDescription"`
-	RetryButton       string            `json:"retryButton"`
-	SearchPlaceholder string            `json:"searchPlaceholder"`
-	Subtitle          string            `json:"subtitle"`
-	SummaryHosts     string            `json:"summaryHosts"`
-	SummaryTemplates string            `json:"summaryTemplates"`
-	SummaryTotal     string            `json:"summaryTotal"`
-	UnknownUser      string            `json:"unknownUser"`
-	UploadedTemplateLabel string       `json:"uploadedTemplateLabel"`
-	WindowTitle      string            `json:"windowTitle"`
+	AdminLink             string            `json:"adminLink"`
+	DownloadButton        string            `json:"downloadButton"`
+	Downloading           string            `json:"downloading"`
+	EmptyState            string            `json:"emptyState"`
+	EntryTypes            map[string]string `json:"entryTypes"`
+	Heading               string            `json:"heading"`
+	LoadErrorPrefix       string            `json:"loadErrorPrefix"`
+	LoadingEntries        string            `json:"loadingEntries"`
+	LoadingUser           string            `json:"loadingUser"`
+	NoDescription         string            `json:"noDescription"`
+	RetryButton           string            `json:"retryButton"`
+	SearchPlaceholder     string            `json:"searchPlaceholder"`
+	Subtitle              string            `json:"subtitle"`
+	SummaryHosts          string            `json:"summaryHosts"`
+	SummaryTemplates      string            `json:"summaryTemplates"`
+	SummaryTotal          string            `json:"summaryTotal"`
+	UnknownUser           string            `json:"unknownUser"`
+	UploadedTemplateLabel string            `json:"uploadedTemplateLabel"`
+	WindowTitle           string            `json:"windowTitle"`
 }
 
 type adminMessages struct {
@@ -55,9 +55,11 @@ type adminMessages struct {
 	DeleteAuthUserErrorPrefix      string            `json:"deleteAuthUserErrorPrefix"`
 	DeleteEntryErrorPrefix         string            `json:"deleteEntryErrorPrefix"`
 	DeleteSuccess                  string            `json:"deleteSuccess"`
+	DisableButton                  string            `json:"disableButton"`
 	DescriptionLabel               string            `json:"descriptionLabel"`
 	DisabledStatus                 string            `json:"disabledStatus"`
 	EditButton                     string            `json:"editButton"`
+	EnableButton                   string            `json:"enableButton"`
 	EnabledLabel                   string            `json:"enabledLabel"`
 	EnabledStatus                  string            `json:"enabledStatus"`
 	EntryTypes                     map[string]string `json:"entryTypes"`
@@ -134,20 +136,20 @@ func dashboardMessagesForLocale(locale string) dashboardMessages {
 				"host":     "主機",
 				"template": "範本",
 			},
-			Heading:         "連線儀表板",
-			LoadErrorPrefix: "無法載入儀表板：",
-			LoadingEntries:    "正在載入儀表板項目...",
-			LoadingUser:       "載入中...",
-			NoDescription:     "未提供描述。",
-			RetryButton:       "重試",
-			SearchPlaceholder: "搜尋項目...",
-			Subtitle:          "選取已發布的項目並下載其 RDP 檔案。",
-			SummaryHosts:      "主機",
-			SummaryTemplates:  "範本",
-			SummaryTotal:      "總項目",
-			UnknownUser:       "未知使用者",
+			Heading:               "連線儀表板",
+			LoadErrorPrefix:       "無法載入儀表板：",
+			LoadingEntries:        "正在載入儀表板項目...",
+			LoadingUser:           "載入中...",
+			NoDescription:         "未提供描述。",
+			RetryButton:           "重試",
+			SearchPlaceholder:     "搜尋項目...",
+			Subtitle:              "選取已發布的項目並下載其 RDP 檔案。",
+			SummaryHosts:          "主機",
+			SummaryTemplates:      "範本",
+			SummaryTotal:          "總項目",
+			UnknownUser:           "未知使用者",
 			UploadedTemplateLabel: "已上傳範本",
-			WindowTitle:     "RDP Gateway 儀表板",
+			WindowTitle:           "RDP Gateway 儀表板",
 		}
 	}
 
@@ -160,20 +162,20 @@ func dashboardMessagesForLocale(locale string) dashboardMessages {
 			"host":     "Host",
 			"template": "Template",
 		},
-		Heading:          "Connection Dashboard",
-		LoadErrorPrefix:  "Unable to load dashboard:",
-		LoadingEntries:    "Loading dashboard entries...",
-		LoadingUser:       "Loading...",
-		NoDescription:     "No description provided.",
-		RetryButton:       "Retry",
-		SearchPlaceholder: "Search entries...",
-		Subtitle:          "Select a published entry and download its RDP file.",
-		SummaryHosts:     "Hosts",
-		SummaryTemplates: "Templates",
-		SummaryTotal:     "Total entries",
-		UnknownUser:      "Unknown User",
+		Heading:               "Connection Dashboard",
+		LoadErrorPrefix:       "Unable to load dashboard:",
+		LoadingEntries:        "Loading dashboard entries...",
+		LoadingUser:           "Loading...",
+		NoDescription:         "No description provided.",
+		RetryButton:           "Retry",
+		SearchPlaceholder:     "Search entries...",
+		Subtitle:              "Select a published entry and download its RDP file.",
+		SummaryHosts:          "Hosts",
+		SummaryTemplates:      "Templates",
+		SummaryTotal:          "Total entries",
+		UnknownUser:           "Unknown User",
 		UploadedTemplateLabel: "Uploaded template",
-		WindowTitle:      "RDP Gateway Dashboard",
+		WindowTitle:           "RDP Gateway Dashboard",
 	}
 }
 
@@ -211,9 +213,11 @@ func adminMessagesForLocale(locale string) adminMessages {
 			DeleteAuthUserErrorPrefix:     "無法刪除直接驗證使用者：",
 			DeleteEntryErrorPrefix:        "無法刪除項目：",
 			DeleteSuccess:                 "已刪除 %s。",
+			DisableButton:                 "停用",
 			DescriptionLabel:              "描述",
 			DisabledStatus:                "已停用",
 			EditButton:                    "編輯",
+			EnableButton:                  "啟用",
 			EnabledLabel:                  "啟用",
 			EnabledStatus:                 "已啟用",
 			EntryTypes: map[string]string{
@@ -278,11 +282,13 @@ func adminMessagesForLocale(locale string) adminMessages {
 		DeleteAuthUserErrorPrefix:     "Unable to delete auth user:",
 		DeleteEntryErrorPrefix:        "Unable to delete entry:",
 		DeleteSuccess:                 "Deleted %s.",
+		DisableButton:                 "Disable",
 		DescriptionLabel:              "Description",
-		DisabledStatus:                "disabled",
+		DisabledStatus:                "Disabled",
 		EditButton:                    "Edit",
+		EnableButton:                  "Enable",
 		EnabledLabel:                  "Enabled",
-		EnabledStatus:                 "enabled",
+		EnabledStatus:                 "Enabled",
 		EntryTypes: map[string]string{
 			"host":     "Host",
 			"template": "Template",

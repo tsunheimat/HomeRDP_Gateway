@@ -390,6 +390,34 @@ func TestHandleAdminPageFallbackTemplateAlsoUsesLocalizedCopy(t *testing.T) {
 	}
 }
 
+func TestHandleAdminPageIncludesLocalizedStatusActionLabels(t *testing.T) {
+	handler, _ := newDashboardTestHandler(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin?lang=zh-Hant", nil)
+	req = identity.AddToRequestCtx(newIdentity(t, true), req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminPage(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	body := rr.Body.String()
+	if !strings.Contains(body, `"enableButton":"啟用"`) {
+		t.Fatalf("expected Traditional Chinese enable action in payload, body=%q", body)
+	}
+	if !strings.Contains(body, `"disableButton":"停用"`) {
+		t.Fatalf("expected Traditional Chinese disable action in payload, body=%q", body)
+	}
+	if !strings.Contains(body, `"enabledStatus":"已啟用"`) {
+		t.Fatalf("expected Traditional Chinese enabled status in payload, body=%q", body)
+	}
+	if !strings.Contains(body, `"disabledStatus":"已停用"`) {
+		t.Fatalf("expected Traditional Chinese disabled status in payload, body=%q", body)
+	}
+}
+
 func TestHandleDashboardRedirectsUnauthenticatedUsersToRoot(t *testing.T) {
 	handler, _ := newDashboardTestHandler(t)
 

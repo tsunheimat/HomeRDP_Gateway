@@ -18,6 +18,14 @@ function statusLabel(enabled) {
     return enabled ? t('enabledStatus', 'enabled') : t('disabledStatus', 'disabled');
 }
 
+function statusBadgeClass(enabled) {
+    return enabled ? 'entry-status-badge is-enabled' : 'entry-status-badge is-disabled';
+}
+
+function toggleEnabledButtonLabel(enabled) {
+    return enabled ? t('disableButton', 'Disable') : t('enableButton', 'Enable');
+}
+
 function setEntriesError(message) {
     const el = document.getElementById('entriesError');
     if (el) {
@@ -136,7 +144,7 @@ function renderAdminEntries(entries) {
         info.appendChild(type);
 
         const enabled = document.createElement('span');
-        enabled.className = 'entry-meta-badge';
+        enabled.className = statusBadgeClass(entry.enabled);
         enabled.textContent = statusLabel(entry.enabled);
         info.appendChild(enabled);
 
@@ -156,7 +164,7 @@ function renderAdminEntries(entries) {
         const toggleEnabledButton = document.createElement('button');
         toggleEnabledButton.type = 'button';
         toggleEnabledButton.className = 'secondary-button';
-        toggleEnabledButton.textContent = t('toggleEnabledButton', 'Toggle Enabled');
+        toggleEnabledButton.textContent = toggleEnabledButtonLabel(entry.enabled);
 
         actions.appendChild(editToggle);
         actions.appendChild(toggleEnabledButton);
@@ -349,7 +357,7 @@ function renderAdminAuthUsers(users) {
         info.appendChild(title);
 
         const enabled = document.createElement('span');
-        enabled.className = 'entry-meta-badge';
+        enabled.className = statusBadgeClass(user.enabled);
         enabled.textContent = statusLabel(user.enabled);
         info.appendChild(enabled);
 
@@ -364,7 +372,7 @@ function renderAdminAuthUsers(users) {
         const toggleEnabledButton = document.createElement('button');
         toggleEnabledButton.type = 'button';
         toggleEnabledButton.className = 'secondary-button';
-        toggleEnabledButton.textContent = t('toggleEnabledButton', 'Toggle Enabled');
+        toggleEnabledButton.textContent = toggleEnabledButtonLabel(user.enabled);
 
         actions.appendChild(editToggle);
         actions.appendChild(toggleEnabledButton);
