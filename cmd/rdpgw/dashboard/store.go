@@ -72,6 +72,8 @@ func (s *FileStore) Get(id string) (Entry, error) {
 }
 
 func (s *FileStore) Put(entry Entry) error {
+	entry.Icon = NormalizeEntryIcon(entry.Icon)
+
 	if err := entry.Validate(); err != nil {
 		return err
 	}
@@ -221,6 +223,9 @@ func (s *FileStore) readLocked() ([]Entry, error) {
 	}
 	if entries == nil {
 		return []Entry{}, nil
+	}
+	for i := range entries {
+		entries[i].Icon = NormalizeEntryIcon(entries[i].Icon)
 	}
 	return entries, nil
 }

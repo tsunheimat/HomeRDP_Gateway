@@ -14,6 +14,7 @@ func TestEntryValidate(t *testing.T) {
 		ID:            "host-1",
 		Type:          EntryTypeHost,
 		Name:          "Primary host",
+		Icon:          EntryIconWindow,
 		AllowedGroups: []string{"admins"},
 		Enabled:       true,
 		Host:          "rdp.internal:3389",
@@ -26,6 +27,12 @@ func TestEntryValidate(t *testing.T) {
 	missingGroups.AllowedGroups = nil
 	if err := missingGroups.Validate(); err == nil {
 		t.Fatalf("expected missing groups to fail validation")
+	}
+
+	invalidIcon := validHost
+	invalidIcon.Icon = "spreadsheetz"
+	if err := invalidIcon.Validate(); err == nil {
+		t.Fatalf("expected invalid icon to fail validation")
 	}
 }
 
@@ -92,6 +99,7 @@ func TestFileStoreUpsertAndDelete(t *testing.T) {
 		ID:                   "template-1",
 		Type:                 EntryTypeTemplate,
 		Name:                 "Template",
+		Icon:                 EntryIconExcel,
 		AllowedGroups:        []string{"admins"},
 		Enabled:              true,
 		UploadedTemplatePath: uploadPath,
@@ -112,6 +120,9 @@ func TestFileStoreUpsertAndDelete(t *testing.T) {
 	}
 	if loaded.UploadedTemplatePath != uploadPath {
 		t.Fatalf("expected uploaded path %q, got %q", uploadPath, loaded.UploadedTemplatePath)
+	}
+	if loaded.Icon != EntryIconExcel {
+		t.Fatalf("expected icon %q, got %q", EntryIconExcel, loaded.Icon)
 	}
 
 	listed, err := loadedStore.List()
@@ -202,5 +213,36 @@ func TestFileStoreRejectsMissingTemplateUpload(t *testing.T) {
 
 	if err := store.Put(entry); err == nil {
 		t.Fatalf("expected missing uploaded template to fail")
+	}
+}
+
+func TestFileStoreDefaultsBlankIconToWindow(t *testing.T) {
+	t.Parallel()
+
+	baseDir := t.TempDir()
+	store, err := NewFileStore(filepath.Join(baseDir, "catalog"), filepath.Join(baseDir, "uploads"))
+	if err != nil {
+		t.Fatalf("new file store: %v", err)
+	}
+
+	entry := Entry{
+		ID:            "host-1",
+		Type:          EntryTypeHost,
+		Name:          "Host",
+		AllowedGroups: []string{"admins"},
+		Enabled:       true,
+		Host:          "server.internal:3389",
+	}
+
+	if err := store.Put(entry); err != nil {
+		t.Fatalf("put entry: %v", err)
+	}
+
+	loaded, err := store.Get(entry.ID)
+	if err != nil {
+		t.Fatalf("get entry: %v", err)
+	}
+	if loaded.Icon != EntryIconWindow {
+		t.Fatalf("loaded icon = %q, want %q", loaded.Icon, EntryIconWindow)
 	}
 }

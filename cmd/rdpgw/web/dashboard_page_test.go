@@ -23,6 +23,7 @@ func TestHandleEntryListFiltersByGroups(t *testing.T) {
 		Type:          dashboard.EntryTypeHost,
 		Name:          "Visible Host",
 		Description:   "Visible to homelab users",
+		Icon:          dashboard.EntryIconBrowser,
 		AllowedGroups: []string{"homelab-users"},
 		Enabled:       true,
 		Host:          "visible.internal:3389",
@@ -64,6 +65,9 @@ func TestHandleEntryListFiltersByGroups(t *testing.T) {
 	}
 	if summaries[0].DownloadURL != "/connect/entries/entry-visible.rdp" {
 		t.Fatalf("download url = %q", summaries[0].DownloadURL)
+	}
+	if summaries[0].Icon != dashboard.EntryIconBrowser {
+		t.Fatalf("icon = %q, want %q", summaries[0].Icon, dashboard.EntryIconBrowser)
 	}
 }
 

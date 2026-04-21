@@ -20,6 +20,7 @@ type DashboardEntrySummary struct {
 	Type                string `json:"type"`
 	Name                string `json:"name"`
 	Description         string `json:"description"`
+	Icon                string `json:"icon"`
 	Target              string `json:"target"`
 	HasUploadedTemplate bool   `json:"hasUploadedTemplate"`
 	DownloadURL         string `json:"downloadUrl"`
@@ -106,6 +107,7 @@ func (h *Handler) HandleEntryList(w http.ResponseWriter, r *http.Request) {
 			Type:                string(entry.Type),
 			Name:                entry.Name,
 			Description:         entry.Description,
+			Icon:                dashboard.NormalizeEntryIcon(entry.Icon),
 			Target:              target,
 			HasUploadedTemplate: entry.UploadedTemplatePath != "",
 			DownloadURL:         fmt.Sprintf("/connect/entries/%s.rdp", entry.ID),
@@ -271,6 +273,7 @@ const fallbackAdminTemplate = `<!DOCTYPE html>
 						<form id="hostForm" class="stack-form">
 							<label>{{.Messages.NameLabel}}<input type="text" name="name" required></label>
 							<label>{{.Messages.DescriptionLabel}}<input type="text" name="description"></label>
+							<label>{{.Messages.EntryIconLabel}}<select name="icon" data-entry-icon-select></select></label>
 							<label>{{.Messages.AllowedGroupsLabel}}<input type="text" name="allowedGroups" placeholder="{{.Messages.AllowedGroupsPlaceholder}}" required></label>
 							<label>{{.Messages.HostLabel}}<input type="text" name="host" placeholder="{{.Messages.HostPlaceholder}}" required></label>
 							<button type="submit" class="primary-button">{{.Messages.CreateHostEntryButton}}</button>
@@ -281,9 +284,11 @@ const fallbackAdminTemplate = `<!DOCTYPE html>
 						<form id="templateForm" class="stack-form" enctype="multipart/form-data">
 							<label>{{.Messages.NameLabel}}<input type="text" name="name" required></label>
 							<label>{{.Messages.DescriptionLabel}}<input type="text" name="description"></label>
+							<label>{{.Messages.EntryIconLabel}}<select name="icon" data-entry-icon-select></select></label>
 							<label>{{.Messages.AllowedGroupsLabel}}<input type="text" name="allowedGroups" placeholder="{{.Messages.AllowedGroupsPlaceholder}}" required></label>
 							<label>{{.Messages.TargetHostOverrideLabel}}<input type="text" name="targetHostOverride" placeholder="{{.Messages.TargetHostOverridePlaceholder}}"></label>
 							<label>{{.Messages.RdpTemplateFileLabel}}<input type="file" name="template" accept=".rdp" required></label>
+							<p class="form-hint" id="templateSuggestionStatus">{{.Messages.TemplateSuggestionHint}}</p>
 							<button type="submit" class="primary-button">{{.Messages.UploadTemplateEntryButton}}</button>
 						</form>
 					</section>

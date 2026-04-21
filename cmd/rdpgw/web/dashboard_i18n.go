@@ -18,6 +18,7 @@ type dashboardMessages struct {
 	DownloadButton        string            `json:"downloadButton"`
 	Downloading           string            `json:"downloading"`
 	EmptyState            string            `json:"emptyState"`
+	EntryIcons            map[string]string `json:"entryIcons"`
 	EntryTypes            map[string]string `json:"entryTypes"`
 	Heading               string            `json:"heading"`
 	LoadErrorPrefix       string            `json:"loadErrorPrefix"`
@@ -59,6 +60,8 @@ type adminMessages struct {
 	DescriptionLabel               string            `json:"descriptionLabel"`
 	DisabledStatus                 string            `json:"disabledStatus"`
 	EditButton                     string            `json:"editButton"`
+	EntryIconLabel                 string            `json:"entryIconLabel"`
+	EntryIcons                     map[string]string `json:"entryIcons"`
 	EnableButton                   string            `json:"enableButton"`
 	EnabledLabel                   string            `json:"enabledLabel"`
 	EnabledStatus                  string            `json:"enabledStatus"`
@@ -85,6 +88,10 @@ type adminMessages struct {
 	Subtitle                       string            `json:"subtitle"`
 	TabDirectAuthUsers             string            `json:"tabDirectAuthUsers"`
 	TabPublishedEntries            string            `json:"tabPublishedEntries"`
+	TemplateSuggestionApplied      string            `json:"templateSuggestionApplied"`
+	TemplateSuggestionHint         string            `json:"templateSuggestionHint"`
+	TemplateSuggestionReadError    string            `json:"templateSuggestionReadError"`
+	TemplateSuggestionUnavailable  string            `json:"templateSuggestionUnavailable"`
 	TargetHostOverrideLabel        string            `json:"targetHostOverrideLabel"`
 	TargetHostOverridePlaceholder  string            `json:"targetHostOverridePlaceholder"`
 	ToggleEnabledButton            string            `json:"toggleEnabledButton"`
@@ -132,6 +139,17 @@ func dashboardMessagesForLocale(locale string) dashboardMessages {
 			DownloadButton: "下載 RDP",
 			Downloading:    "正在下載 %s。",
 			EmptyState:     "目前沒有可供您群組使用的項目。",
+			EntryIcons: map[string]string{
+				"window":     "視窗",
+				"browser":    "瀏覽器",
+				"terminal":   "終端機",
+				"folder":     "檔案總管",
+				"database":   "資料庫",
+				"word":       "Word",
+				"excel":      "Excel",
+				"powerpoint": "PowerPoint",
+				"outlook":    "Outlook",
+			},
 			EntryTypes: map[string]string{
 				"host":     "主機",
 				"template": "範本",
@@ -158,6 +176,17 @@ func dashboardMessagesForLocale(locale string) dashboardMessages {
 		DownloadButton: "Download RDP",
 		Downloading:    "Downloading %s.",
 		EmptyState:     "No entries are currently available for your groups.",
+		EntryIcons: map[string]string{
+			"window":     "Window",
+			"browser":    "Browser",
+			"terminal":   "Terminal",
+			"folder":     "File Explorer",
+			"database":   "Database",
+			"word":       "Word",
+			"excel":      "Excel",
+			"powerpoint": "PowerPoint",
+			"outlook":    "Outlook",
+		},
 		EntryTypes: map[string]string{
 			"host":     "Host",
 			"template": "Template",
@@ -217,6 +246,18 @@ func adminMessagesForLocale(locale string) adminMessages {
 			DescriptionLabel:              "描述",
 			DisabledStatus:                "已停用",
 			EditButton:                    "編輯",
+			EntryIconLabel:                "項目圖示",
+			EntryIcons: map[string]string{
+				"window":     "視窗",
+				"browser":    "瀏覽器",
+				"terminal":   "終端機",
+				"folder":     "檔案總管",
+				"database":   "資料庫",
+				"word":       "Word",
+				"excel":      "Excel",
+				"powerpoint": "PowerPoint",
+				"outlook":    "Outlook",
+			},
 			EnableButton:                  "啟用",
 			EnabledLabel:                  "啟用",
 			EnabledStatus:                 "已啟用",
@@ -246,6 +287,10 @@ func adminMessagesForLocale(locale string) adminMessages {
 			Subtitle:                       "建立並管理已發布的主機與範本式項目。",
 			TabDirectAuthUsers:             "直接驗證使用者",
 			TabPublishedEntries:            "已發布項目",
+			TemplateSuggestionApplied:      "已根據範本建議：%s。",
+			TemplateSuggestionHint:         "選取 .rdp 檔案後，系統會在可行時建議名稱與圖示。",
+			TemplateSuggestionReadError:    "無法在瀏覽器中讀取所選範本。",
+			TemplateSuggestionUnavailable:  "範本中沒有可辨識的應用程式名稱或圖示提示。",
 			TargetHostOverrideLabel:        "目標主機覆寫（可選）",
 			TargetHostOverridePlaceholder:  "app.internal:3389",
 			ToggleEnabledButton:            "切換啟用狀態",
@@ -286,6 +331,18 @@ func adminMessagesForLocale(locale string) adminMessages {
 		DescriptionLabel:              "Description",
 		DisabledStatus:                "Disabled",
 		EditButton:                    "Edit",
+		EntryIconLabel:                "Entry Icon",
+		EntryIcons: map[string]string{
+			"window":     "Window",
+			"browser":    "Browser",
+			"terminal":   "Terminal",
+			"folder":     "File Explorer",
+			"database":   "Database",
+			"word":       "Word",
+			"excel":      "Excel",
+			"powerpoint": "PowerPoint",
+			"outlook":    "Outlook",
+		},
 		EnableButton:                  "Enable",
 		EnabledLabel:                  "Enabled",
 		EnabledStatus:                 "Enabled",
@@ -315,6 +372,10 @@ func adminMessagesForLocale(locale string) adminMessages {
 		Subtitle:                       "Create and manage published hosts and template-based entries.",
 		TabDirectAuthUsers:             "Direct Auth Users",
 		TabPublishedEntries:            "Published Entries",
+		TemplateSuggestionApplied:      "Suggested from template: %s.",
+		TemplateSuggestionHint:         "Selecting an .rdp file can suggest a name and icon when possible.",
+		TemplateSuggestionReadError:    "Unable to inspect the selected template in the browser.",
+		TemplateSuggestionUnavailable:  "The template did not include a recognizable app name or icon hint.",
 		TargetHostOverrideLabel:        "Target Host Override (optional)",
 		TargetHostOverridePlaceholder:  "app.internal:3389",
 		ToggleEnabledButton:            "Toggle Enabled",

@@ -16,6 +16,9 @@ function loadAdminContext(messages = {}) {
             getElementById() {
                 return null;
             },
+            querySelectorAll() {
+                return [];
+            },
         },
         console,
     };
@@ -45,4 +48,33 @@ test('admin status helpers expose distinct tone and action labels', () => {
     assert.equal(context.statusBadgeClass(false), 'entry-status-badge is-disabled');
     assert.equal(context.toggleEnabledButtonLabel(true), 'Disable');
     assert.equal(context.toggleEnabledButtonLabel(false), 'Enable');
+});
+
+test('admin template suggestions parse remote app metadata into name and icon hints', () => {
+    const context = loadAdminContext({
+        entryIcons: {
+            window: 'Window',
+            word: 'Word',
+        },
+    });
+
+    const suggestions = context.deriveTemplateSuggestions([
+        'remoteapplicationname:s:Quarterly Report',
+        'remoteapplicationprogram:s:||WINWORD',
+        'full address:s:rds.internal:3389',
+    ].join('\r\n'));
+
+    assert.equal(suggestions.name, 'Quarterly Report');
+    assert.equal(suggestions.icon, 'word');
+    assert.equal(suggestions.iconSuggested, true);
+});
+
+test('admin template suggestions fall back to window icon for plain desktop templates', () => {
+    const context = loadAdminContext();
+
+    const suggestions = context.deriveTemplateSuggestions('full address:s:desktop.internal:3389\r\n');
+
+    assert.equal(suggestions.name, 'desktop.internal');
+    assert.equal(suggestions.icon, 'window');
+    assert.equal(suggestions.iconSuggested, false);
 });

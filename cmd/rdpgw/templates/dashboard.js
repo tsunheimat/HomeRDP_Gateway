@@ -1,6 +1,18 @@
 let dashboardUser = null;
 let allEntries = [];
 const dashboardMessages = window.dashboardMessages || {};
+const ENTRY_ICON_ORDER = ['window', 'browser', 'terminal', 'folder', 'database', 'word', 'excel', 'powerpoint', 'outlook'];
+const DEFAULT_ENTRY_ICONS = {
+    window: 'Window',
+    browser: 'Browser',
+    terminal: 'Terminal',
+    folder: 'File Explorer',
+    database: 'Database',
+    word: 'Word',
+    excel: 'Excel',
+    powerpoint: 'PowerPoint',
+    outlook: 'Outlook',
+};
 
 function t(key, fallback) {
     const value = dashboardMessages[key];
@@ -14,6 +26,50 @@ function formatMessage(template, value) {
 function entryTypeLabel(type) {
     const entryTypes = dashboardMessages.entryTypes || {};
     return entryTypes[type] || type;
+}
+
+function normalizeEntryIcon(icon) {
+    const normalized = String(icon || '').trim().toLowerCase();
+    return ENTRY_ICON_ORDER.includes(normalized) ? normalized : 'window';
+}
+
+function entryIconLabel(icon) {
+    const labels = dashboardMessages.entryIcons || DEFAULT_ENTRY_ICONS;
+    const normalized = normalizeEntryIcon(icon);
+    return labels[normalized] || DEFAULT_ENTRY_ICONS[normalized] || normalized;
+}
+
+function entryIconSVG(icon) {
+    switch (normalizeEntryIcon(icon)) {
+        case 'browser':
+            return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 9h18"></path><path d="M8 15h8"></path></svg>';
+        case 'terminal':
+            return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="m7 9 3 3-3 3"></path><path d="M12.5 15H17"></path></svg>';
+        case 'folder':
+            return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"></path></svg>';
+        case 'database':
+            return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="3"></ellipse><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6"></path><path d="M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"></path></svg>';
+        case 'word':
+            return '<svg viewBox="0 0 24 24" fill="none"><path d="M6 4h9l3 3v13H6z" fill="currentColor" opacity="0.16"></path><path d="M15 4v4h4" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M8 9.5 9.5 16l2-4.2L13.5 16 15 9.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M6 4h9l3 3v13H6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></svg>';
+        case 'excel':
+            return '<svg viewBox="0 0 24 24" fill="none"><path d="M6 4h9l3 3v13H6z" fill="currentColor" opacity="0.16"></path><path d="M15 4v4h4" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M8.5 9.5 14.5 15.5M14.5 9.5l-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path><path d="M6 4h9l3 3v13H6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></svg>';
+        case 'powerpoint':
+            return '<svg viewBox="0 0 24 24" fill="none"><path d="M6 4h9l3 3v13H6z" fill="currentColor" opacity="0.16"></path><path d="M15 4v4h4" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M9 16v-6h3a2 2 0 1 1 0 4H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M6 4h9l3 3v13H6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></svg>';
+        case 'outlook':
+            return '<svg viewBox="0 0 24 24" fill="none"><rect x="4" y="6" width="16" height="12" rx="2" fill="currentColor" opacity="0.12"></rect><path d="M6 8.5 12 13l6-4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><rect x="4" y="6" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.8"></rect><circle cx="8" cy="12" r="2.2" stroke="currentColor" stroke-width="1.6"></circle></svg>';
+        case 'window':
+        default:
+            return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 8h18"></path><path d="M8 4v16"></path></svg>';
+    }
+}
+
+function createEntryIconElement(icon) {
+    const el = document.createElement('span');
+    el.className = 'entry-card-icon';
+    el.innerHTML = entryIconSVG(icon);
+    el.setAttribute('role', 'img');
+    el.setAttribute('aria-label', entryIconLabel(icon));
+    return el;
 }
 
 function setDashboardError(message, showRetry = false) {
@@ -118,6 +174,9 @@ function renderEntries(entries) {
 
         const header = document.createElement('header');
         header.className = 'entry-header';
+
+        const cardIcon = createEntryIconElement(entry.icon);
+        header.appendChild(cardIcon);
 
         const titleInfo = document.createElement('div');
         titleInfo.className = 'entry-title-info';

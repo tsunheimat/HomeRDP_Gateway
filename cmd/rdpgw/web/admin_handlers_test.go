@@ -24,6 +24,7 @@ func TestAdminCreateHostEntry(t *testing.T) {
 	payload := map[string]interface{}{
 		"name":          "Lab Host",
 		"description":   "Primary workstation",
+		"icon":          dashboard.EntryIconTerminal,
 		"allowedGroups": []string{"homelab-users", "admins"},
 		"host":          "lab.internal:3389",
 	}
@@ -70,6 +71,9 @@ func TestAdminCreateHostEntry(t *testing.T) {
 	}
 	if stored.Name != payload["name"] {
 		t.Fatalf("stored name = %q, want %q", stored.Name, payload["name"])
+	}
+	if stored.Icon != payload["icon"] {
+		t.Fatalf("stored icon = %q, want %q", stored.Icon, payload["icon"])
 	}
 }
 
@@ -184,6 +188,7 @@ func TestAdminListEntries(t *testing.T) {
 		ID:            "host-1",
 		Type:          dashboard.EntryTypeHost,
 		Name:          "Host 1",
+		Icon:          dashboard.EntryIconBrowser,
 		AllowedGroups: []string{"homelab-users"},
 		Enabled:       true,
 		Host:          "host.internal:3389",
@@ -208,6 +213,9 @@ func TestAdminListEntries(t *testing.T) {
 	}
 	if len(entries) != 1 || entries[0].ID != entry.ID {
 		t.Fatalf("unexpected entries payload: %+v", entries)
+	}
+	if entries[0].Icon != dashboard.EntryIconBrowser {
+		t.Fatalf("response icon = %q, want %q", entries[0].Icon, dashboard.EntryIconBrowser)
 	}
 }
 
@@ -270,6 +278,7 @@ func TestAdminUpdateEntry(t *testing.T) {
 
 	payload := map[string]interface{}{
 		"name":          "Host 2",
+		"icon":          dashboard.EntryIconDatabase,
 		"allowedGroups": []string{"admins"},
 		"host":          "new-host.internal:3389",
 	}
@@ -298,6 +307,9 @@ func TestAdminUpdateEntry(t *testing.T) {
 	if updated.Name != "Host 2" || updated.Host != "new-host.internal:3389" {
 		t.Fatalf("unexpected updated entry: %+v", updated)
 	}
+	if updated.Icon != dashboard.EntryIconDatabase {
+		t.Fatalf("updated icon = %q, want %q", updated.Icon, dashboard.EntryIconDatabase)
+	}
 }
 
 func TestAdminCreateTemplateEntry(t *testing.T) {
@@ -307,6 +319,9 @@ func TestAdminCreateTemplateEntry(t *testing.T) {
 	writer := multipart.NewWriter(&body)
 	if err := writer.WriteField("name", "Good Template"); err != nil {
 		t.Fatalf("write form field name: %v", err)
+	}
+	if err := writer.WriteField("icon", dashboard.EntryIconWord); err != nil {
+		t.Fatalf("write form field icon: %v", err)
 	}
 	if err := writer.WriteField("allowedGroups", "homelab-users, admins"); err != nil {
 		t.Fatalf("write form field allowedGroups: %v", err)
@@ -353,6 +368,9 @@ func TestAdminCreateTemplateEntry(t *testing.T) {
 	}
 	if entries[0].UploadedTemplatePath == "" {
 		t.Fatalf("expected stored uploaded template path to be set")
+	}
+	if entries[0].Icon != dashboard.EntryIconWord {
+		t.Fatalf("stored icon = %q, want %q", entries[0].Icon, dashboard.EntryIconWord)
 	}
 	if _, err := os.Stat(store.ResolveUpload(entries[0].UploadedTemplatePath)); err != nil {
 		t.Fatalf("expected uploaded file to exist: %v", err)

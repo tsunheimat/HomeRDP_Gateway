@@ -1,4 +1,38 @@
 const adminMessages = window.adminMessages || {};
+const ENTRY_ICON_ORDER = ['window', 'browser', 'terminal', 'folder', 'database', 'word', 'excel', 'powerpoint', 'outlook'];
+const DEFAULT_ENTRY_ICONS = {
+    window: 'Window',
+    browser: 'Browser',
+    terminal: 'Terminal',
+    folder: 'File Explorer',
+    database: 'Database',
+    word: 'Word',
+    excel: 'Excel',
+    powerpoint: 'PowerPoint',
+    outlook: 'Outlook',
+};
+const APP_NAME_ALIASES = {
+    chrome: 'Google Chrome',
+    cmd: 'Command Prompt',
+    dbeaver: 'DBeaver',
+    edge: 'Microsoft Edge',
+    excel: 'Excel',
+    explorer: 'File Explorer',
+    firefox: 'Firefox',
+    iexplore: 'Internet Explorer',
+    msedge: 'Microsoft Edge',
+    outlook: 'Outlook',
+    powerpnt: 'PowerPoint',
+    powerpoint: 'PowerPoint',
+    powershell: 'PowerShell',
+    pwsh: 'PowerShell',
+    sqlcmd: 'SQLCMD',
+    ssms: 'SQL Server Management Studio',
+    terminal: 'Terminal',
+    winword: 'Word',
+    word: 'Word',
+    wt: 'Windows Terminal',
+};
 
 function t(key, fallback) {
     const value = adminMessages[key];
@@ -12,6 +46,90 @@ function formatMessage(template, value) {
 function entryTypeLabel(type) {
     const entryTypes = adminMessages.entryTypes || {};
     return entryTypes[type] || type;
+}
+
+function entryIconLabels() {
+    const labels = adminMessages.entryIcons;
+    if (labels && typeof labels === 'object' && Object.keys(labels).length > 0) {
+        return labels;
+    }
+    return DEFAULT_ENTRY_ICONS;
+}
+
+function normalizeEntryIcon(icon) {
+    const normalized = String(icon || '').trim().toLowerCase();
+    return ENTRY_ICON_ORDER.includes(normalized) ? normalized : 'window';
+}
+
+function entryIconLabel(icon) {
+    const normalized = normalizeEntryIcon(icon);
+    const labels = entryIconLabels();
+    return labels[normalized] || DEFAULT_ENTRY_ICONS[normalized] || normalized;
+}
+
+function entryIconSVG(icon) {
+    switch (normalizeEntryIcon(icon)) {
+        case 'browser':
+            return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 9h18"></path><path d="M8 15h8"></path></svg>';
+        case 'terminal':
+            return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="m7 9 3 3-3 3"></path><path d="M12.5 15H17"></path></svg>';
+        case 'folder':
+            return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"></path></svg>';
+        case 'database':
+            return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="3"></ellipse><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6"></path><path d="M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"></path></svg>';
+        case 'word':
+            return '<svg viewBox="0 0 24 24" fill="none"><path d="M6 4h9l3 3v13H6z" fill="currentColor" opacity="0.16"></path><path d="M15 4v4h4" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M8 9.5 9.5 16l2-4.2L13.5 16 15 9.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M6 4h9l3 3v13H6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></svg>';
+        case 'excel':
+            return '<svg viewBox="0 0 24 24" fill="none"><path d="M6 4h9l3 3v13H6z" fill="currentColor" opacity="0.16"></path><path d="M15 4v4h4" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M8.5 9.5 14.5 15.5M14.5 9.5l-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path><path d="M6 4h9l3 3v13H6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></svg>';
+        case 'powerpoint':
+            return '<svg viewBox="0 0 24 24" fill="none"><path d="M6 4h9l3 3v13H6z" fill="currentColor" opacity="0.16"></path><path d="M15 4v4h4" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M9 16v-6h3a2 2 0 1 1 0 4H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M6 4h9l3 3v13H6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></svg>';
+        case 'outlook':
+            return '<svg viewBox="0 0 24 24" fill="none"><rect x="4" y="6" width="16" height="12" rx="2" fill="currentColor" opacity="0.12"></rect><path d="M6 8.5 12 13l6-4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><rect x="4" y="6" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.8"></rect><circle cx="8" cy="12" r="2.2" stroke="currentColor" stroke-width="1.6"></circle></svg>';
+        case 'window':
+        default:
+            return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 8h18"></path><path d="M8 4v16"></path></svg>';
+    }
+}
+
+function createEntryIconElement(icon, className, decorative = false) {
+    const el = document.createElement('span');
+    el.className = className;
+    el.innerHTML = entryIconSVG(icon);
+    if (decorative) {
+        el.setAttribute('aria-hidden', 'true');
+    } else {
+        el.setAttribute('role', 'img');
+        el.setAttribute('aria-label', entryIconLabel(icon));
+    }
+    return el;
+}
+
+function populateEntryIconSelect(select, selectedIcon = 'window') {
+    if (!select) return;
+
+    const normalizedSelected = normalizeEntryIcon(selectedIcon);
+    const labels = entryIconLabels();
+    select.innerHTML = '';
+
+    ENTRY_ICON_ORDER.forEach((icon) => {
+        const option = document.createElement('option');
+        option.value = icon;
+        option.textContent = labels[icon] || DEFAULT_ENTRY_ICONS[icon] || icon;
+        option.selected = icon === normalizedSelected;
+        select.appendChild(option);
+    });
+}
+
+function buildEntryIconSelect(selectedIcon = 'window') {
+    const select = document.createElement('select');
+    populateEntryIconSelect(select, selectedIcon);
+    return select;
+}
+
+function initializeEntryIconSelects() {
+    document.querySelectorAll('[data-entry-icon-select]').forEach((select) => {
+        populateEntryIconSelect(select, select.value || 'window');
+    });
 }
 
 function statusLabel(enabled) {
@@ -82,6 +200,144 @@ function splitGroups(value) {
     return value.split(',').map((part) => part.trim()).filter(Boolean);
 }
 
+function normalizeAppToken(value) {
+    const cleaned = String(value || '').trim().replace(/^\|\|/, '');
+    if (!cleaned) {
+        return '';
+    }
+
+    const lastSegment = cleaned.replace(/[\\/]+/g, '/').split('/').filter(Boolean).pop() || cleaned;
+    return lastSegment.replace(/\.(exe|msc|bat|cmd|lnk)$/i, '').trim();
+}
+
+function humanizeAppName(value) {
+    const token = normalizeAppToken(value);
+    if (!token) {
+        return '';
+    }
+
+    const alias = APP_NAME_ALIASES[token.toLowerCase()];
+    if (alias) {
+        return alias;
+    }
+
+    return token.replace(/[_-]+/g, ' ').trim();
+}
+
+function hostFromAddress(value) {
+    const raw = String(value || '').trim();
+    if (!raw) {
+        return '';
+    }
+    if (raw.startsWith('[')) {
+        const end = raw.indexOf(']');
+        if (end !== -1) {
+            return raw.slice(1, end);
+        }
+    }
+    const lastColon = raw.lastIndexOf(':');
+    if (lastColon > -1 && raw.indexOf(':') === lastColon) {
+        return raw.slice(0, lastColon);
+    }
+    return raw;
+}
+
+function parseRdpTemplateMetadata(content) {
+    const metadata = {};
+    const lines = String(content || '').replace(/^\uFEFF/, '').replace(/\u0000/g, '').split(/\r?\n/);
+
+    lines.forEach((line) => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) {
+            return;
+        }
+
+        const match = /^([^:]+):([sib]):(.*)$/.exec(trimmed);
+        if (!match) {
+            return;
+        }
+
+        metadata[match[1].trim().toLowerCase()] = match[3].trim();
+    });
+
+    return metadata;
+}
+
+function suggestEntryNameFromMetadata(metadata) {
+    const remoteName = String(metadata.remoteapplicationname || '').trim();
+    if (remoteName) {
+        return remoteName;
+    }
+
+    const programFields = [
+        metadata.remoteapplicationprogram,
+        metadata.remoteapplicationfile,
+        metadata['alternate shell'],
+    ];
+
+    for (const value of programFields) {
+        const name = humanizeAppName(value);
+        if (name) {
+            return name;
+        }
+    }
+
+    return hostFromAddress(metadata['full address'] || metadata['alternate full address']);
+}
+
+function inferEntryIcon(metadata, suggestedName = '') {
+    const haystack = [
+        suggestedName,
+        metadata.remoteapplicationname,
+        metadata.remoteapplicationprogram,
+        metadata.remoteapplicationfile,
+        metadata.remoteapplicationicon,
+        metadata['alternate shell'],
+    ].join(' ').toLowerCase();
+
+    if (!haystack.trim()) {
+        return 'window';
+    }
+    if (/(winword|\bword\b|\.docx?\b)/.test(haystack)) {
+        return 'word';
+    }
+    if (/(excel|\.xlsx?\b|\.csv\b)/.test(haystack)) {
+        return 'excel';
+    }
+    if (/(powerpnt|powerpoint|\.pptx?\b)/.test(haystack)) {
+        return 'powerpoint';
+    }
+    if (/(outlook|mail|\.msg\b)/.test(haystack)) {
+        return 'outlook';
+    }
+    if (/(chrome|msedge|\bedge\b|firefox|iexplore|browser|webview)/.test(haystack)) {
+        return 'browser';
+    }
+    if (/(powershell|\bpwsh\b|\bcmd\b|terminal|shell|bash|wt\.exe|windows terminal)/.test(haystack)) {
+        return 'terminal';
+    }
+    if (/(explorer|folder|files|share|onedrive)/.test(haystack)) {
+        return 'folder';
+    }
+    if (/(database|\bsql\b|oracle|mysql|postgres|pgadmin|dbeaver|ssms)/.test(haystack)) {
+        return 'database';
+    }
+    return 'window';
+}
+
+function deriveTemplateSuggestions(content) {
+    const metadata = parseRdpTemplateMetadata(content);
+    const name = suggestEntryNameFromMetadata(metadata);
+    const icon = inferEntryIcon(metadata, name);
+
+    return {
+        icon,
+        iconSuggested: icon !== 'window',
+        metadata,
+        name,
+    };
+}
+
 async function adminRequest(url, init = {}) {
     const response = await fetch(url, init);
     if (response.redirected) {
@@ -105,6 +361,86 @@ async function adminRequest(url, init = {}) {
         return response.json();
     }
     return null;
+}
+
+function setTemplateSuggestionStatus(message, tone = 'neutral') {
+    const el = document.getElementById('templateSuggestionStatus');
+    if (!el) return;
+
+    el.textContent = message;
+    el.classList.remove('is-success', 'is-error');
+    if (tone === 'success') {
+        el.classList.add('is-success');
+    } else if (tone === 'error') {
+        el.classList.add('is-error');
+    }
+}
+
+function resetTemplateSuggestionState(form) {
+    if (!form) return;
+
+    delete form.dataset.autofilledName;
+    delete form.dataset.autofilledIcon;
+    setTemplateSuggestionStatus(
+        t('templateSuggestionHint', 'Selecting an .rdp file can suggest a name and icon when possible.')
+    );
+}
+
+async function suggestTemplateFields(file, form) {
+    const nameInput = form.querySelector('input[name="name"]');
+    const iconSelect = form.querySelector('select[name="icon"]');
+    if (!file || !nameInput || !iconSelect) {
+        return;
+    }
+
+    try {
+        const suggestions = deriveTemplateSuggestions(await file.text());
+        const applied = [];
+
+        if (suggestions.name) {
+            const currentName = nameInput.value.trim();
+            const previousAutoName = form.dataset.autofilledName || '';
+            if (currentName === '' || currentName === previousAutoName) {
+                nameInput.value = suggestions.name;
+                form.dataset.autofilledName = suggestions.name;
+                applied.push(`${t('nameLabel', 'Name')}: ${suggestions.name}`);
+            }
+        }
+
+        if (suggestions.iconSuggested) {
+            const currentIcon = normalizeEntryIcon(iconSelect.value);
+            const previousAutoIcon = normalizeEntryIcon(form.dataset.autofilledIcon || 'window');
+            if (currentIcon === 'window' || currentIcon === previousAutoIcon) {
+                populateEntryIconSelect(iconSelect, suggestions.icon);
+                form.dataset.autofilledIcon = suggestions.icon;
+                applied.push(`${t('entryIconLabel', 'Entry Icon')}: ${entryIconLabel(suggestions.icon)}`);
+            }
+        }
+
+        if (applied.length > 0) {
+            setTemplateSuggestionStatus(
+                formatMessage(t('templateSuggestionApplied', 'Suggested from template: %s.'), applied.join(' · ')),
+                'success'
+            );
+            return;
+        }
+
+        if (suggestions.name || suggestions.iconSuggested) {
+            setTemplateSuggestionStatus(
+                t('templateSuggestionHint', 'Selecting an .rdp file can suggest a name and icon when possible.')
+            );
+            return;
+        }
+
+        setTemplateSuggestionStatus(
+            t('templateSuggestionUnavailable', 'The template did not include a recognizable app name or icon hint.')
+        );
+    } catch (error) {
+        setTemplateSuggestionStatus(
+            t('templateSuggestionReadError', 'Unable to inspect the selected template in the browser.'),
+            'error'
+        );
+    }
 }
 
 function renderAdminEntries(entries) {
@@ -133,6 +469,9 @@ function renderAdminEntries(entries) {
         const info = document.createElement('div');
         info.className = 'entry-row-info';
 
+        const icon = createEntryIconElement(entry.icon, 'entry-row-icon');
+        info.appendChild(icon);
+
         const title = document.createElement('span');
         title.className = 'entry-row-title';
         title.textContent = entry.name;
@@ -142,6 +481,11 @@ function renderAdminEntries(entries) {
         type.className = 'entry-meta-badge';
         type.textContent = entryTypeLabel(entry.type);
         info.appendChild(type);
+
+        const iconBadge = document.createElement('span');
+        iconBadge.className = 'entry-meta-badge';
+        iconBadge.textContent = entryIconLabel(entry.icon);
+        info.appendChild(iconBadge);
 
         const enabled = document.createElement('span');
         enabled.className = statusBadgeClass(entry.enabled);
@@ -192,6 +536,12 @@ function renderAdminEntries(entries) {
         descriptionInput.value = entry.description || '';
         descriptionLabel.appendChild(descriptionInput);
 
+        const iconLabel = document.createElement('label');
+        iconLabel.className = 'muted';
+        iconLabel.textContent = t('entryIconLabel', 'Entry Icon');
+        const iconSelect = buildEntryIconSelect(entry.icon);
+        iconLabel.appendChild(iconSelect);
+
         const groupsLabel = document.createElement('label');
         groupsLabel.className = 'muted';
         groupsLabel.textContent = t('allowedGroupsLabel', 'Allowed Groups (comma separated)');
@@ -202,6 +552,7 @@ function renderAdminEntries(entries) {
 
         editPanel.appendChild(nameLabel);
         editPanel.appendChild(descriptionLabel);
+        editPanel.appendChild(iconLabel);
         editPanel.appendChild(groupsLabel);
 
         let hostInput = null;
@@ -241,7 +592,7 @@ function renderAdminEntries(entries) {
 
         editActions.appendChild(saveButton);
         editActions.appendChild(deleteButton);
-        
+
         editPanel.appendChild(editActions);
 
         wrapper.appendChild(summary);
@@ -260,6 +611,7 @@ function renderAdminEntries(entries) {
             const payload = {
                 name: nameInput.value,
                 description: descriptionInput.value,
+                icon: iconSelect.value,
                 allowedGroups: splitGroups(groupsInput.value),
                 enabled: entry.enabled,
             };
@@ -533,6 +885,7 @@ function bindHostForm() {
         const payload = {
             name: data.get('name') || '',
             description: data.get('description') || '',
+            icon: data.get('icon') || 'window',
             allowedGroups: splitGroups(String(data.get('allowedGroups') || '')),
             host: data.get('host') || '',
         };
@@ -545,6 +898,7 @@ function bindHostForm() {
             });
             setEntriesSuccess(t('createHostEntrySuccess', 'Host entry created.'));
             form.reset();
+            populateEntryIconSelect(form.querySelector('select[name="icon"]'), 'window');
             await loadEntries();
         } catch (error) {
             if (error.message !== 'authentication required') {
@@ -557,6 +911,19 @@ function bindHostForm() {
 function bindTemplateForm() {
     const form = document.getElementById('templateForm');
     if (!form) return;
+
+    const fileInput = form.querySelector('input[name="template"]');
+    if (fileInput) {
+        fileInput.addEventListener('change', async () => {
+            const [file] = fileInput.files || [];
+            if (!file) {
+                resetTemplateSuggestionState(form);
+                return;
+            }
+            await suggestTemplateFields(file, form);
+        });
+    }
+
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
         clearEntriesError();
@@ -571,6 +938,8 @@ function bindTemplateForm() {
             });
             setEntriesSuccess(t('uploadTemplateEntrySuccess', 'Template entry uploaded.'));
             form.reset();
+            populateEntryIconSelect(form.querySelector('select[name="icon"]'), 'window');
+            resetTemplateSuggestionState(form);
             await loadEntries();
         } catch (error) {
             if (error.message !== 'authentication required') {
@@ -578,6 +947,8 @@ function bindTemplateForm() {
             }
         }
     });
+
+    resetTemplateSuggestionState(form);
 }
 
 function bindAuthUserForm() {
@@ -620,13 +991,13 @@ function bindTabSwitching() {
     const tabs = document.querySelectorAll('.switcher-tab');
     const sections = document.querySelectorAll('.admin-section');
 
-    tabs.forEach(tab => {
+    tabs.forEach((tab) => {
         tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('is-active'));
+            tabs.forEach((current) => current.classList.remove('is-active'));
             tab.classList.add('is-active');
 
             const targetId = tab.dataset.target;
-            sections.forEach(section => {
+            sections.forEach((section) => {
                 if (section.id === targetId) {
                     section.removeAttribute('hidden');
                 } else {
@@ -638,6 +1009,7 @@ function bindTabSwitching() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+    initializeEntryIconSelects();
     bindTabSwitching();
     bindHostForm();
     bindTemplateForm();

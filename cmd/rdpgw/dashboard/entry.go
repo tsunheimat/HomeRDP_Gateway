@@ -23,6 +23,7 @@ type Entry struct {
 	Type                 EntryType `json:"type"`
 	Name                 string    `json:"name"`
 	Description          string    `json:"description"`
+	Icon                 string    `json:"icon"`
 	AllowedGroups        []string  `json:"allowedGroups"`
 	Enabled              bool      `json:"enabled"`
 	Host                 string    `json:"host"`
@@ -38,6 +39,9 @@ func (e Entry) Validate() error {
 	}
 	if strings.TrimSpace(e.Name) == "" {
 		return validationError("name is required")
+	}
+	if !IsValidEntryIcon(e.Icon) {
+		return validationError(fmt.Sprintf("invalid entry icon %q", e.Icon))
 	}
 
 	validGroups := 0

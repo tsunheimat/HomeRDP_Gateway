@@ -22,6 +22,7 @@ import (
 type adminCreateHostEntryRequest struct {
 	Name          string   `json:"name"`
 	Description   string   `json:"description"`
+	Icon          string   `json:"icon"`
 	AllowedGroups []string `json:"allowedGroups"`
 	Host          string   `json:"host"`
 }
@@ -29,6 +30,7 @@ type adminCreateHostEntryRequest struct {
 type adminUpdateEntryRequest struct {
 	Name               *string   `json:"name"`
 	Description        *string   `json:"description"`
+	Icon               *string   `json:"icon"`
 	AllowedGroups      *[]string `json:"allowedGroups"`
 	Enabled            *bool     `json:"enabled"`
 	Host               *string   `json:"host"`
@@ -40,6 +42,7 @@ type adminEntryResponse struct {
 	Type                string    `json:"type"`
 	Name                string    `json:"name"`
 	Description         string    `json:"description"`
+	Icon                string    `json:"icon"`
 	AllowedGroups       []string  `json:"allowedGroups"`
 	Enabled             bool      `json:"enabled"`
 	Host                string    `json:"host"`
@@ -110,6 +113,7 @@ func (h *Handler) HandleAdminCreateHostEntry(w http.ResponseWriter, r *http.Requ
 		Type:          dashboard.EntryTypeHost,
 		Name:          strings.TrimSpace(req.Name),
 		Description:   strings.TrimSpace(req.Description),
+		Icon:          dashboard.NormalizeEntryIcon(req.Icon),
 		AllowedGroups: req.AllowedGroups,
 		Enabled:       true,
 		Host:          strings.TrimSpace(req.Host),
@@ -188,6 +192,7 @@ func (h *Handler) HandleAdminCreateTemplateEntry(w http.ResponseWriter, r *http.
 		Type:                 dashboard.EntryTypeTemplate,
 		Name:                 strings.TrimSpace(r.FormValue("name")),
 		Description:          strings.TrimSpace(r.FormValue("description")),
+		Icon:                 dashboard.NormalizeEntryIcon(r.FormValue("icon")),
 		AllowedGroups:        splitCSV(r.FormValue("allowedGroups")),
 		Enabled:              true,
 		UploadedTemplatePath: uploadedPath,
@@ -245,6 +250,9 @@ func (h *Handler) HandleAdminUpdateEntry(w http.ResponseWriter, r *http.Request)
 	}
 	if req.Description != nil {
 		entry.Description = strings.TrimSpace(*req.Description)
+	}
+	if req.Icon != nil {
+		entry.Icon = dashboard.NormalizeEntryIcon(*req.Icon)
 	}
 	if req.AllowedGroups != nil {
 		entry.AllowedGroups = *req.AllowedGroups
@@ -548,6 +556,7 @@ func newAdminEntryResponse(entry dashboard.Entry) adminEntryResponse {
 		Type:                string(entry.Type),
 		Name:                entry.Name,
 		Description:         entry.Description,
+		Icon:                dashboard.NormalizeEntryIcon(entry.Icon),
 		AllowedGroups:       entry.AllowedGroups,
 		Enabled:             entry.Enabled,
 		Host:                entry.Host,

@@ -315,15 +315,35 @@ button:focus-visible, input:focus-visible, a:focus-visible, select:focus-visible
 
 .entry-header {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: flex-start;
     gap: 0.5rem;
+}
+
+.entry-card-icon {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary);
+    background: color-mix(in oklch, var(--primary) 12%, var(--card));
+    border: 1px solid color-mix(in oklch, var(--primary) 22%, var(--border));
+    flex-shrink: 0;
+}
+
+.entry-card-icon svg {
+    width: 1.5rem;
+    height: 1.5rem;
 }
 
 .entry-title-info {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+    flex: 1;
+    min-width: 0;
 }
 
 .entry-name {
@@ -546,6 +566,33 @@ button:focus-visible, input:focus-visible, a:focus-visible, select:focus-visible
     background: var(--card);
 }
 
+.stack-form select {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: var(--foreground);
+    padding: 0.65rem;
+    font-size: 1rem;
+}
+
+.stack-form select:focus {
+    background: var(--card);
+}
+
+.form-hint {
+    color: var(--muted-foreground);
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.form-hint.is-success {
+    color: var(--primary);
+}
+
+.form-hint.is-error {
+    color: var(--destructive);
+}
+
 .checkbox-row {
     flex-direction: row !important;
     align-items: center;
@@ -652,6 +699,24 @@ button:disabled {
     color: var(--foreground);
 }
 
+.entry-row-icon {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary);
+    background: color-mix(in oklch, var(--primary) 10%, var(--card));
+    border: 1px solid color-mix(in oklch, var(--primary) 18%, var(--border));
+    flex-shrink: 0;
+}
+
+.entry-row-icon svg {
+    width: 1.15rem;
+    height: 1.15rem;
+}
+
 .entry-row-target {
     font-size: 0.85rem;
     color: var(--muted-foreground);
@@ -678,6 +743,14 @@ button:disabled {
 }
 
 .entry-edit-panel input {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.5rem;
+    background: var(--surface);
+    color: var(--foreground);
+}
+
+.entry-edit-panel select {
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     padding: 0.5rem;
