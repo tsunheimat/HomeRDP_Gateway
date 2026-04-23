@@ -119,6 +119,29 @@ func TestGetHost(t *testing.T) {
 	}
 }
 
+func TestServeStaticFileFallsBackToRepoTemplateDirectory(t *testing.T) {
+	h := (&Config{
+		Hosts:         []string{"10.0.0.1:3389"},
+		HostSelection: "roundrobin",
+		TemplatesPath: t.TempDir(),
+	}).NewHandler()
+
+	req := httptest.NewRequest(http.MethodGet, "/static/admin.js", nil)
+	rr := httptest.NewRecorder()
+
+	h.ServeStaticFile("admin.js").ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusOK)
+	}
+	if body := rr.Body.String(); !strings.Contains(body, "initializeEntryIconSelects") {
+		t.Fatalf("expected admin.js body to include icon select initialization, body=%q", body)
+	}
+	if ctype := rr.Header().Get("Content-Type"); ctype != "application/javascript" {
+		t.Fatalf("content type = %q, want %q", ctype, "application/javascript")
+	}
+}
+
 func TestHandler_HandleDownload(t *testing.T) {
 	req, err := http.NewRequest("GET", "/connect", nil)
 	if err != nil {
