@@ -322,6 +322,42 @@ func TestHandleAdminPageDefaultsToEnglishWithoutLangQuery(t *testing.T) {
 	}
 }
 
+func TestHandleAdminPageRendersGlobalBrandingUploadForm(t *testing.T) {
+	handler, _ := newDashboardTestHandler(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	req = identity.AddToRequestCtx(newIdentity(t, true), req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminPage(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	body := rr.Body.String()
+	if !strings.Contains(body, `id="section-branding"`) {
+		t.Fatalf("expected global branding section, body=%q", body)
+	}
+	if !strings.Contains(body, `id="iconForm" class="stack-form" action="/api/v1/admin/icon" method="post" enctype="multipart/form-data"`) {
+		t.Fatalf("expected icon form to post to global icon API, body=%q", body)
+	}
+}
+
+func TestHandleAdminPageRejectsNonGetRequests(t *testing.T) {
+	handler, _ := newDashboardTestHandler(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/admin", strings.NewReader("ignored"))
+	req = identity.AddToRequestCtx(newIdentity(t, true), req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminPage(rr, req)
+
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusMethodNotAllowed)
+	}
+}
+
 func TestHandleAdminPageRendersTraditionalChineseFromQueryLanguage(t *testing.T) {
 	handler, _ := newDashboardTestHandler(t)
 

@@ -1163,6 +1163,7 @@ function bindIconForm() {
         try {
             await adminRequest('/api/v1/admin/icon', {
                 method: 'POST',
+                headers: {'Accept': 'application/json'},
                 body: formData,
             });
             setBrandingSuccess(t('uploadIconSuccess', 'Icon uploaded and selected.'));
@@ -1198,9 +1199,19 @@ function bindTabSwitching() {
     });
 }
 
+function activateInitialAdminSection() {
+    const section = new URLSearchParams(window.location.search).get('section');
+    const targetId = section === 'branding' ? 'section-branding' : section === 'auth-users' ? 'section-auth-users' : '';
+    if (!targetId) return;
+
+    const tab = document.querySelector(`.switcher-tab[data-target="${targetId}"]`);
+    if (tab) tab.click();
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     initializeEntryIconSelects();
     bindTabSwitching();
+    activateInitialAdminSection();
     bindHostForm();
     bindTemplateForm();
     bindAuthUserForm();

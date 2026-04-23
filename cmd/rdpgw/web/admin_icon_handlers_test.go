@@ -64,6 +64,47 @@ func TestAdminUploadGlobalIconStoresSelectsAndServesIcon(t *testing.T) {
 	}
 }
 
+func TestAdminUploadGlobalIconBrowserFormRedirectsToBrandingPage(t *testing.T) {
+	handler, iconStore := newAdminIconTestHandler(t)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	fileWriter, err := writer.CreateFormFile("icon", "custom.svg")
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
+	iconBytes := []byte(`<svg xmlns="http://www.w3.org/2000/svg"></svg>`)
+	if _, err := fileWriter.Write(iconBytes); err != nil {
+		t.Fatalf("write icon upload: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close multipart writer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/icon", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Accept", "text/html")
+	req.Header.Set("Origin", "http://example.com")
+	req = withAdminIdentity(req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminUploadIcon(rr, req)
+
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("status code = %d, want %d; body=%q", rr.Code, http.StatusSeeOther, rr.Body.String())
+	}
+	if location := rr.Header().Get("Location"); location != "/admin?section=branding" {
+		t.Fatalf("location = %q, want %q", location, "/admin?section=branding")
+	}
+	active, err := iconStore.ActiveIcon()
+	if err != nil {
+		t.Fatalf("active icon: %v", err)
+	}
+	if active.OriginalName != "custom.svg" {
+		t.Fatalf("original name = %q", active.OriginalName)
+	}
+}
+
 func TestAdminSelectGlobalIconSwitchesActiveIcon(t *testing.T) {
 	handler, iconStore := newAdminIconTestHandler(t)
 

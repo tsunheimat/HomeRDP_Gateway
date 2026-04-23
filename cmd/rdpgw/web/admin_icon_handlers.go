@@ -90,6 +90,11 @@ func (h *Handler) HandleAdminUploadIcon(w http.ResponseWriter, r *http.Request) 
 	}
 	icon.Active = true
 
+	if wantsHTMLAdminResponse(r) {
+		http.Redirect(w, r, "/admin?section=branding", http.StatusSeeOther)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(newAdminIconResponse(icon))
@@ -213,6 +218,11 @@ func statusForIconStoreError(err error) int {
 		return http.StatusBadRequest
 	}
 	return http.StatusInternalServerError
+}
+
+func wantsHTMLAdminResponse(r *http.Request) bool {
+	accept := strings.ToLower(r.Header.Get("Accept"))
+	return strings.Contains(accept, "text/html") && !strings.Contains(accept, "application/json")
 }
 
 func adminIconResponses(icons []dashboard.Icon) []adminIconResponse {

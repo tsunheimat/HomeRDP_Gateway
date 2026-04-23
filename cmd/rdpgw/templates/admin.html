@@ -164,7 +164,7 @@
 
                         <section class="admin-panel">
                             <h2 class="section-header">{{.Messages.UploadIconHeading}}</h2>
-                            <form id="iconForm" class="stack-form" enctype="multipart/form-data">
+                            <form id="iconForm" class="stack-form" action="/api/v1/admin/icon" method="post" enctype="multipart/form-data">
                                 <label>
                                     {{.Messages.IconFileLabel}}
                                     <input type="file" name="icon" accept=".ico,.icon,.svg,.png,.jpg,.jpeg" required>

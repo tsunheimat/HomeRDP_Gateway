@@ -53,6 +53,12 @@ func (h *Handler) HandleDashboard(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) HandleAdminPage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		w.Header().Set("Allow", "GET, HEAD")
+		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		return
+	}
+
 	id := identity.FromRequestCtx(r)
 	if id == nil || !id.Authenticated() {
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
@@ -388,7 +394,7 @@ const fallbackAdminTemplate = `<!DOCTYPE html>
 
                         <section class="admin-panel">
                             <h2 class="section-header">{{.Messages.UploadIconHeading}}</h2>
-                            <form id="iconForm" class="stack-form" enctype="multipart/form-data">
+                            <form id="iconForm" class="stack-form" action="/api/v1/admin/icon" method="post" enctype="multipart/form-data">
                                 <label>
                                     {{.Messages.IconFileLabel}}
                                     <input type="file" name="icon" accept=".ico,.icon,.svg,.png,.jpg,.jpeg" required>
