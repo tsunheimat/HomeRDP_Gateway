@@ -140,9 +140,12 @@ func TestInitDashboardStateLoadsManagedHostsWithoutOpenID(t *testing.T) {
 	}
 
 	helperConfigPath := filepath.Join(tmpDir, "dashboard", "rdpgw-auth.yaml")
-	dashboardStore, authUserStore, err := initDashboardState(cfg, helperConfigPath)
+	dashboardStore, authUserStore, iconStore, err := initDashboardState(cfg, helperConfigPath)
 	if err != nil {
 		t.Fatalf("init dashboard state: %v", err)
+	}
+	if iconStore == nil {
+		t.Fatalf("expected icon store to be initialized")
 	}
 	if dashboardStore == nil {
 		t.Fatal("expected dashboard store to be initialized")

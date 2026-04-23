@@ -53,10 +53,15 @@ func validateManagedDirectAuthConfig(conf config.Configuration) error {
 	return nil
 }
 
-func initDashboardState(conf config.Configuration, helperConfigPath string) (dashboard.Store, dashboard.AuthUserStore, error) {
+func initDashboardState(conf config.Configuration, helperConfigPath string) (dashboard.Store, dashboard.AuthUserStore, dashboard.IconStore, error) {
 	dashboardStore, err := dashboard.NewFileStore(conf.Dashboard.StorePath, conf.Dashboard.UploadDir)
 	if err != nil {
-		return nil, nil, fmt.Errorf("initialize dashboard store: %w", err)
+		return nil, nil, nil, fmt.Errorf("initialize dashboard store: %w", err)
+	}
+
+	iconStore, err := dashboard.NewFileIconStore(conf.Dashboard.StorePath, conf.Dashboard.IconDir)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("initialize dashboard icon store: %w", err)
 	}
 
 	security.ManagedHostList = func() ([]string, error) {
@@ -68,22 +73,22 @@ func initDashboardState(conf config.Configuration, helperConfigPath string) (das
 	}
 
 	if !conf.Server.OpenIDEnabled() {
-		return dashboardStore, nil, nil
+		return dashboardStore, nil, iconStore, nil
 	}
 
 	authUserStore, err := dashboard.NewFileAuthUserStore(conf.Dashboard.AuthUsersPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("initialize auth user store: %w", err)
+		return nil, nil, nil, fmt.Errorf("initialize auth user store: %w", err)
 	}
 	authUsers, err := authUserStore.List()
 	if err != nil {
-		return nil, nil, fmt.Errorf("list auth users: %w", err)
+		return nil, nil, nil, fmt.Errorf("list auth users: %w", err)
 	}
 	if err := dashboard.WriteAuthHelperConfig(helperConfigPath, authUsers); err != nil {
-		return nil, nil, fmt.Errorf("write auth helper config: %w", err)
+		return nil, nil, nil, fmt.Errorf("write auth helper config: %w", err)
 	}
 
-	return dashboardStore, authUserStore, nil
+	return dashboardStore, authUserStore, iconStore, nil
 }
 
 func initOIDC(callbackUrl *url.URL) *web.OIDC {
@@ -184,7 +189,7 @@ func main() {
 		conf.Server.MaxSessionLength,
 	)
 
-	dashboardStore, authUserStore, err := initDashboardState(conf, helperConfigPath)
+	dashboardStore, authUserStore, iconStore, err := initDashboardState(conf, helperConfigPath)
 	if err != nil {
 		log.Fatalf("Cannot initialize dashboard state: %s", err)
 	}
@@ -208,6 +213,7 @@ func main() {
 		RdpSigningKey:          conf.Client.SigningKey,
 		DashboardStore:         dashboardStore,
 		DashboardAuthUserStore: authUserStore,
+		DashboardIconStore:     iconStore,
 		AuthHelperConfigPath:   helperConfigPath,
 	}
 
@@ -314,6 +320,10 @@ func main() {
 		api.Handle("/admin/auth-users", o.Authenticated(h.AdminOnly(http.HandlerFunc(h.HandleAdminCreateAuthUser)))).Methods(http.MethodPost)
 		api.Handle("/admin/auth-users/{username}", o.Authenticated(h.AdminOnly(http.HandlerFunc(h.HandleAdminUpdateAuthUser)))).Methods(http.MethodPut)
 		api.Handle("/admin/auth-users/{username}", o.Authenticated(h.AdminOnly(http.HandlerFunc(h.HandleAdminDeleteAuthUser)))).Methods(http.MethodDelete)
+		api.Handle("/admin/icons", o.Authenticated(h.AdminOnly(http.HandlerFunc(h.HandleAdminListIcons)))).Methods(http.MethodGet)
+		api.Handle("/admin/icon", o.Authenticated(h.AdminOnly(http.HandlerFunc(h.HandleAdminUploadIcon)))).Methods(http.MethodPost)
+		api.Handle("/admin/icon/active", o.Authenticated(h.AdminOnly(http.HandlerFunc(h.HandleAdminSelectIcon)))).Methods(http.MethodPut)
+		api.Handle("/admin/icons/{id}", o.Authenticated(h.AdminOnly(http.HandlerFunc(h.HandleAdminDeleteIcon)))).Methods(http.MethodDelete)
 
 		// Static files (no authentication required)
 		r.HandleFunc("/static/style.css", h.ServeStaticFile("style.css"))
@@ -322,6 +332,8 @@ func main() {
 		// Asset files (no authentication required)
 		r.HandleFunc("/assets/connect.svg", h.ServeAssetFile("connect.svg"))
 		r.HandleFunc("/assets/icon.svg", h.ServeAssetFile("icon.svg"))
+		r.HandleFunc("/assets/app-icon", h.ServeAppIcon)
+		r.HandleFunc("/assets/icons/{id}", h.ServeUploadedIcon)
 
 		// only enable un-auth endpoint for openid only config
 		if !conf.Server.KerberosEnabled() && !conf.Server.BasicAuthEnabled() && !conf.Server.NtlmEnabled() && !conf.Server.HeaderEnabled() {
@@ -352,6 +364,8 @@ func main() {
 		// Asset files (no authentication required)
 		r.HandleFunc("/assets/connect.svg", h.ServeAssetFile("connect.svg"))
 		r.HandleFunc("/assets/icon.svg", h.ServeAssetFile("icon.svg"))
+		r.HandleFunc("/assets/app-icon", h.ServeAppIcon)
+		r.HandleFunc("/assets/icons/{id}", h.ServeUploadedIcon)
 
 		// only enable un-auth endpoint for header only config
 		if !conf.Server.KerberosEnabled() && !conf.Server.BasicAuthEnabled() && !conf.Server.NtlmEnabled() && !conf.Server.OpenIDEnabled() {

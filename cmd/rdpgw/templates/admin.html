@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.Title}}</title>
     <link rel="stylesheet" href="/static/style.css">
-    <link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
-    <link rel="alternate icon" type="image/x-icon" href="/assets/icon.svg">
+    <link rel="icon" href="/assets/app-icon">
+    <link rel="alternate icon" href="/assets/app-icon">
 </head>
 <body>
     <div class="app-shell" id="app-shell">
         <header class="shell-topbar" id="app-topbar">
             <div class="logo">
-                <img src="/assets/icon.svg" alt="Logo">
+                <img src="/assets/app-icon" alt="Logo" id="adminLogoImage">
                 RDP Gateway
             </div>
             <div class="user-info">
@@ -31,6 +31,7 @@
             <nav class="section-switcher" aria-label="Admin sections">
                 <button type="button" class="switcher-tab is-active" data-target="section-entries">{{.Messages.TabPublishedEntries}}</button>
                 <button type="button" class="switcher-tab" data-target="section-auth-users">{{.Messages.TabDirectAuthUsers}}</button>
+                <button type="button" class="switcher-tab" data-target="section-branding">{{.Messages.TabBranding}}</button>
             </nav>
 
             <div id="section-entries" class="admin-section">
@@ -137,6 +138,39 @@
                                     {{.Messages.EnabledLabel}}
                                 </label>
                                 <button type="submit" class="primary-button">{{.Messages.CreateDirectAuthUserButton}}</button>
+                            </form>
+                        </section>
+                    </div>
+                </div>
+            </div>
+
+            <div id="section-branding" class="admin-section" hidden>
+                <div class="inline-alert is-error" id="brandingError"></div>
+                <div class="inline-alert is-success" id="brandingSuccess"></div>
+
+                <div class="content-section">
+                    <div class="admin-grid">
+                        <section class="admin-panel">
+                            <h2 class="section-header">{{.Messages.CurrentBrandingHeading}}</h2>
+                            <div class="branding-preview">
+                                <img src="/assets/app-icon" alt="{{.Messages.CurrentIconAlt}}" id="currentAppIcon">
+                                <div>
+                                    <strong id="activeIconName">{{.Messages.DefaultIconLabel}}</strong>
+                                    <p class="form-hint">{{.Messages.CurrentIconHint}}</p>
+                                </div>
+                            </div>
+                            <div id="brandingIcons"></div>
+                        </section>
+
+                        <section class="admin-panel">
+                            <h2 class="section-header">{{.Messages.UploadIconHeading}}</h2>
+                            <form id="iconForm" class="stack-form" enctype="multipart/form-data">
+                                <label>
+                                    {{.Messages.IconFileLabel}}
+                                    <input type="file" name="icon" accept=".ico,.icon,.svg,.png,.jpg,.jpeg" required>
+                                </label>
+                                <p class="form-hint">{{.Messages.IconUploadHint}}</p>
+                                <button type="submit" class="primary-button">{{.Messages.UploadIconButton}}</button>
                             </form>
                         </section>
                     </div>

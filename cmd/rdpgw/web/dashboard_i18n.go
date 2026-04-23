@@ -49,9 +49,14 @@ type adminMessages struct {
 	CreateHostEntryHeading         string            `json:"createHostEntryHeading"`
 	CreateHostEntrySuccess         string            `json:"createHostEntrySuccess"`
 	CreateTemplateEntryHeading     string            `json:"createTemplateEntryHeading"`
+	CurrentBrandingHeading         string            `json:"currentBrandingHeading"`
+	CurrentIconAlt                 string            `json:"currentIconAlt"`
+	CurrentIconHint                string            `json:"currentIconHint"`
 	CurrentDirectAuthUsersHeading  string            `json:"currentDirectAuthUsersHeading"`
 	CurrentEntriesHeading          string            `json:"currentEntriesHeading"`
+	DefaultIconLabel               string            `json:"defaultIconLabel"`
 	DeleteButton                   string            `json:"deleteButton"`
+	DeleteIconErrorPrefix          string            `json:"deleteIconErrorPrefix"`
 	DeleteConfirm                  string            `json:"deleteConfirm"`
 	DeleteAuthUserErrorPrefix      string            `json:"deleteAuthUserErrorPrefix"`
 	DeleteEntryErrorPrefix         string            `json:"deleteEntryErrorPrefix"`
@@ -69,7 +74,10 @@ type adminMessages struct {
 	Heading                        string            `json:"heading"`
 	HostLabel                      string            `json:"hostLabel"`
 	HostPlaceholder                string            `json:"hostPlaceholder"`
+	IconFileLabel                  string            `json:"iconFileLabel"`
+	IconUploadHint                 string            `json:"iconUploadHint"`
 	LoadAuthUsersErrorPrefix       string            `json:"loadAuthUsersErrorPrefix"`
+	LoadIconsErrorPrefix           string            `json:"loadIconsErrorPrefix"`
 	LoadEntriesErrorPrefix         string            `json:"loadEntriesErrorPrefix"`
 	LoadUserErrorPrefix            string            `json:"loadUserErrorPrefix"`
 	LoadingUser                    string            `json:"loadingUser"`
@@ -83,9 +91,13 @@ type adminMessages struct {
 	RdpTemplateFileLabel           string            `json:"rdpTemplateFileLabel"`
 	SaveButton                     string            `json:"saveButton"`
 	SaveAuthUserErrorPrefix        string            `json:"saveAuthUserErrorPrefix"`
+	SelectIconButton               string            `json:"selectIconButton"`
+	SelectIconErrorPrefix          string            `json:"selectIconErrorPrefix"`
+	SelectIconSuccess              string            `json:"selectIconSuccess"`
 	SaveEntryErrorPrefix           string            `json:"saveEntryErrorPrefix"`
 	SaveSuccess                    string            `json:"saveSuccess"`
 	Subtitle                       string            `json:"subtitle"`
+	TabBranding                    string            `json:"tabBranding"`
 	TabDirectAuthUsers             string            `json:"tabDirectAuthUsers"`
 	TabPublishedEntries            string            `json:"tabPublishedEntries"`
 	TemplateSuggestionApplied      string            `json:"templateSuggestionApplied"`
@@ -100,6 +112,10 @@ type adminMessages struct {
 	UpdateAuthUserErrorPrefix      string            `json:"updateAuthUserErrorPrefix"`
 	UpdateEntryErrorPrefix         string            `json:"updateEntryErrorPrefix"`
 	UpdateSuccess                  string            `json:"updateSuccess"`
+	UploadIconButton               string            `json:"uploadIconButton"`
+	UploadIconErrorPrefix          string            `json:"uploadIconErrorPrefix"`
+	UploadIconHeading              string            `json:"uploadIconHeading"`
+	UploadIconSuccess              string            `json:"uploadIconSuccess"`
 	UploadTemplateEntryButton      string            `json:"uploadTemplateEntryButton"`
 	UploadTemplateEntryErrorPrefix string            `json:"uploadTemplateEntryErrorPrefix"`
 	UploadTemplateEntrySuccess     string            `json:"uploadTemplateEntrySuccess"`
@@ -235,9 +251,14 @@ func adminMessagesForLocale(locale string) adminMessages {
 			CreateHostEntryHeading:        "建立主機項目",
 			CreateHostEntrySuccess:        "已建立主機項目。",
 			CreateTemplateEntryHeading:    "建立範本項目",
+			CurrentBrandingHeading:        "目前的網站圖示",
+			CurrentIconAlt:                "目前網站圖示",
+			CurrentIconHint:               "此圖示會用於瀏覽器分頁與頁首標誌。",
 			CurrentDirectAuthUsersHeading: "目前的直接驗證使用者",
 			CurrentEntriesHeading:         "目前的項目",
+			DefaultIconLabel:              "預設 RDP Gateway 圖示",
 			DeleteButton:                  "刪除",
+			DeleteIconErrorPrefix:         "無法刪除圖示：",
 			DeleteConfirm:                 "確定要刪除 %s 嗎？",
 			DeleteAuthUserErrorPrefix:     "無法刪除直接驗證使用者：",
 			DeleteEntryErrorPrefix:        "無法刪除項目：",
@@ -258,9 +279,9 @@ func adminMessagesForLocale(locale string) adminMessages {
 				"powerpoint": "PowerPoint",
 				"outlook":    "Outlook",
 			},
-			EnableButton:                  "啟用",
-			EnabledLabel:                  "啟用",
-			EnabledStatus:                 "已啟用",
+			EnableButton:  "啟用",
+			EnabledLabel:  "啟用",
+			EnabledStatus: "已啟用",
 			EntryTypes: map[string]string{
 				"host":     "主機",
 				"template": "範本",
@@ -268,7 +289,10 @@ func adminMessagesForLocale(locale string) adminMessages {
 			Heading:                        "項目管理",
 			HostLabel:                      "主機（host:port）",
 			HostPlaceholder:                "lab.internal:3389",
+			IconFileLabel:                  "圖示檔案",
+			IconUploadHint:                 "支援 .ico、.icon、.svg、.png、.jpg 或 .jpeg。上傳後會立即設為目前圖示。",
 			LoadAuthUsersErrorPrefix:       "無法載入直接驗證使用者：",
+			LoadIconsErrorPrefix:           "無法載入圖示：",
 			LoadEntriesErrorPrefix:         "無法載入項目：",
 			LoadUserErrorPrefix:            "無法載入使用者資訊：",
 			LoadingUser:                    "載入中...",
@@ -282,9 +306,13 @@ func adminMessagesForLocale(locale string) adminMessages {
 			RdpTemplateFileLabel:           "RDP 範本檔案",
 			SaveButton:                     "儲存",
 			SaveAuthUserErrorPrefix:        "無法儲存直接驗證使用者：",
+			SelectIconButton:               "設為目前圖示",
+			SelectIconErrorPrefix:          "無法選取圖示：",
+			SelectIconSuccess:              "已選取 %s。",
 			SaveEntryErrorPrefix:           "無法儲存項目：",
 			SaveSuccess:                    "已儲存 %s。",
 			Subtitle:                       "建立並管理已發布的主機與範本式項目。",
+			TabBranding:                    "品牌圖示",
 			TabDirectAuthUsers:             "直接驗證使用者",
 			TabPublishedEntries:            "已發布項目",
 			TemplateSuggestionApplied:      "已根據範本建議：%s。",
@@ -299,6 +327,10 @@ func adminMessagesForLocale(locale string) adminMessages {
 			UpdateAuthUserErrorPrefix:      "無法更新直接驗證使用者：",
 			UpdateEntryErrorPrefix:         "無法更新項目：",
 			UpdateSuccess:                  "已更新 %s。",
+			UploadIconButton:               "上傳並使用圖示",
+			UploadIconErrorPrefix:          "無法上傳圖示：",
+			UploadIconHeading:              "上傳網站圖示",
+			UploadIconSuccess:              "已上傳並選取圖示。",
 			UploadTemplateEntryButton:      "上傳範本項目",
 			UploadTemplateEntryErrorPrefix: "無法上傳範本項目：",
 			UploadTemplateEntrySuccess:     "已上傳範本項目。",
@@ -320,9 +352,14 @@ func adminMessagesForLocale(locale string) adminMessages {
 		CreateHostEntryHeading:        "Create Host Entry",
 		CreateHostEntrySuccess:        "Host entry created.",
 		CreateTemplateEntryHeading:    "Create Template Entry",
+		CurrentBrandingHeading:        "Current Web Icon",
+		CurrentIconAlt:                "Current web icon",
+		CurrentIconHint:               "This icon is used for browser tabs and the page header logo.",
 		CurrentDirectAuthUsersHeading: "Current Direct Auth Users",
 		CurrentEntriesHeading:         "Current Entries",
+		DefaultIconLabel:              "Default RDP Gateway icon",
 		DeleteButton:                  "Delete",
+		DeleteIconErrorPrefix:         "Unable to delete icon:",
 		DeleteConfirm:                 "Are you sure you want to delete %s?",
 		DeleteAuthUserErrorPrefix:     "Unable to delete auth user:",
 		DeleteEntryErrorPrefix:        "Unable to delete entry:",
@@ -343,9 +380,9 @@ func adminMessagesForLocale(locale string) adminMessages {
 			"powerpoint": "PowerPoint",
 			"outlook":    "Outlook",
 		},
-		EnableButton:                  "Enable",
-		EnabledLabel:                  "Enabled",
-		EnabledStatus:                 "Enabled",
+		EnableButton:  "Enable",
+		EnabledLabel:  "Enabled",
+		EnabledStatus: "Enabled",
 		EntryTypes: map[string]string{
 			"host":     "Host",
 			"template": "Template",
@@ -353,7 +390,10 @@ func adminMessagesForLocale(locale string) adminMessages {
 		Heading:                        "Entry Administration",
 		HostLabel:                      "Host (host:port)",
 		HostPlaceholder:                "lab.internal:3389",
+		IconFileLabel:                  "Icon File",
+		IconUploadHint:                 "Supports .ico, .icon, .svg, .png, .jpg, or .jpeg. Uploaded icons become active immediately.",
 		LoadAuthUsersErrorPrefix:       "Unable to load auth users:",
+		LoadIconsErrorPrefix:           "Unable to load icons:",
 		LoadEntriesErrorPrefix:         "Unable to load entries:",
 		LoadUserErrorPrefix:            "Unable to load user information:",
 		LoadingUser:                    "Loading...",
@@ -367,9 +407,13 @@ func adminMessagesForLocale(locale string) adminMessages {
 		RdpTemplateFileLabel:           "RDP Template File",
 		SaveButton:                     "Save",
 		SaveAuthUserErrorPrefix:        "Unable to save auth user:",
+		SelectIconButton:               "Use This Icon",
+		SelectIconErrorPrefix:          "Unable to select icon:",
+		SelectIconSuccess:              "Selected %s.",
 		SaveEntryErrorPrefix:           "Unable to save entry:",
 		SaveSuccess:                    "Saved %s.",
 		Subtitle:                       "Create and manage published hosts and template-based entries.",
+		TabBranding:                    "Branding",
 		TabDirectAuthUsers:             "Direct Auth Users",
 		TabPublishedEntries:            "Published Entries",
 		TemplateSuggestionApplied:      "Suggested from template: %s.",
@@ -384,6 +428,10 @@ func adminMessagesForLocale(locale string) adminMessages {
 		UpdateAuthUserErrorPrefix:      "Unable to update auth user:",
 		UpdateEntryErrorPrefix:         "Unable to update entry:",
 		UpdateSuccess:                  "Updated %s.",
+		UploadIconButton:               "Upload and Use Icon",
+		UploadIconErrorPrefix:          "Unable to upload icon:",
+		UploadIconHeading:              "Upload Web Icon",
+		UploadIconSuccess:              "Icon uploaded and selected.",
 		UploadTemplateEntryButton:      "Upload Template Entry",
 		UploadTemplateEntryErrorPrefix: "Unable to upload template entry:",
 		UploadTemplateEntrySuccess:     "Template entry uploaded.",

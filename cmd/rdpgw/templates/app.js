@@ -5,7 +5,7 @@ let userInfo = null;
 function updateLogo() {
     const logoImage = document.getElementById('logoImage');
     if (logoImage) {
-        logoImage.src = '/assets/icon.svg';
+        logoImage.src = '/assets/app-icon';
     }
 }
 

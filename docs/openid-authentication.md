@@ -20,6 +20,7 @@ OpenId:
 Dashboard:
   StorePath: ./data/dashboard
   UploadDir: ./data/dashboard/uploads
+  IconDir: ./data/dashboard/icons
   AuthUsersPath: ./data/dashboard/auth-users.json
   AuthHelperConfigPath: ./data/dashboard/rdpgw-auth.yaml
   AdminGroups:
@@ -36,6 +37,7 @@ When OpenID Connect is enabled, the homelab dashboard uses OIDC group membership
 - `OpenId.GroupsClaim`: claim name to read group memberships from the ID token. Default: `groups`.
 - `Dashboard.StorePath`: directory for dashboard metadata (`entries.json`). Default: `./data/dashboard`.
 - `Dashboard.UploadDir`: directory for uploaded `.rdp` templates. Default: derived from `StorePath` as `<StorePath>/uploads`.
+- `Dashboard.IconDir`: directory for uploaded global web page icons managed from `/admin`. Default: derived from `StorePath` as `<StorePath>/icons`.
 - `Dashboard.AuthUsersPath`: JSON file storing direct-auth users managed from `/admin`. Default: derived from `StorePath` as `<StorePath>/auth-users.json`.
 - `Dashboard.AuthHelperConfigPath`: generated helper YAML consumed by `rdpgw-auth`. Default: derived from `StorePath` as `<StorePath>/rdpgw-auth.yaml`.
 - `Dashboard.AdminGroups`: groups allowed to access `/admin` and admin APIs.
@@ -52,6 +54,7 @@ OpenId:
 Dashboard:
   StorePath: /var/lib/rdpgw/dashboard
   UploadDir: /var/lib/rdpgw/dashboard/uploads
+  IconDir: /var/lib/rdpgw/dashboard/icons
   AuthUsersPath: /var/lib/rdpgw/dashboard/auth-users.json
   AuthHelperConfigPath: /var/lib/rdpgw/dashboard/rdpgw-auth.yaml
   AdminGroups:
@@ -67,6 +70,7 @@ You can override the same settings via environment variables:
 - `RDPGW_OPENID__GROUPSCLAIM`
 - `RDPGW_DASHBOARD__STOREPATH`
 - `RDPGW_DASHBOARD__UPLOADDIR`
+- `RDPGW_DASHBOARD__ICONDIR`
 - `RDPGW_DASHBOARD__AUTHUSERSPATH`
 - `RDPGW_DASHBOARD__AUTHHELPERCONFIGPATH`
 - `RDPGW_DASHBOARD__ADMINGROUPS`
@@ -75,7 +79,7 @@ You can override the same settings via environment variables:
 Notes:
 
 - `RDPGW_DASHBOARD__ADMINGROUPS` is space-separated (for example: `rdpgw-admins homelab-admins`).
-- If `RDPGW_DASHBOARD__UPLOADDIR`, `RDPGW_DASHBOARD__AUTHUSERSPATH`, or `RDPGW_DASHBOARD__AUTHHELPERCONFIGPATH` are not set, they are derived from `StorePath`.
+- If `RDPGW_DASHBOARD__UPLOADDIR`, `RDPGW_DASHBOARD__ICONDIR`, `RDPGW_DASHBOARD__AUTHUSERSPATH`, or `RDPGW_DASHBOARD__AUTHHELPERCONFIGPATH` are not set, they are derived from `StorePath`.
 - If `RDPGW_AUTH_HELPER_CONFIG` is set at runtime, the gateway writes the generated helper YAML there so the helper read path and generated output path stay aligned.
 
 ### Direct Auth Management

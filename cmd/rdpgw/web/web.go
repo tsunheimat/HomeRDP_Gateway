@@ -38,6 +38,7 @@ type Config struct {
 	EnableUserToken         bool
 	DashboardStore          dashboard.Store
 	DashboardAuthUserStore  dashboard.AuthUserStore
+	DashboardIconStore      dashboard.IconStore
 	DashboardMaxUploadBytes int64
 	AuthHelperConfigPath    string
 	AdminGroups             []string
@@ -90,6 +91,7 @@ type Handler struct {
 	adminGroups             []string
 	dashboardStore          dashboard.Store
 	dashboardAuthUserStore  dashboard.AuthUserStore
+	dashboardIconStore      dashboard.IconStore
 	dashboardMaxUploadBytes int64
 	authHelperConfigPath    string
 	gatewayAddress          *url.URL
@@ -117,6 +119,7 @@ func (c *Config) NewHandler() *Handler {
 		adminGroups:             c.AdminGroups,
 		dashboardStore:          c.DashboardStore,
 		dashboardAuthUserStore:  c.DashboardAuthUserStore,
+		dashboardIconStore:      c.DashboardIconStore,
 		dashboardMaxUploadBytes: c.DashboardMaxUploadBytes,
 		authHelperConfigPath:    c.AuthHelperConfigPath,
 		gatewayAddress:          c.GatewayAddress,
@@ -184,18 +187,48 @@ func (h *Handler) loadHTMLTemplate() {
 	}
 }
 
+func (h *Handler) resolveTemplateFile(filename string) (string, bool) {
+	possiblePaths := []string{}
+	if h.templatesPath != "" {
+		possiblePaths = append(possiblePaths, filepath.Join(h.templatesPath, filename))
+	}
+
+	possiblePaths = append(possiblePaths,
+		filepath.Join("templates", filename),
+		filepath.Join("cmd", "rdpgw", "templates", filename),
+		filepath.Join("..", "templates", filename),
+		filepath.Join("..", "cmd", "rdpgw", "templates", filename),
+		filepath.Join("..", "..", "templates", filename),
+		filepath.Join("..", "..", "cmd", "rdpgw", "templates", filename),
+		filepath.Join("/app", "templates", filename),
+		filepath.Join("/opt", "rdpgw", "templates", filename),
+	)
+
+	seen := make(map[string]struct{}, len(possiblePaths))
+	for _, candidate := range possiblePaths {
+		if candidate == "" {
+			continue
+		}
+		cleaned := filepath.Clean(candidate)
+		if _, ok := seen[cleaned]; ok {
+			continue
+		}
+		seen[cleaned] = struct{}{}
+		if _, err := os.Stat(cleaned); err == nil {
+			return cleaned, true
+		}
+	}
+
+	return "", false
+}
+
 // ServeStaticFile serves static files from the templates directory
 func (h *Handler) ServeStaticFile(filename string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		filePath := filepath.Join(h.templatesPath, filename)
-		if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			fallbackPath := filepath.Join("./templates", filename)
-			if _, fallbackErr := os.Stat(fallbackPath); fallbackErr == nil {
-				filePath = fallbackPath
-			} else {
-				http.NotFound(w, r)
-				return
-			}
+		filePath, ok := h.resolveTemplateFile(filename)
+		if !ok {
+			http.NotFound(w, r)
+			return
 		}
 
 		// Set appropriate content type

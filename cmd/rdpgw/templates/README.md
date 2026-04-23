@@ -14,9 +14,10 @@ Authenticated OpenID dashboard page (`/`) that renders:
 ### `admin.html`
 Authenticated OpenID admin page (`/admin`) for users in configured admin groups. It uses the `app-shell` layout with an inventory-first approach:
 - **Topbar**: Shared navigation and user info
-- **Section Switcher**: Toggles between Published Entries and Direct-Auth Users
+- **Section Switcher**: Toggles between Published Entries, Direct-Auth Users, and Branding
 - **Published Entries Section**: Inventory list (`.inventory-list`, `.entry-row-summary`, `.entry-edit-panel`), host entry create form, template upload form
 - **Direct-Auth Users Section**: Inventory list with inline edit toggle, user creation form
+- **Branding Section**: Current global web icon preview, upload form, and active icon selector
 
 ### `index.html`
 Legacy web interface template used by existing non-dashboard flows. Does not use the `app-shell` structure.
@@ -40,6 +41,7 @@ Admin panel logic:
 - Updates/deletes entries via `PUT`/`DELETE /api/v1/admin/entries/{id}`
 - Creates direct-auth users with `POST /api/v1/admin/auth-users`
 - Updates/deletes direct-auth users via `PUT`/`DELETE /api/v1/admin/auth-users/{username}`
+- Lists, uploads, selects, and deletes global web icons through `/api/v1/admin/icons` endpoints
 - Surfaces API failures contextually within active sections
 
 ### `app.js`
@@ -62,6 +64,8 @@ Update this file to keep visual consistency across all pages.
 - `/static/app.js` (legacy flow)
 - `/assets/connect.svg`
 - `/assets/icon.svg`
+- `/assets/app-icon`
+- `/assets/icons/{id}`
 
 ## OpenID Dashboard Routes
 
@@ -75,6 +79,10 @@ Update this file to keep visual consistency across all pages.
 - `/api/v1/admin/entries/{id}` -> update/delete entry
 - `/api/v1/admin/auth-users` -> direct-auth user list/create
 - `/api/v1/admin/auth-users/{username}` -> direct-auth user update/delete
+- `/api/v1/admin/icons` -> global web icon list
+- `/api/v1/admin/icon` -> upload and activate global web icon
+- `/api/v1/admin/icon/active` -> select active global web icon
+- `/api/v1/admin/icons/{id}` -> delete uploaded global web icon
 - `/connect/entries/{id}.rdp` -> dashboard RDP download route
 
 If `dashboard.html` or `admin.html` are missing, the server uses embedded fallback HTML.

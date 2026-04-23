@@ -768,6 +768,44 @@ button:disabled {
     color: var(--muted-foreground);
 }
 
+.branding-preview {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    margin-bottom: var(--space-md);
+    padding: var(--space-md);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+}
+
+.branding-preview img,
+.branding-icon-thumb {
+    width: 3rem;
+    height: 3rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--card);
+}
+
+.branding-preview img,
+.branding-icon-thumb img {
+    object-fit: contain;
+}
+
+.branding-icon-thumb {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.35rem;
+    flex-shrink: 0;
+}
+
+.branding-icon-thumb img {
+    width: 100%;
+    height: 100%;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
     .shell-topbar {

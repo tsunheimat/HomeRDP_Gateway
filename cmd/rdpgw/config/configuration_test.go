@@ -117,6 +117,7 @@ func TestLoadDashboardSettings(t *testing.T) {
 	unsetEnvWithCleanup(t, "RDPGW_OPENID__GROUPSCLAIM")
 	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__STOREPATH")
 	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__UPLOADDIR")
+	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__ICONDIR")
 	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__AUTHUSERSPATH")
 	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__AUTHHELPERCONFIGPATH")
 	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__ADMINGROUPS")
@@ -135,6 +136,9 @@ func TestLoadDashboardSettings(t *testing.T) {
 	if cfg.Dashboard.UploadDir != "./data/dashboard/uploads" {
 		t.Fatalf("expected default Dashboard.UploadDir to be ./data/dashboard/uploads, got %q", cfg.Dashboard.UploadDir)
 	}
+	if cfg.Dashboard.IconDir != "./data/dashboard/icons" {
+		t.Fatalf("expected default Dashboard.IconDir to be ./data/dashboard/icons, got %q", cfg.Dashboard.IconDir)
+	}
 	if cfg.Dashboard.AuthUsersPath != "./data/dashboard/auth-users.json" {
 		t.Fatalf("expected default Dashboard.AuthUsersPath to be ./data/dashboard/auth-users.json, got %q", cfg.Dashboard.AuthUsersPath)
 	}
@@ -149,6 +153,7 @@ func TestLoadDashboardSettings(t *testing.T) {
 	t.Setenv("RDPGW_OPENID__GROUPSCLAIM", "ak_groups")
 	t.Setenv("RDPGW_DASHBOARD__STOREPATH", "/tmp/rdpgw-dashboard")
 	t.Setenv("RDPGW_DASHBOARD__UPLOADDIR", "/tmp/rdpgw-dashboard/uploads")
+	t.Setenv("RDPGW_DASHBOARD__ICONDIR", "/tmp/rdpgw-dashboard/icons")
 	t.Setenv("RDPGW_DASHBOARD__AUTHUSERSPATH", "/tmp/rdpgw-dashboard/auth-users.json")
 	t.Setenv("RDPGW_DASHBOARD__AUTHHELPERCONFIGPATH", "/tmp/rdpgw-dashboard/rdpgw-auth.yaml")
 	t.Setenv("RDPGW_DASHBOARD__ADMINGROUPS", "rdpgw-admins homelab-admins")
@@ -166,6 +171,9 @@ func TestLoadDashboardSettings(t *testing.T) {
 
 	if cfg.Dashboard.UploadDir != "/tmp/rdpgw-dashboard/uploads" {
 		t.Fatalf("expected Dashboard.UploadDir to be /tmp/rdpgw-dashboard/uploads, got %q", cfg.Dashboard.UploadDir)
+	}
+	if cfg.Dashboard.IconDir != "/tmp/rdpgw-dashboard/icons" {
+		t.Fatalf("expected Dashboard.IconDir to be /tmp/rdpgw-dashboard/icons, got %q", cfg.Dashboard.IconDir)
 	}
 	if cfg.Dashboard.AuthUsersPath != "/tmp/rdpgw-dashboard/auth-users.json" {
 		t.Fatalf("expected Dashboard.AuthUsersPath to be /tmp/rdpgw-dashboard/auth-users.json, got %q", cfg.Dashboard.AuthUsersPath)
@@ -215,6 +223,7 @@ func TestLoadDashboardSettingsDoesNotLeakAdminGroups(t *testing.T) {
 
 func TestLoadDashboardSettingsDerivesUploadDirFromStorePath(t *testing.T) {
 	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__UPLOADDIR")
+	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__ICONDIR")
 	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__AUTHUSERSPATH")
 	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__AUTHHELPERCONFIGPATH")
 	t.Setenv("RDPGW_DASHBOARD__STOREPATH", "/tmp/rdpgw-dashboard")
@@ -222,6 +231,9 @@ func TestLoadDashboardSettingsDerivesUploadDirFromStorePath(t *testing.T) {
 	cfg := Load("/definitely-missing.yaml")
 	if cfg.Dashboard.UploadDir != "/tmp/rdpgw-dashboard/uploads" {
 		t.Fatalf("expected derived Dashboard.UploadDir to be /tmp/rdpgw-dashboard/uploads, got %q", cfg.Dashboard.UploadDir)
+	}
+	if cfg.Dashboard.IconDir != "/tmp/rdpgw-dashboard/icons" {
+		t.Fatalf("expected derived Dashboard.IconDir to be /tmp/rdpgw-dashboard/icons, got %q", cfg.Dashboard.IconDir)
 	}
 	if cfg.Dashboard.AuthUsersPath != "/tmp/rdpgw-dashboard/auth-users.json" {
 		t.Fatalf("expected derived Dashboard.AuthUsersPath to be /tmp/rdpgw-dashboard/auth-users.json, got %q", cfg.Dashboard.AuthUsersPath)

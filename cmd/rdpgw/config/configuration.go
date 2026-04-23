@@ -74,6 +74,7 @@ type OpenIDConfig struct {
 type DashboardConfig struct {
 	StorePath            string   `koanf:"storepath"`
 	UploadDir            string   `koanf:"uploaddir"`
+	IconDir              string   `koanf:"icondir"`
 	AuthUsersPath        string   `koanf:"authuserspath"`
 	AuthHelperConfigPath string   `koanf:"authhelperconfigpath"`
 	AdminGroups          []string `koanf:"admingroups"`
@@ -160,6 +161,7 @@ var envKeyOverrides = map[string]string{
 	"Openid.Groupsclaim":             "OpenId.GroupsClaim",
 	"Dashboard.Storepath":            "Dashboard.StorePath",
 	"Dashboard.Uploaddir":            "Dashboard.UploadDir",
+	"Dashboard.Icondir":              "Dashboard.IconDir",
 	"Dashboard.Authuserspath":        "Dashboard.AuthUsersPath",
 	"Dashboard.Authhelperconfigpath": "Dashboard.AuthHelperConfigPath",
 	"Dashboard.Admingroups":          "Dashboard.AdminGroups",
@@ -176,6 +178,16 @@ func deriveUploadDir(storePath string) string {
 		return storePath + "uploads"
 	}
 	return storePath + "/uploads"
+}
+
+func deriveIconDir(storePath string) string {
+	if storePath == "" {
+		return "icons"
+	}
+	if strings.HasSuffix(storePath, "/") {
+		return storePath + "icons"
+	}
+	return storePath + "/icons"
 }
 
 func deriveAuthUsersPath(storePath string) string {
@@ -259,6 +271,9 @@ func Load(configFile string) Configuration {
 
 	if Conf.Dashboard.UploadDir == "" {
 		Conf.Dashboard.UploadDir = deriveUploadDir(Conf.Dashboard.StorePath)
+	}
+	if Conf.Dashboard.IconDir == "" {
+		Conf.Dashboard.IconDir = deriveIconDir(Conf.Dashboard.StorePath)
 	}
 	if Conf.Dashboard.AuthUsersPath == "" {
 		Conf.Dashboard.AuthUsersPath = deriveAuthUsersPath(Conf.Dashboard.StorePath)

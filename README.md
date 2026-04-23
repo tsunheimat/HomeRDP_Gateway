@@ -92,8 +92,9 @@ With OpenID Connect enabled, `/` serves a dashboard UI after OIDC login. Dashboa
 - Create host entries (host/port-backed connections).
 - Upload `.rdp` template files and create template-backed entries.
 - Update and delete existing entries.
+- Upload, select, and delete the global web page icon used by browser tabs and the page header.
 
-The dashboard catalog is stored on local disk (`Dashboard.StorePath`) and uploaded templates are written to `Dashboard.UploadDir`. The current storage model is intended for single-node/homelab deployments unless you provide shared storage and routing affinity externally.
+The dashboard catalog is stored on local disk (`Dashboard.StorePath`), uploaded templates are written to `Dashboard.UploadDir`, and uploaded web icons are written to `Dashboard.IconDir`. The current storage model is intended for single-node/homelab deployments unless you provide shared storage and routing affinity externally.
 
 ### Kerberos
 

@@ -196,6 +196,32 @@ function clearAuthUsersSuccess() {
     if (el) el.style.display = 'none';
 }
 
+function setBrandingError(message) {
+    const el = document.getElementById('brandingError');
+    if (el) {
+        el.textContent = message;
+        el.style.display = 'block';
+    }
+}
+
+function clearBrandingError() {
+    const el = document.getElementById('brandingError');
+    if (el) el.style.display = 'none';
+}
+
+function setBrandingSuccess(message) {
+    const el = document.getElementById('brandingSuccess');
+    if (el) {
+        el.textContent = message;
+        el.style.display = 'block';
+    }
+}
+
+function clearBrandingSuccess() {
+    const el = document.getElementById('brandingSuccess');
+    if (el) el.style.display = 'none';
+}
+
 function splitGroups(value) {
     return value.split(',').map((part) => part.trim()).filter(Boolean);
 }
@@ -839,6 +865,132 @@ function renderAdminAuthUsers(users) {
     root.appendChild(list);
 }
 
+function refreshDisplayedAppIcon() {
+    const cacheBustUrl = `/assets/app-icon?v=${Date.now()}`;
+    document.querySelectorAll('img[src^="/assets/app-icon"]').forEach((image) => {
+        image.src = cacheBustUrl;
+    });
+}
+
+function renderBrandingIcons(icons) {
+    const root = document.getElementById('brandingIcons');
+    const activeName = document.getElementById('activeIconName');
+    if (!root) return;
+
+    root.innerHTML = '';
+    const active = icons.find((icon) => icon.active);
+    if (activeName) {
+        activeName.textContent = active ? active.originalName : t('defaultIconLabel', 'Default RDP Gateway icon');
+    }
+
+    if (!icons.length) {
+        const empty = document.createElement('p');
+        empty.className = 'muted';
+        empty.textContent = t('defaultIconLabel', 'Default RDP Gateway icon');
+        root.appendChild(empty);
+        return;
+    }
+
+    const list = document.createElement('div');
+    list.className = 'inventory-list branding-icon-list';
+    icons.forEach((icon) => {
+        const row = document.createElement('div');
+        row.className = 'entry-row branding-icon-row';
+
+        const summary = document.createElement('div');
+        summary.className = 'entry-row-summary';
+
+        const info = document.createElement('div');
+        info.className = 'entry-row-info';
+
+        const preview = document.createElement('span');
+        preview.className = 'branding-icon-thumb';
+        const image = document.createElement('img');
+        image.src = icon.active ? `/assets/app-icon?v=${Date.now()}` : icon.url;
+        image.alt = '';
+        image.setAttribute('aria-hidden', 'true');
+        preview.appendChild(image);
+        info.appendChild(preview);
+
+        const title = document.createElement('span');
+        title.className = 'entry-row-title';
+        title.textContent = icon.originalName;
+        info.appendChild(title);
+
+        const type = document.createElement('span');
+        type.className = 'entry-meta-badge';
+        type.textContent = icon.contentType;
+        info.appendChild(type);
+
+        if (icon.active) {
+            const activeBadge = document.createElement('span');
+            activeBadge.className = 'entry-status-badge is-enabled';
+            activeBadge.textContent = t('enabledStatus', 'Enabled');
+            info.appendChild(activeBadge);
+        }
+
+        const actions = document.createElement('div');
+        actions.className = 'entry-row-actions';
+
+        const selectButton = document.createElement('button');
+        selectButton.type = 'button';
+        selectButton.className = 'secondary-button';
+        selectButton.textContent = t('selectIconButton', 'Use This Icon');
+        selectButton.disabled = icon.active;
+        selectButton.addEventListener('click', async () => {
+            clearBrandingError();
+            clearBrandingSuccess();
+            try {
+                await adminRequest('/api/v1/admin/icon/active', {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({id: icon.id}),
+                });
+                setBrandingSuccess(formatMessage(t('selectIconSuccess', 'Selected %s.'), icon.originalName));
+                await loadIcons();
+                refreshDisplayedAppIcon();
+            } catch (error) {
+                if (error.message !== 'authentication required') {
+                    setBrandingError(`${t('selectIconErrorPrefix', 'Unable to select icon:')} ${error.message}`);
+                }
+            }
+        });
+        actions.appendChild(selectButton);
+
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'danger-button';
+        deleteButton.textContent = t('deleteButton', 'Delete');
+        deleteButton.addEventListener('click', async () => {
+            if (!confirm(formatMessage(t('deleteConfirm', 'Are you sure you want to delete %s?'), icon.originalName))) {
+                return;
+            }
+            clearBrandingError();
+            clearBrandingSuccess();
+            try {
+                await adminRequest(`/api/v1/admin/icons/${encodeURIComponent(icon.id)}`, {
+                    method: 'DELETE',
+                });
+                setBrandingSuccess(formatMessage(t('deleteSuccess', 'Deleted %s.'), icon.originalName));
+                await loadIcons();
+                refreshDisplayedAppIcon();
+            } catch (error) {
+                if (error.message !== 'authentication required') {
+                    setBrandingError(`${t('deleteIconErrorPrefix', 'Unable to delete icon:')} ${error.message}`);
+                }
+            }
+        });
+        actions.appendChild(deleteButton);
+
+        summary.appendChild(info);
+        summary.appendChild(actions);
+        row.appendChild(summary);
+        list.appendChild(row);
+    });
+
+    root.appendChild(list);
+}
+
 async function loadEntries() {
     try {
         const entries = await adminRequest('/api/v1/admin/entries');
@@ -857,6 +1009,17 @@ async function loadAuthUsers() {
     } catch (error) {
         if (error.message !== 'authentication required') {
             setAuthUsersError(`${t('loadAuthUsersErrorPrefix', 'Unable to load auth users:')} ${error.message}`);
+        }
+    }
+}
+
+async function loadIcons() {
+    try {
+        const icons = await adminRequest('/api/v1/admin/icons');
+        renderBrandingIcons(icons);
+    } catch (error) {
+        if (error.message !== 'authentication required') {
+            setBrandingError(`${t('loadIconsErrorPrefix', 'Unable to load icons:')} ${error.message}`);
         }
     }
 }
@@ -987,6 +1150,33 @@ function bindAuthUserForm() {
     });
 }
 
+function bindIconForm() {
+    const form = document.getElementById('iconForm');
+    if (!form) return;
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        clearBrandingError();
+        clearBrandingSuccess();
+
+        const formData = new FormData(form);
+
+        try {
+            await adminRequest('/api/v1/admin/icon', {
+                method: 'POST',
+                body: formData,
+            });
+            setBrandingSuccess(t('uploadIconSuccess', 'Icon uploaded and selected.'));
+            form.reset();
+            await loadIcons();
+            refreshDisplayedAppIcon();
+        } catch (error) {
+            if (error.message !== 'authentication required') {
+                setBrandingError(`${t('uploadIconErrorPrefix', 'Unable to upload icon:')} ${error.message}`);
+            }
+        }
+    });
+}
+
 function bindTabSwitching() {
     const tabs = document.querySelectorAll('.switcher-tab');
     const sections = document.querySelectorAll('.admin-section');
@@ -1014,7 +1204,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     bindHostForm();
     bindTemplateForm();
     bindAuthUserForm();
+    bindIconForm();
     await loadCurrentUser();
     await loadEntries();
     await loadAuthUsers();
+    await loadIcons();
 });

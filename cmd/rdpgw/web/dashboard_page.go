@@ -7,8 +7,6 @@ import (
 	"html/template"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/dashboard"
@@ -152,15 +150,13 @@ func (h *Handler) renderTemplatePage(w http.ResponseWriter, filename, fallback s
 }
 
 func (h *Handler) loadTemplateWithFallback(filename, fallback string) *template.Template {
-	templatePath := filepath.Join(h.templatesPath, filename)
-	if _, err := os.Stat(templatePath); err == nil {
+	templatePath, ok := h.resolveTemplateFile(filename)
+	if ok {
 		tmpl, parseErr := template.ParseFiles(templatePath)
 		if parseErr == nil {
 			return tmpl
 		}
 		log.Printf("Warning: Failed to parse template %s: %v", templatePath, parseErr)
-	} else if !os.IsNotExist(err) {
-		log.Printf("Warning: Failed to stat template %s: %v", templatePath, err)
 	}
 
 	log.Printf("Using fallback template for %s", filename)
@@ -174,13 +170,13 @@ const fallbackDashboardTemplate = `<!DOCTYPE html>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>{{.Title}}</title>
 	<link rel="stylesheet" href="/static/style.css">
-	<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+	<link rel="icon" href="/assets/app-icon">
 </head>
 <body>
 	<div class="app-shell" id="app-shell">
 		<header class="shell-topbar" id="app-topbar">
 			<div class="logo">
-				<img src="/assets/icon.svg" alt="Logo">
+				<img src="/assets/app-icon" alt="Logo">
 				RDP Gateway
 			</div>
 			<div class="user-info">
@@ -229,99 +225,186 @@ const fallbackDashboardTemplate = `<!DOCTYPE html>
 const fallbackAdminTemplate = `<!DOCTYPE html>
 <html lang="{{.Lang}}">
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>{{.Title}}</title>
-	<link rel="stylesheet" href="/static/style.css">
-	<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="/assets/app-icon">
+    <link rel="alternate icon" href="/assets/app-icon">
 </head>
 <body>
-	<div class="app-shell" id="app-shell">
-		<header class="shell-topbar" id="app-topbar">
-			<div class="logo">
-				<img src="/assets/icon.svg" alt="Logo">
-				RDP Gateway
-			</div>
-			<div class="user-info">
-				<div class="lang-switch" aria-label="Language switcher">{{range .LanguageLinks}}<a class="lang-switch-link{{if .Current}} is-active{{end}}" href="{{.URL}}">{{.Label}}</a>{{end}}</div>
-				<span id="adminUsername">{{.Messages.LoadingUser}}</span>
-				<a class="admin-link" href="/">{{.Messages.BackToDashboard}}</a>
-			</div>
-		</header>
-		<main class="shell-main" id="app-main">
-			<div class="page-intro" id="app-intro">
-				<h1 class="title">{{.Messages.Heading}}</h1>
-				<p class="subtitle">{{.Messages.Subtitle}}</p>
-			</div>
-			<nav class="section-switcher" aria-label="Admin sections">
-				<button type="button" class="switcher-tab is-active" data-target="section-entries">{{.Messages.TabPublishedEntries}}</button>
-				<button type="button" class="switcher-tab" data-target="section-auth-users">{{.Messages.TabDirectAuthUsers}}</button>
-			</nav>
-			<div id="section-entries" class="admin-section">
-				<div class="inline-alert is-error" id="entriesError" role="alert"></div>
-				<div class="inline-alert is-success" id="entriesSuccess" aria-live="polite"></div>
-				<div class="content-section">
-					<section class="admin-panel">
-						<h2 class="section-header">{{.Messages.CurrentEntriesHeading}}</h2>
-						<div id="adminEntries"></div>
-					</section>
-				</div>
-				<div class="content-section">
-					<div class="admin-grid">
-					<section class="admin-panel">
-						<h2 class="section-header">{{.Messages.CreateHostEntryHeading}}</h2>
-						<form id="hostForm" class="stack-form">
-							<label>{{.Messages.NameLabel}}<input type="text" name="name" required></label>
-							<label>{{.Messages.DescriptionLabel}}<input type="text" name="description"></label>
-							<label>{{.Messages.EntryIconLabel}}<select name="icon" data-entry-icon-select></select></label>
-							<label>{{.Messages.AllowedGroupsLabel}}<input type="text" name="allowedGroups" placeholder="{{.Messages.AllowedGroupsPlaceholder}}" required></label>
-							<label>{{.Messages.HostLabel}}<input type="text" name="host" placeholder="{{.Messages.HostPlaceholder}}" required></label>
-							<button type="submit" class="primary-button">{{.Messages.CreateHostEntryButton}}</button>
-						</form>
-					</section>
-					<section class="admin-panel">
-						<h2 class="section-header">{{.Messages.CreateTemplateEntryHeading}}</h2>
-						<form id="templateForm" class="stack-form" enctype="multipart/form-data">
-							<label>{{.Messages.NameLabel}}<input type="text" name="name" required></label>
-							<label>{{.Messages.DescriptionLabel}}<input type="text" name="description"></label>
-							<label>{{.Messages.EntryIconLabel}}<select name="icon" data-entry-icon-select></select></label>
-							<label>{{.Messages.AllowedGroupsLabel}}<input type="text" name="allowedGroups" placeholder="{{.Messages.AllowedGroupsPlaceholder}}" required></label>
-							<label>{{.Messages.TargetHostOverrideLabel}}<input type="text" name="targetHostOverride" placeholder="{{.Messages.TargetHostOverridePlaceholder}}"></label>
-							<label>{{.Messages.RdpTemplateFileLabel}}<input type="file" name="template" accept=".rdp" required></label>
-							<p class="form-hint" id="templateSuggestionStatus">{{.Messages.TemplateSuggestionHint}}</p>
-							<button type="submit" class="primary-button">{{.Messages.UploadTemplateEntryButton}}</button>
-						</form>
-					</section>
-					</div>
-				</div>
-			</div>
-			<div id="section-auth-users" class="admin-section" hidden>
-				<div class="inline-alert is-error" id="authUsersError"></div>
-				<div class="inline-alert is-success" id="authUsersSuccess"></div>
-				<div class="content-section">
-					<section class="admin-panel">
-						<h2 class="section-header">{{.Messages.CurrentDirectAuthUsersHeading}}</h2>
-						<div id="adminAuthUsers"></div>
-					</section>
-				</div>
-				<div class="content-section">
-					<div class="admin-grid">
-					<section class="admin-panel">
-						<h2 class="section-header">{{.Messages.CreateDirectAuthUserHeading}}</h2>
-						<form id="authUserForm" class="stack-form">
-							<label>{{.Messages.UsernameLabel}}<input type="text" name="username" required></label>
-							<label>{{.Messages.PasswordLabel}}<input type="password" name="password" required></label>
-							<label class="checkbox-row"><input type="checkbox" name="enabled" checked> {{.Messages.EnabledLabel}}</label>
-							<button type="submit" class="primary-button">{{.Messages.CreateDirectAuthUserButton}}</button>
-						</form>
-					</section>
-					</div>
-				</div>
-			</div>
-		</main>
-	</div>
-	<script>window.adminMessages = {{.MessagesJSON}};</script>
-	<script src="/static/admin.js"></script>
+    <div class="app-shell" id="app-shell">
+        <header class="shell-topbar" id="app-topbar">
+            <div class="logo">
+                <img src="/assets/app-icon" alt="Logo" id="adminLogoImage">
+                RDP Gateway
+            </div>
+            <div class="user-info">
+                <div class="lang-switch" aria-label="Language switcher">{{range .LanguageLinks}}<a class="lang-switch-link{{if .Current}} is-active{{end}}" href="{{.URL}}">{{.Label}}</a>{{end}}</div>
+                <span id="adminUsername">{{.Messages.LoadingUser}}</span>
+                <a class="admin-link" href="/">{{.Messages.BackToDashboard}}</a>
+            </div>
+        </header>
+
+        <main class="shell-main" id="app-main">
+            <div class="page-intro" id="app-intro">
+                <h1 class="title">{{.Messages.Heading}}</h1>
+                <p class="subtitle">{{.Messages.Subtitle}}</p>
+            </div>
+
+            <nav class="section-switcher" aria-label="Admin sections">
+                <button type="button" class="switcher-tab is-active" data-target="section-entries">{{.Messages.TabPublishedEntries}}</button>
+                <button type="button" class="switcher-tab" data-target="section-auth-users">{{.Messages.TabDirectAuthUsers}}</button>
+                <button type="button" class="switcher-tab" data-target="section-branding">{{.Messages.TabBranding}}</button>
+            </nav>
+
+            <div id="section-entries" class="admin-section">
+                <div class="inline-alert is-error" id="entriesError"></div>
+                <div class="inline-alert is-success" id="entriesSuccess"></div>
+
+                <div class="content-section">
+                    <section class="admin-panel">
+                        <h2 class="section-header">{{.Messages.CurrentEntriesHeading}}</h2>
+                        <div id="adminEntries"></div>
+                    </section>
+                </div>
+
+                <div class="content-section">
+                    <div class="admin-grid">
+                        <section class="admin-panel">
+                            <h2 class="section-header">{{.Messages.CreateHostEntryHeading}}</h2>
+                            <form id="hostForm" class="stack-form">
+                                <label>
+                                    {{.Messages.NameLabel}}
+                                    <input type="text" name="name" required>
+                                </label>
+                                <label>
+                                    {{.Messages.DescriptionLabel}}
+                                    <input type="text" name="description">
+                                </label>
+                                <label>
+                                    {{.Messages.EntryIconLabel}}
+                                    <select name="icon" data-entry-icon-select></select>
+                                </label>
+                                <label>
+                                    {{.Messages.AllowedGroupsLabel}}
+                                    <input type="text" name="allowedGroups" placeholder="{{.Messages.AllowedGroupsPlaceholder}}" required>
+                                </label>
+                                <label>
+                                    {{.Messages.HostLabel}}
+                                    <input type="text" name="host" placeholder="{{.Messages.HostPlaceholder}}" required>
+                                </label>
+                                <button type="submit" class="primary-button">{{.Messages.CreateHostEntryButton}}</button>
+                            </form>
+                        </section>
+
+                        <section class="admin-panel">
+                            <h2 class="section-header">{{.Messages.CreateTemplateEntryHeading}}</h2>
+                            <form id="templateForm" class="stack-form" enctype="multipart/form-data">
+                                <label>
+                                    {{.Messages.NameLabel}}
+                                    <input type="text" name="name" required>
+                                </label>
+                                <label>
+                                    {{.Messages.DescriptionLabel}}
+                                    <input type="text" name="description">
+                                </label>
+                                <label>
+                                    {{.Messages.EntryIconLabel}}
+                                    <select name="icon" data-entry-icon-select></select>
+                                </label>
+                                <label>
+                                    {{.Messages.AllowedGroupsLabel}}
+                                    <input type="text" name="allowedGroups" placeholder="{{.Messages.AllowedGroupsPlaceholder}}" required>
+                                </label>
+                                <label>
+                                    {{.Messages.TargetHostOverrideLabel}}
+                                    <input type="text" name="targetHostOverride" placeholder="{{.Messages.TargetHostOverridePlaceholder}}">
+                                </label>
+                                <label>
+                                    {{.Messages.RdpTemplateFileLabel}}
+                                    <input type="file" name="template" accept=".rdp" required>
+                                </label>
+                                <p class="form-hint" id="templateSuggestionStatus">{{.Messages.TemplateSuggestionHint}}</p>
+                                <button type="submit" class="primary-button">{{.Messages.UploadTemplateEntryButton}}</button>
+                            </form>
+                        </section>
+                    </div>
+                </div>
+            </div>
+
+            <div id="section-auth-users" class="admin-section" hidden>
+                <div class="inline-alert is-error" id="authUsersError" role="alert"></div>
+                <div class="inline-alert is-success" id="authUsersSuccess" aria-live="polite"></div>
+
+                <div class="content-section">
+                    <section class="admin-panel">
+                        <h2 class="section-header">{{.Messages.CurrentDirectAuthUsersHeading}}</h2>
+                        <div id="adminAuthUsers"></div>
+                    </section>
+                </div>
+
+                <div class="content-section">
+                    <div class="admin-grid">
+                        <section class="admin-panel">
+                            <h2 class="section-header">{{.Messages.CreateDirectAuthUserHeading}}</h2>
+                            <form id="authUserForm" class="stack-form">
+                                <label>
+                                    {{.Messages.UsernameLabel}}
+                                    <input type="text" name="username" required>
+                                </label>
+                                <label>
+                                    {{.Messages.PasswordLabel}}
+                                    <input type="password" name="password" required>
+                                </label>
+                                <label class="checkbox-row">
+                                    <input type="checkbox" name="enabled" checked>
+                                    {{.Messages.EnabledLabel}}
+                                </label>
+                                <button type="submit" class="primary-button">{{.Messages.CreateDirectAuthUserButton}}</button>
+                            </form>
+                        </section>
+                    </div>
+                </div>
+            </div>
+
+            <div id="section-branding" class="admin-section" hidden>
+                <div class="inline-alert is-error" id="brandingError"></div>
+                <div class="inline-alert is-success" id="brandingSuccess"></div>
+
+                <div class="content-section">
+                    <div class="admin-grid">
+                        <section class="admin-panel">
+                            <h2 class="section-header">{{.Messages.CurrentBrandingHeading}}</h2>
+                            <div class="branding-preview">
+                                <img src="/assets/app-icon" alt="{{.Messages.CurrentIconAlt}}" id="currentAppIcon">
+                                <div>
+                                    <strong id="activeIconName">{{.Messages.DefaultIconLabel}}</strong>
+                                    <p class="form-hint">{{.Messages.CurrentIconHint}}</p>
+                                </div>
+                            </div>
+                            <div id="brandingIcons"></div>
+                        </section>
+
+                        <section class="admin-panel">
+                            <h2 class="section-header">{{.Messages.UploadIconHeading}}</h2>
+                            <form id="iconForm" class="stack-form" enctype="multipart/form-data">
+                                <label>
+                                    {{.Messages.IconFileLabel}}
+                                    <input type="file" name="icon" accept=".ico,.icon,.svg,.png,.jpg,.jpeg" required>
+                                </label>
+                                <p class="form-hint">{{.Messages.IconUploadHint}}</p>
+                                <button type="submit" class="primary-button">{{.Messages.UploadIconButton}}</button>
+                            </form>
+                        </section>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>window.adminMessages = {{.MessagesJSON}};</script>
+    <script src="/static/admin.js"></script>
 </body>
 </html>
 `
