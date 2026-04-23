@@ -77,6 +77,56 @@ func TestAdminCreateHostEntry(t *testing.T) {
 	}
 }
 
+func TestAdminCreateHostEntryPreservesUploadedIconReference(t *testing.T) {
+	handler, store, iconStore := newAdminEntryIconTestHandler(t)
+
+	icon, err := iconStore.SaveIcon("custom.png", []byte{137, 80, 78, 71})
+	if err != nil {
+		t.Fatalf("save icon: %v", err)
+	}
+	customIcon := "uploaded:" + icon.ID
+
+	payload := map[string]interface{}{
+		"name":          "Custom Icon Host",
+		"description":   "Uses uploaded icon",
+		"icon":          customIcon,
+		"allowedGroups": []string{"homelab-users"},
+		"host":          "custom.internal:3389",
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/entries/host", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "http://example.com")
+	req = withAdminIdentity(req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminCreateHostEntry(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("status code = %d, want %d, body=%q", rr.Code, http.StatusCreated, rr.Body.String())
+	}
+
+	var created adminEntryResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if created.Icon != customIcon {
+		t.Fatalf("response icon = %q, want %q", created.Icon, customIcon)
+	}
+
+	stored, err := store.Get(created.ID)
+	if err != nil {
+		t.Fatalf("load stored entry: %v", err)
+	}
+	if stored.Icon != customIcon {
+		t.Fatalf("stored icon = %q, want %q", stored.Icon, customIcon)
+	}
+}
+
 func TestAdminCreateTemplateEntryRejectsBadUpload(t *testing.T) {
 	handler, store := newAdminTestHandler(t)
 
@@ -659,6 +709,31 @@ func newAdminTestHandler(t *testing.T) (*Handler, dashboard.Store) {
 	}).NewHandler()
 
 	return handler, store
+}
+
+func newAdminEntryIconTestHandler(t *testing.T) (*Handler, dashboard.Store, dashboard.IconStore) {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	store, err := dashboard.NewFileStore(filepath.Join(tmpDir, "catalog"), filepath.Join(tmpDir, "uploads"))
+	if err != nil {
+		t.Fatalf("new dashboard store: %v", err)
+	}
+	iconStore, err := dashboard.NewFileIconStore(filepath.Join(tmpDir, "catalog"), filepath.Join(tmpDir, "icons"))
+	if err != nil {
+		t.Fatalf("new icon store: %v", err)
+	}
+
+	handler := (&Config{
+		Hosts:                   []string{"fallback.internal:3389"},
+		HostSelection:           "roundrobin",
+		DashboardStore:          store,
+		DashboardIconStore:      iconStore,
+		DashboardMaxUploadBytes: 1 << 20,
+		AdminGroups:             []string{"rdpgw-admins"},
+	}).NewHandler()
+
+	return handler, store, iconStore
 }
 
 func newAdminAuthTestHandler(t *testing.T) (*Handler, dashboard.AuthUserStore, string) {

@@ -1,5 +1,6 @@
 const adminMessages = window.adminMessages || {};
 const ENTRY_ICON_ORDER = ['window', 'browser', 'terminal', 'folder', 'database', 'word', 'excel', 'powerpoint', 'outlook'];
+const UPLOADED_ENTRY_ICON_PREFIX = 'uploaded:';
 const DEFAULT_ENTRY_ICONS = {
     window: 'Window',
     browser: 'Browser',
@@ -11,6 +12,7 @@ const DEFAULT_ENTRY_ICONS = {
     powerpoint: 'PowerPoint',
     outlook: 'Outlook',
 };
+let uploadedEntryIcons = [];
 const APP_NAME_ALIASES = {
     chrome: 'Google Chrome',
     cmd: 'Command Prompt',
@@ -58,16 +60,42 @@ function entryIconLabels() {
 
 function normalizeEntryIcon(icon) {
     const normalized = String(icon || '').trim().toLowerCase();
+    if (uploadedEntryIconId(normalized)) return normalized;
     return ENTRY_ICON_ORDER.includes(normalized) ? normalized : 'window';
+}
+
+function uploadedEntryIconId(icon) {
+    const normalized = String(icon || '').trim().toLowerCase();
+    if (!normalized.startsWith(UPLOADED_ENTRY_ICON_PREFIX)) return '';
+    const id = normalized.slice(UPLOADED_ENTRY_ICON_PREFIX.length);
+    return /^[a-f0-9]{32}$/.test(id) ? id : '';
+}
+
+function uploadedEntryIconFor(icon) {
+    const id = uploadedEntryIconId(icon);
+    if (!id) return null;
+    const uploadedIcon = uploadedEntryIcons.find((candidate) => candidate.id === id);
+    return {
+        id,
+        originalName: uploadedIcon ? uploadedIcon.originalName : t('customIconLabel', 'Custom icon'),
+        url: `/assets/icons/${id}`,
+    };
 }
 
 function entryIconLabel(icon) {
     const normalized = normalizeEntryIcon(icon);
+    const uploadedIcon = uploadedEntryIconFor(normalized);
+    if (uploadedIcon) return uploadedIcon.originalName || t('customIconLabel', 'Custom icon');
     const labels = entryIconLabels();
     return labels[normalized] || DEFAULT_ENTRY_ICONS[normalized] || normalized;
 }
 
 function entryIconSVG(icon) {
+    const uploadedIcon = uploadedEntryIconFor(icon);
+    if (uploadedIcon) {
+        return `<img src="${uploadedIcon.url}" alt="" loading="lazy">`;
+    }
+
     switch (normalizeEntryIcon(icon)) {
         case 'browser':
             return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 9h18"></path><path d="M8 15h8"></path></svg>';
@@ -89,6 +117,17 @@ function entryIconSVG(icon) {
         default:
             return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 8h18"></path><path d="M8 4v16"></path></svg>';
     }
+}
+
+function setEntryIconOptions(icons) {
+    uploadedEntryIcons = (Array.isArray(icons) ? icons : [])
+        .filter((icon) => icon && uploadedEntryIconId(`${UPLOADED_ENTRY_ICON_PREFIX}${icon.id}`))
+        .map((icon) => ({
+            id: String(icon.id).trim().toLowerCase(),
+            originalName: icon.originalName || t('customIconLabel', 'Custom icon'),
+            url: `/assets/icons/${String(icon.id).trim().toLowerCase()}`,
+        }));
+    initializeEntryIconSelects();
 }
 
 function createEntryIconElement(icon, className, decorative = false) {
@@ -118,6 +157,24 @@ function populateEntryIconSelect(select, selectedIcon = 'window') {
         option.selected = icon === normalizedSelected;
         select.appendChild(option);
     });
+
+    uploadedEntryIcons.forEach((icon) => {
+        const value = `${UPLOADED_ENTRY_ICON_PREFIX}${icon.id}`;
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = icon.originalName || t('customIconLabel', 'Custom icon');
+        option.selected = value === normalizedSelected;
+        select.appendChild(option);
+    });
+
+    const selectedUploadedIcon = uploadedEntryIconFor(normalizedSelected);
+    if (selectedUploadedIcon && !uploadedEntryIcons.some((icon) => `${UPLOADED_ENTRY_ICON_PREFIX}${icon.id}` === normalizedSelected)) {
+        const option = document.createElement('option');
+        option.value = normalizedSelected;
+        option.textContent = selectedUploadedIcon.originalName || t('customIconLabel', 'Custom icon');
+        option.selected = true;
+        select.appendChild(option);
+    }
 }
 
 function buildEntryIconSelect(selectedIcon = 'window') {
@@ -1016,6 +1073,7 @@ async function loadAuthUsers() {
 async function loadIcons() {
     try {
         const icons = await adminRequest('/api/v1/admin/icons');
+        setEntryIconOptions(icons);
         renderBrandingIcons(icons);
     } catch (error) {
         if (error.message !== 'authentication required') {
@@ -1217,7 +1275,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     bindAuthUserForm();
     bindIconForm();
     await loadCurrentUser();
+    await loadIcons();
     await loadEntries();
     await loadAuthUsers();
-    await loadIcons();
 });

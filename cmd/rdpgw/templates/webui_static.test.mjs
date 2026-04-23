@@ -28,6 +28,43 @@ function loadAdminContext(messages = {}) {
     return context;
 }
 
+function loadDashboardContext(messages = {}) {
+    const source = fs.readFileSync(path.join(templatesDir, 'dashboard.js'), 'utf8');
+    const context = {
+        window: { dashboardMessages: messages },
+        document: {
+            addEventListener() {},
+            getElementById() {
+                return null;
+            },
+            querySelectorAll() {
+                return [];
+            },
+            createElement(tagName) {
+                return {
+                    tagName,
+                    children: [],
+                    attributes: {},
+                    className: '',
+                    innerHTML: '',
+                    appendChild(child) {
+                        this.children.push(child);
+                        return child;
+                    },
+                    setAttribute(name, value) {
+                        this.attributes[name] = value;
+                    },
+                };
+            },
+        },
+        console,
+    };
+
+    vm.createContext(context);
+    vm.runInContext(source, context, {filename: 'dashboard.js'});
+    return context;
+}
+
 test('style.css keeps hidden elements hidden even when classes set display', () => {
     const css = fs.readFileSync(path.join(templatesDir, 'style.css'), 'utf8');
 
@@ -77,4 +114,40 @@ test('admin template suggestions fall back to window icon for plain desktop temp
     assert.equal(suggestions.name, 'desktop.internal');
     assert.equal(suggestions.icon, 'window');
     assert.equal(suggestions.iconSuggested, false);
+});
+
+test('admin entry icon select includes uploaded icons', () => {
+    const context = loadAdminContext();
+    const iconId = '0123456789abcdef0123456789abcdef';
+    const select = {
+        innerHTML: 'stale',
+        options: [],
+        appendChild(option) {
+            this.options.push(option);
+        },
+    };
+    context.document.createElement = () => ({
+        value: '',
+        textContent: '',
+        selected: false,
+    });
+
+    context.setEntryIconOptions([
+        {id: iconId, originalName: 'custom.png', url: `/assets/icons/${iconId}`},
+    ]);
+    context.populateEntryIconSelect(select, `uploaded:${iconId}`);
+
+    assert.equal(select.options.at(-1).value, `uploaded:${iconId}`);
+    assert.equal(select.options.at(-1).textContent, 'custom.png');
+    assert.equal(select.options.at(-1).selected, true);
+});
+
+test('dashboard renders uploaded entry icon as image', () => {
+    const context = loadDashboardContext();
+    const iconId = '0123456789abcdef0123456789abcdef';
+
+    const icon = context.createEntryIconElement(`uploaded:${iconId}`);
+
+    assert.match(icon.innerHTML, new RegExp(`<img src="/assets/icons/${iconId}"`));
+    assert.equal(icon.attributes['aria-label'], 'Custom icon');
 });

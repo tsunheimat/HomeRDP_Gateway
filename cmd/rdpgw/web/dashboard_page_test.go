@@ -71,6 +71,49 @@ func TestHandleEntryListFiltersByGroups(t *testing.T) {
 	}
 }
 
+func TestHandleEntryListPreservesUploadedIconReference(t *testing.T) {
+	handler, store, iconStore := newDashboardEntryIconTestHandler(t)
+
+	icon, err := iconStore.SaveIcon("custom.png", []byte{137, 80, 78, 71})
+	if err != nil {
+		t.Fatalf("save icon: %v", err)
+	}
+	customIcon := "uploaded:" + icon.ID
+
+	if err := store.Put(dashboard.Entry{
+		ID:            "entry-custom-icon",
+		Type:          dashboard.EntryTypeHost,
+		Name:          "Custom Icon Host",
+		Icon:          customIcon,
+		AllowedGroups: []string{"homelab-users"},
+		Enabled:       true,
+		Host:          "custom.internal:3389",
+	}); err != nil {
+		t.Fatalf("put visible entry: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/entries", nil)
+	req = identity.AddToRequestCtx(newIdentity(t, false), req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleEntryList(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	var summaries []DashboardEntrySummary
+	if err := json.Unmarshal(rr.Body.Bytes(), &summaries); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(summaries) != 1 {
+		t.Fatalf("entry count = %d, want %d", len(summaries), 1)
+	}
+	if summaries[0].Icon != customIcon {
+		t.Fatalf("summary icon = %q, want %q", summaries[0].Icon, customIcon)
+	}
+}
+
 func TestHandleDashboardUserInfoIncludesAdminState(t *testing.T) {
 	handler, _ := newDashboardTestHandler(t)
 
@@ -515,6 +558,31 @@ func newDashboardTestHandler(t *testing.T) (*Handler, dashboard.Store) {
 	}).NewHandler()
 
 	return handler, store
+}
+
+func newDashboardEntryIconTestHandler(t *testing.T) (*Handler, dashboard.Store, dashboard.IconStore) {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	store, err := dashboard.NewFileStore(filepath.Join(tmpDir, "catalog"), filepath.Join(tmpDir, "uploads"))
+	if err != nil {
+		t.Fatalf("new dashboard store: %v", err)
+	}
+	iconStore, err := dashboard.NewFileIconStore(filepath.Join(tmpDir, "catalog"), filepath.Join(tmpDir, "icons"))
+	if err != nil {
+		t.Fatalf("new icon store: %v", err)
+	}
+
+	handler := (&Config{
+		Hosts:              []string{"fallback.internal:3389"},
+		HostSelection:      "roundrobin",
+		DashboardStore:     store,
+		DashboardIconStore: iconStore,
+		AdminGroups:        []string{"rdpgw-admins"},
+		TemplatesPath:      tmpDir,
+	}).NewHandler()
+
+	return handler, store, iconStore
 }
 
 func newIdentity(t *testing.T, admin bool) identity.Identity {

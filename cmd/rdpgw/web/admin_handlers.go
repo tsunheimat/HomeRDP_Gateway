@@ -108,12 +108,18 @@ func (h *Handler) HandleAdminCreateHostEntry(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	entryIcon, err := h.normalizeAdminEntryIcon(req.Icon)
+	if err != nil {
+		http.Error(w, err.Error(), statusForEntryIconError(err))
+		return
+	}
+
 	entry := dashboard.Entry{
 		ID:            id,
 		Type:          dashboard.EntryTypeHost,
 		Name:          strings.TrimSpace(req.Name),
 		Description:   strings.TrimSpace(req.Description),
-		Icon:          dashboard.NormalizeEntryIcon(req.Icon),
+		Icon:          entryIcon,
 		AllowedGroups: req.AllowedGroups,
 		Enabled:       true,
 		Host:          strings.TrimSpace(req.Host),
@@ -187,12 +193,19 @@ func (h *Handler) HandleAdminCreateTemplateEntry(w http.ResponseWriter, r *http.
 		return
 	}
 
+	entryIcon, err := h.normalizeAdminEntryIcon(r.FormValue("icon"))
+	if err != nil {
+		_ = os.Remove(uploadFilePath)
+		http.Error(w, err.Error(), statusForEntryIconError(err))
+		return
+	}
+
 	entry := dashboard.Entry{
 		ID:                   id,
 		Type:                 dashboard.EntryTypeTemplate,
 		Name:                 strings.TrimSpace(r.FormValue("name")),
 		Description:          strings.TrimSpace(r.FormValue("description")),
-		Icon:                 dashboard.NormalizeEntryIcon(r.FormValue("icon")),
+		Icon:                 entryIcon,
 		AllowedGroups:        splitCSV(r.FormValue("allowedGroups")),
 		Enabled:              true,
 		UploadedTemplatePath: uploadedPath,
@@ -252,7 +265,12 @@ func (h *Handler) HandleAdminUpdateEntry(w http.ResponseWriter, r *http.Request)
 		entry.Description = strings.TrimSpace(*req.Description)
 	}
 	if req.Icon != nil {
-		entry.Icon = dashboard.NormalizeEntryIcon(*req.Icon)
+		entryIcon, err := h.normalizeAdminEntryIcon(*req.Icon)
+		if err != nil {
+			http.Error(w, err.Error(), statusForEntryIconError(err))
+			return
+		}
+		entry.Icon = entryIcon
 	}
 	if req.AllowedGroups != nil {
 		entry.AllowedGroups = *req.AllowedGroups
@@ -491,6 +509,34 @@ func statusForStorePutError(err error) int {
 		return http.StatusBadRequest
 	}
 	return http.StatusInternalServerError
+}
+
+func statusForEntryIconError(err error) int {
+	if errors.Is(err, dashboard.ErrIconNotFound) || strings.Contains(err.Error(), "uploaded entry icon") {
+		return http.StatusBadRequest
+	}
+	return http.StatusInternalServerError
+}
+
+func (h *Handler) normalizeAdminEntryIcon(value string) (string, error) {
+	icon := dashboard.NormalizeEntryIcon(value)
+	iconID, ok := dashboard.UploadedEntryIconID(icon)
+	if !ok {
+		return icon, nil
+	}
+	if h.dashboardIconStore == nil {
+		return "", errors.New("uploaded entry icon store is not configured")
+	}
+	icons, err := h.dashboardIconStore.ListIcons()
+	if err != nil {
+		return "", err
+	}
+	for _, uploadedIcon := range icons {
+		if uploadedIcon.ID == iconID {
+			return icon, nil
+		}
+	}
+	return "", dashboard.ErrIconNotFound
 }
 
 func sameOriginAdminRequest(r *http.Request) bool {

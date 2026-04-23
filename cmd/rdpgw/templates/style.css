@@ -338,6 +338,12 @@ button:focus-visible, input:focus-visible, a:focus-visible, select:focus-visible
     height: 1.5rem;
 }
 
+.entry-card-icon img {
+    width: 1.8rem;
+    height: 1.8rem;
+    object-fit: contain;
+}
+
 .entry-title-info {
     display: flex;
     flex-direction: column;
@@ -715,6 +721,12 @@ button:disabled {
 .entry-row-icon svg {
     width: 1.15rem;
     height: 1.15rem;
+}
+
+.entry-row-icon img {
+    width: 1.35rem;
+    height: 1.35rem;
+    object-fit: contain;
 }
 
 .entry-row-target {

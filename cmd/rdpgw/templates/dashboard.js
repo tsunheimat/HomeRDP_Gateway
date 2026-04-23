@@ -2,6 +2,7 @@ let dashboardUser = null;
 let allEntries = [];
 const dashboardMessages = window.dashboardMessages || {};
 const ENTRY_ICON_ORDER = ['window', 'browser', 'terminal', 'folder', 'database', 'word', 'excel', 'powerpoint', 'outlook'];
+const UPLOADED_ENTRY_ICON_PREFIX = 'uploaded:';
 const DEFAULT_ENTRY_ICONS = {
     window: 'Window',
     browser: 'Browser',
@@ -30,16 +31,30 @@ function entryTypeLabel(type) {
 
 function normalizeEntryIcon(icon) {
     const normalized = String(icon || '').trim().toLowerCase();
+    if (uploadedEntryIconId(normalized)) return normalized;
     return ENTRY_ICON_ORDER.includes(normalized) ? normalized : 'window';
 }
 
+function uploadedEntryIconId(icon) {
+    const normalized = String(icon || '').trim().toLowerCase();
+    if (!normalized.startsWith(UPLOADED_ENTRY_ICON_PREFIX)) return '';
+    const id = normalized.slice(UPLOADED_ENTRY_ICON_PREFIX.length);
+    return /^[a-f0-9]{32}$/.test(id) ? id : '';
+}
+
 function entryIconLabel(icon) {
+    if (uploadedEntryIconId(icon)) return t('customIconLabel', 'Custom icon');
     const labels = dashboardMessages.entryIcons || DEFAULT_ENTRY_ICONS;
     const normalized = normalizeEntryIcon(icon);
     return labels[normalized] || DEFAULT_ENTRY_ICONS[normalized] || normalized;
 }
 
 function entryIconSVG(icon) {
+    const uploadedIconId = uploadedEntryIconId(icon);
+    if (uploadedIconId) {
+        return `<img src="/assets/icons/${uploadedIconId}" alt="" loading="lazy">`;
+    }
+
     switch (normalizeEntryIcon(icon)) {
         case 'browser':
             return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 9h18"></path><path d="M8 15h8"></path></svg>';
