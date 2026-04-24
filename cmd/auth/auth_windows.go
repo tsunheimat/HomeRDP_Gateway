@@ -17,3 +17,7 @@ func applyUnixSocketOwnership(_ string, owner, group string) error {
 	}
 	return nil
 }
+
+func ensureUnixSocketPath(_, _ string) error {
+	return nil
+}

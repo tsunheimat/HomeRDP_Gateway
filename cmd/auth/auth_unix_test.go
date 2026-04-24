@@ -8,6 +8,18 @@ import (
 	"testing"
 )
 
+func TestLookupUIDRejectsNegativeNumericID(t *testing.T) {
+	if _, err := lookupUID("-1"); err == nil {
+		t.Fatalf("expected lookupUID to reject negative numeric UID")
+	}
+}
+
+func TestLookupGIDRejectsNegativeNumericID(t *testing.T) {
+	if _, err := lookupGID("-1"); err == nil {
+		t.Fatalf("expected lookupGID to reject negative numeric GID")
+	}
+}
+
 func TestAuthSocketIsOwnerOnlyByDefault(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "auth")
 	socket := filepath.Join(dir, "rdpgw-auth.sock")
@@ -133,5 +145,47 @@ func TestAuthSocketRefusesToRemoveNonSocketPath(t *testing.T) {
 	}
 	if string(contents) != "keep" {
 		t.Fatalf("expected non-socket file contents to remain unchanged, got %q", string(contents))
+	}
+}
+
+func TestAuthSocketRefusesSymlinkPath(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target")
+	socket := filepath.Join(dir, "rdpgw-auth.sock")
+	if err := os.WriteFile(target, []byte("keep"), 0600); err != nil {
+		t.Fatalf("create symlink target: %v", err)
+	}
+	if err := os.Symlink(target, socket); err != nil {
+		t.Fatalf("create auth socket symlink: %v", err)
+	}
+
+	listener, err := listenUnixSocket(socket)
+	if err == nil {
+		listener.Close()
+		t.Fatalf("expected listenUnixSocket to reject symlink path")
+	}
+
+	contents, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatalf("read symlink target after listenUnixSocket: %v", err)
+	}
+	if string(contents) != "keep" {
+		t.Fatalf("expected symlink target contents to remain unchanged, got %q", string(contents))
+	}
+}
+
+func TestAuthSocketOwnershipRefusesSymlinkPath(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target")
+	socket := filepath.Join(dir, "rdpgw-auth.sock")
+	if err := os.WriteFile(target, []byte("keep"), 0600); err != nil {
+		t.Fatalf("create symlink target: %v", err)
+	}
+	if err := os.Symlink(target, socket); err != nil {
+		t.Fatalf("create auth socket symlink: %v", err)
+	}
+
+	if err := applyUnixSocketOwnership(socket, "0", ""); err == nil {
+		t.Fatalf("expected applyUnixSocketOwnership to reject symlink path")
 	}
 }

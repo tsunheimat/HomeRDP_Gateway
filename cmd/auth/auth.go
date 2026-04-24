@@ -181,9 +181,17 @@ func listenUnixSocketWithOptions(path string, socketOpts unixSocketOptions) (net
 		listener.Close()
 		return nil, err
 	}
+	if err := ensureUnixSocketPath(path, "restrict auth socket permissions"); err != nil {
+		listener.Close()
+		return nil, err
+	}
 	if err := os.Chmod(path, socketOpts.Mode); err != nil {
 		listener.Close()
 		return nil, fmt.Errorf("restrict auth socket permissions: %w", err)
+	}
+	if err := ensureUnixSocketPath(path, "verify auth socket permissions target"); err != nil {
+		listener.Close()
+		return nil, err
 	}
 	return listener, nil
 }

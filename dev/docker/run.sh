@@ -28,7 +28,7 @@ start_rdpgw_instance() {
 
 if [ "${start_helper}" = "true" ]; then
   echo "Starting rdpgw-auth (socket: ${AUTH_SOCKET})"
-  AUTH_CMD="/opt/rdpgw/rdpgw-auth -s ${AUTH_SOCKET}"
+  AUTH_CMD="/opt/rdpgw/rdpgw-auth -s ${AUTH_SOCKET} --socket-mode 0660 --socket-dir-mode 0750 --socket-group ${USER}"
   if [ -f "${AUTH_CONFIG}" ]; then
     echo "Using auth helper config ${AUTH_CONFIG}"
     AUTH_CMD="${AUTH_CMD} -c ${AUTH_CONFIG}"
