@@ -11,6 +11,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -85,11 +86,11 @@ func (h *NTLMAuthHandler) NTLMAuth(next http.HandlerFunc) http.HandlerFunc {
 
 func (h *NTLMAuthHandler) getAuthPayload(r *http.Request) (payload string, authMode ntlmAuthMode, err error) {
 	authorisationEncoded := r.Header.Get("Authorization")
-	if authorisationEncoded[0:5] == "NTLM " {
-		return authorisationEncoded[5:], authNTLM, nil
+	if strings.HasPrefix(authorisationEncoded, "NTLM ") {
+		return authorisationEncoded[len("NTLM "):], authNTLM, nil
 	}
-	if authorisationEncoded[0:10] == "Negotiate " {
-		return authorisationEncoded[10:], authNegotiate, nil
+	if strings.HasPrefix(authorisationEncoded, "Negotiate ") {
+		return authorisationEncoded[len("Negotiate "):], authNegotiate, nil
 	}
 	return "", authNone, errors.New("Invalid NTLM Authorisation header")
 }
