@@ -12,6 +12,7 @@ To use OpenID Connect, ensure you have properly configured your OpenID Connect p
 Server:
   Authentication:
     - openid
+  SecureCookies: true # Recommended when HTTPS is terminated by a reverse proxy
 OpenId:
   ProviderUrl: https://<provider_url>
   ClientId: <your_client_id>
@@ -29,6 +30,8 @@ Dashboard:
 Caps:
   TokenAuth: true
 ```
+
+`Server.SecureCookies` defaults to `false` for local HTTP compatibility. Set it to `true` for external HTTPS deployments behind Traefik, Gateway API, or another TLS-terminating proxy so browser session cookies are always marked `Secure` even when rdpgw receives HTTP from the proxy.
 
 ### Dashboard + Group Configuration
 

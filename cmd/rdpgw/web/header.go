@@ -1,6 +1,7 @@
 package web
 
 import (
+	"log"
 	"net/http"
 	"time"
 
@@ -12,6 +13,7 @@ type Header struct {
 	userIdHeader      string
 	emailHeader       string
 	displayNameHeader string
+	trustedProxies    *TrustedProxyChecker
 }
 
 type HeaderConfig struct {
@@ -19,14 +21,21 @@ type HeaderConfig struct {
 	UserIdHeader      string
 	EmailHeader       string
 	DisplayNameHeader string
+	TrustedProxyCIDRs []string
 }
 
 func (c *HeaderConfig) New() *Header {
+	trustedProxies, err := NewTrustedProxyChecker(c.TrustedProxyCIDRs)
+	if err != nil {
+		log.Printf("invalid header auth trusted proxy config: %s", err)
+		trustedProxies, _ = NewTrustedProxyChecker(nil)
+	}
 	return &Header{
 		userHeader:        c.UserHeader,
 		userIdHeader:      c.UserIdHeader,
 		emailHeader:       c.EmailHeader,
 		displayNameHeader: c.DisplayNameHeader,
+		trustedProxies:    trustedProxies,
 	}
 }
 
@@ -38,6 +47,11 @@ func (h *Header) Authenticated(next http.Handler) http.Handler {
 		// Check if user is already authenticated
 		if id.Authenticated() {
 			next.ServeHTTP(w, r)
+			return
+		}
+
+		if !h.trustedProxies.IsTrustedRemoteAddr(r.RemoteAddr) {
+			http.Error(w, "Header authentication requires a trusted proxy", http.StatusUnauthorized)
 			return
 		}
 

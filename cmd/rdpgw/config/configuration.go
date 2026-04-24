@@ -1,7 +1,9 @@
 package config
 
 import (
+	"fmt"
 	"log"
+	"net"
 	"os"
 	"strings"
 
@@ -57,6 +59,8 @@ type ServerConfig struct {
 	Authentication       []string `koanf:"authentication"`
 	AuthSocket           string   `koanf:"authsocket"`
 	BasicAuthTimeout     int      `koanf:"basicauthtimeout"`
+	TrustedProxyCIDRs    []string `koanf:"trustedproxycidrs"`
+	SecureCookies        bool     `koanf:"securecookies"`
 }
 
 type KerberosConfig struct {
@@ -166,6 +170,8 @@ var envKeyOverrides = map[string]string{
 	"Dashboard.Authhelperconfigpath": "Dashboard.AuthHelperConfigPath",
 	"Dashboard.Admingroups":          "Dashboard.AdminGroups",
 	"Dashboard.Maxuploadsizemb":      "Dashboard.MaxUploadSizeMb",
+	"Server.Trustedproxycidrs":       "Server.TrustedProxyCIDRs",
+	"Server.Securecookies":           "Server.SecureCookies",
 }
 
 var Conf Configuration
@@ -333,12 +339,48 @@ func Load(configFile string) Configuration {
 		log.Fatalf("header authentication is configured but no user header was specified")
 	}
 
+	if err := Conf.Validate(); err != nil {
+		log.Fatalf("%s", err)
+	}
+
 	// prepend '//' if required for URL parsing
 	if !strings.Contains(Conf.Server.GatewayAddress, "//") {
 		Conf.Server.GatewayAddress = "//" + Conf.Server.GatewayAddress
 	}
 
 	return Conf
+}
+
+func (c Configuration) Validate() error {
+	for _, cidr := range c.Server.TrustedProxyCIDRs {
+		cidr = strings.TrimSpace(cidr)
+		if cidr == "" {
+			continue
+		}
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			return fmt.Errorf("invalid server.trustedproxycidrs entry %q: %w", cidr, err)
+		}
+	}
+
+	if c.Server.HeaderEnabled() {
+		if c.Header.UserHeader == "" {
+			return fmt.Errorf("header authentication is configured but no user header was specified")
+		}
+		if !hasTrustedProxyCIDR(c.Server.TrustedProxyCIDRs) {
+			return fmt.Errorf("header authentication requires server.trustedproxycidrs to trust the authenticating reverse proxy")
+		}
+	}
+
+	return nil
+}
+
+func hasTrustedProxyCIDR(cidrs []string) bool {
+	for _, cidr := range cidrs {
+		if strings.TrimSpace(cidr) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *ServerConfig) OpenIDEnabled() bool {

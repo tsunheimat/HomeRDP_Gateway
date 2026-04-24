@@ -32,6 +32,7 @@ const (
 type NTLMAuthHandler struct {
 	SocketAddress string
 	Timeout       int
+	SecureCookies bool
 }
 
 func (h *NTLMAuthHandler) sessionIDFromRequest(r *http.Request) string {
@@ -47,7 +48,7 @@ func (h *NTLMAuthHandler) setSessionCookie(w http.ResponseWriter, r *http.Reques
 		Value:    sessionID,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   r.TLS != nil,
+		Secure:   h.SecureCookies || r.TLS != nil,
 		MaxAge:   ntlmSessionCookieTTL,
 	})
 }
@@ -58,7 +59,7 @@ func (h *NTLMAuthHandler) clearSessionCookie(w http.ResponseWriter, r *http.Requ
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   r.TLS != nil,
+		Secure:   h.SecureCookies || r.TLS != nil,
 		MaxAge:   -1,
 	})
 }

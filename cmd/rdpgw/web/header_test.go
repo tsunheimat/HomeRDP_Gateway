@@ -17,15 +17,16 @@ func init() {
 }
 
 func TestHeaderAuthenticated(t *testing.T) {
+	trustedProxyCIDRs := []string{"198.51.100.0/24"}
 	cases := []struct {
-		name               string
-		headers            map[string]string
-		expectedStatusCode int
-		expectedAuth       bool
-		expectedUser       string
-		expectedEmail      string
+		name                string
+		headers             map[string]string
+		expectedStatusCode  int
+		expectedAuth        bool
+		expectedUser        string
+		expectedEmail       string
 		expectedDisplayName string
-		expectedUserId     string
+		expectedUserId      string
 	}{
 		{
 			name: "ms_app_proxy_headers",
@@ -128,28 +129,33 @@ func TestHeaderAuthenticated(t *testing.T) {
 					UserIdHeader:      "X-MS-CLIENT-PRINCIPAL-ID",
 					EmailHeader:       "X-MS-CLIENT-PRINCIPAL-EMAIL",
 					DisplayNameHeader: "",
+					TrustedProxyCIDRs: trustedProxyCIDRs,
 				}
 			case "google_iap_headers":
 				headerConfig = &HeaderConfig{
-					UserHeader:   "X-Goog-Authenticated-User-Email",
-					UserIdHeader: "X-Goog-Authenticated-User-ID",
-					EmailHeader:  "X-Goog-Authenticated-User-Email",
+					UserHeader:        "X-Goog-Authenticated-User-Email",
+					UserIdHeader:      "X-Goog-Authenticated-User-ID",
+					EmailHeader:       "X-Goog-Authenticated-User-Email",
+					TrustedProxyCIDRs: trustedProxyCIDRs,
 				}
 			case "aws_alb_headers":
 				headerConfig = &HeaderConfig{
 					UserHeader:        "X-Amzn-Oidc-Subject",
 					EmailHeader:       "X-Amzn-Oidc-Email",
 					DisplayNameHeader: "X-Amzn-Oidc-Name",
+					TrustedProxyCIDRs: trustedProxyCIDRs,
 				}
 			case "custom_headers":
 				headerConfig = &HeaderConfig{
 					UserHeader:        "X-Forwarded-User",
 					EmailHeader:       "X-Forwarded-Email",
 					DisplayNameHeader: "X-Forwarded-Name",
+					TrustedProxyCIDRs: trustedProxyCIDRs,
 				}
 			default:
 				headerConfig = &HeaderConfig{
-					UserHeader: "X-Forwarded-User",
+					UserHeader:        "X-Forwarded-User",
+					TrustedProxyCIDRs: trustedProxyCIDRs,
 				}
 			}
 
@@ -160,6 +166,7 @@ func TestHeaderAuthenticated(t *testing.T) {
 
 			// Create test request
 			req := httptest.NewRequest("GET", "/test", nil)
+			req.RemoteAddr = "198.51.100.10:12345"
 
 			// Add headers from test case
 			for header, value := range tc.headers {
@@ -184,6 +191,47 @@ func TestHeaderAuthenticated(t *testing.T) {
 	}
 }
 
+func TestHeaderAuthRejectsUntrustedDirectPeerWithIdentityHeader(t *testing.T) {
+	headerAuth := (&HeaderConfig{
+		UserHeader:        "X-Forwarded-User",
+		TrustedProxyCIDRs: []string{"198.51.100.0/24"},
+	}).New()
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.RemoteAddr = "203.0.113.10:54321"
+	req.Header.Set("X-Forwarded-User", "spoofed@example.com")
+	req = identity.AddToRequestCtx(identity.NewUser(), req)
+
+	rr := httptest.NewRecorder()
+	headerAuth.Authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("next handler should not run for untrusted direct header auth")
+	})).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rr.Code)
+	}
+}
+
+func TestHeaderAuthRejectsMissingTrustedProxyConfig(t *testing.T) {
+	headerAuth := (&HeaderConfig{
+		UserHeader: "X-Forwarded-User",
+	}).New()
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.RemoteAddr = "198.51.100.10:12345"
+	req.Header.Set("X-Forwarded-User", "spoofed@example.com")
+	req = identity.AddToRequestCtx(identity.NewUser(), req)
+
+	rr := httptest.NewRecorder()
+	headerAuth.Authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("next handler should not run without trusted proxy config")
+	})).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rr.Code)
+	}
+}
+
 func TestHeaderAlreadyAuthenticated(t *testing.T) {
 	// Create a test handler that checks the identity
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -199,7 +247,8 @@ func TestHeaderAlreadyAuthenticated(t *testing.T) {
 
 	// Create header auth handler
 	headerConfig := &HeaderConfig{
-		UserHeader: "X-Forwarded-User",
+		UserHeader:        "X-Forwarded-User",
+		TrustedProxyCIDRs: []string{"198.51.100.0/24"},
 	}
 	headerAuth := headerConfig.New()
 
@@ -208,6 +257,7 @@ func TestHeaderAlreadyAuthenticated(t *testing.T) {
 
 	// Create test request
 	req := httptest.NewRequest("GET", "/test", nil)
+	req.RemoteAddr = "203.0.113.10:54321"
 	req.Header.Set("X-Forwarded-User", "new_user@domain.com")
 
 	// Add pre-authenticated identity to request context
@@ -238,7 +288,8 @@ func TestHeaderConfigValidation(t *testing.T) {
 		{
 			name: "valid_config",
 			config: &HeaderConfig{
-				UserHeader: "X-Forwarded-User",
+				UserHeader:        "X-Forwarded-User",
+				TrustedProxyCIDRs: []string{"198.51.100.0/24"},
 			},
 			valid: true,
 		},
@@ -249,6 +300,7 @@ func TestHeaderConfigValidation(t *testing.T) {
 				UserIdHeader:      "X-MS-CLIENT-PRINCIPAL-ID",
 				EmailHeader:       "X-MS-CLIENT-PRINCIPAL-EMAIL",
 				DisplayNameHeader: "X-MS-CLIENT-PRINCIPAL-NAME",
+				TrustedProxyCIDRs: []string{"198.51.100.0/24"},
 			},
 			valid: true,
 		},
@@ -296,13 +348,15 @@ func TestHeaderAttributesSetting(t *testing.T) {
 	})
 
 	headerConfig := &HeaderConfig{
-		UserHeader:   "X-Forwarded-User",
-		UserIdHeader: "X-Forwarded-User-Id",
+		UserHeader:        "X-Forwarded-User",
+		UserIdHeader:      "X-Forwarded-User-Id",
+		TrustedProxyCIDRs: []string{"198.51.100.0/24"},
 	}
 	headerAuth := headerConfig.New()
 	authHandler := headerAuth.Authenticated(testHandler)
 
 	req := httptest.NewRequest("GET", "/test", nil)
+	req.RemoteAddr = "198.51.100.10:12345"
 	req.Header.Set("X-Forwarded-User", "user@domain.com")
 	req.Header.Set("X-Forwarded-User-Id", "test-id-123")
 

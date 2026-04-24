@@ -23,6 +23,7 @@ Configure RDPGW to use NTLM authentication:
 Server:
   Authentication:
     - ntlm
+  SecureCookies: true # Recommended when HTTPS is terminated by a reverse proxy
 Caps:
   TokenAuth: false
 ```
@@ -160,6 +161,7 @@ sudo chmod 600 /var/lib/rdpgw/dashboard/rdpgw-auth.yaml
 ### Network Security
 
 - Deploy gateway behind TLS termination
+- Set `Server.SecureCookies: true` when external clients reach rdpgw over HTTPS through a TLS-terminating proxy. This marks the NTLM handshake cookie `Secure` even if backend traffic from the proxy to rdpgw is HTTP.
 - Use private networks when possible
 - Implement network-level access controls
 - Monitor authentication logs for suspicious activity

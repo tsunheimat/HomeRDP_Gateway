@@ -187,6 +187,7 @@ func main() {
 		[]byte(conf.Server.SessionEncryptionKey),
 		conf.Server.SessionStore,
 		conf.Server.MaxSessionLength,
+		conf.Server.SecureCookies,
 	)
 
 	dashboardStore, authUserStore, iconStore, err := initDashboardState(conf, helperConfigPath)
@@ -285,7 +286,11 @@ func main() {
 	r := mux.NewRouter()
 
 	// ensure identity is set in context and get some extra info
-	r.Use(web.EnrichContext)
+	enrichContext, err := web.EnrichContextWithTrustedProxyCIDRs(conf.Server.TrustedProxyCIDRs)
+	if err != nil {
+		log.Fatalf("invalid trusted proxy configuration: %s", err)
+	}
+	r.Use(enrichContext)
 
 	// prometheus metrics
 	r.Handle("/metrics", promhttp.Handler())
@@ -349,6 +354,7 @@ func main() {
 			UserIdHeader:      conf.Header.UserIdHeader,
 			EmailHeader:       conf.Header.EmailHeader,
 			DisplayNameHeader: conf.Header.DisplayNameHeader,
+			TrustedProxyCIDRs: conf.Server.TrustedProxyCIDRs,
 		}
 		headerAuth := headerConfig.New()
 		r.Handle("/connect", headerAuth.Authenticated(http.HandlerFunc(h.HandleDownload)))
@@ -380,7 +386,7 @@ func main() {
 	// ntlm
 	if conf.Server.NtlmEnabled() {
 		log.Printf("enabling NTLM authentication")
-		ntlm := web.NTLMAuthHandler{SocketAddress: conf.Server.AuthSocket, Timeout: conf.Server.BasicAuthTimeout}
+		ntlm := web.NTLMAuthHandler{SocketAddress: conf.Server.AuthSocket, Timeout: conf.Server.BasicAuthTimeout, SecureCookies: conf.Server.SecureCookies}
 		rdp.NewRoute().HeadersRegexp("Authorization", "NTLM").HandlerFunc(ntlm.NTLMAuth(directGateway.HandleGatewayProtocol))
 		rdp.NewRoute().HeadersRegexp("Authorization", "Negotiate").HandlerFunc(ntlm.NTLMAuth(directGateway.HandleGatewayProtocol))
 		auth.Register([]string{`NTLM`, `Negotiate`}, func(r *http.Request) bool {

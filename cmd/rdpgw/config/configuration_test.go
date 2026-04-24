@@ -113,6 +113,67 @@ func TestHeaderConfigValidation(t *testing.T) {
 	}
 }
 
+func TestConfigurationValidateRejectsHeaderAuthWithoutTrustedProxyCIDRs(t *testing.T) {
+	cfg := Configuration{
+		Server: ServerConfig{
+			Authentication: []string{AuthenticationHeader},
+		},
+		Header: HeaderConfig{
+			UserHeader: "X-Forwarded-User",
+		},
+	}
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected header auth without trusted proxy CIDRs to be invalid")
+	}
+}
+
+func TestConfigurationValidateAcceptsHeaderAuthWithTrustedProxyCIDRs(t *testing.T) {
+	cfg := Configuration{
+		Server: ServerConfig{
+			Authentication:       []string{AuthenticationHeader},
+			TrustedProxyCIDRs:    []string{"10.0.0.0/24"},
+			SessionKey:           "testsessionkeytestsessionkey1234",
+			SessionEncryptionKey: "testencryptionkeytestencrypt1234",
+		},
+		Header: HeaderConfig{
+			UserHeader: "X-Forwarded-User",
+		},
+		Caps: CapsConfigWithTokenAuth(),
+	}
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("expected valid header auth config, got %v", err)
+	}
+}
+
+func TestConfigurationValidateRejectsInvalidTrustedProxyCIDR(t *testing.T) {
+	cfg := Configuration{
+		Server: ServerConfig{
+			Authentication:    []string{AuthenticationOpenId},
+			TrustedProxyCIDRs: []string{"not-a-cidr"},
+		},
+		Caps: CapsConfigWithTokenAuth(),
+	}
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected invalid trusted proxy CIDR to be rejected")
+	}
+}
+
+func TestServerSecureCookiesDefaultsFalse(t *testing.T) {
+	unsetEnvWithCleanup(t, "RDPGW_SERVER__SECURECOOKIES")
+
+	cfg := Load("/definitely-missing.yaml")
+	if cfg.Server.SecureCookies {
+		t.Fatal("expected Server.SecureCookies to default to false")
+	}
+}
+
+func CapsConfigWithTokenAuth() RDGCapsConfig {
+	return RDGCapsConfig{TokenAuth: true}
+}
+
 func TestLoadDashboardSettings(t *testing.T) {
 	unsetEnvWithCleanup(t, "RDPGW_OPENID__GROUPSCLAIM")
 	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__STOREPATH")

@@ -1,6 +1,7 @@
 package web
 
 import (
+	"crypto/tls"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -47,6 +48,48 @@ func TestNTLMGetAuthPayloadRejectsShortHeadersWithoutPanic(t *testing.T) {
 			}
 			if payload != "" {
 				t.Fatalf("expected empty payload, got %q", payload)
+			}
+		})
+	}
+}
+
+func TestNTLMSessionCookieSecureFlag(t *testing.T) {
+	cases := []struct {
+		name           string
+		secureConfig   bool
+		tlsRequest     bool
+		expectedSecure bool
+	}{
+		{
+			name:           "default_http",
+			expectedSecure: false,
+		},
+		{
+			name:           "tls_request",
+			tlsRequest:     true,
+			expectedSecure: true,
+		},
+		{
+			name:           "secure_cookies_for_tls_termination",
+			secureConfig:   true,
+			expectedSecure: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := &NTLMAuthHandler{SecureCookies: tc.secureConfig}
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			if tc.tlsRequest {
+				req.TLS = &tls.ConnectionState{}
+			}
+			rec := httptest.NewRecorder()
+
+			handler.setSessionCookie(rec, req, "session-id")
+			cookie := findCookie(t, rec.Result().Cookies(), ntlmSessionCookieName)
+
+			if cookie.Secure != tc.expectedSecure {
+				t.Fatalf("expected Secure=%t, got %t", tc.expectedSecure, cookie.Secure)
 			}
 		})
 	}

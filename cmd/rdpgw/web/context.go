@@ -4,48 +4,46 @@ import (
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/identity"
 	"github.com/jcmturner/goidentity/v6"
 	"log"
-	"net"
 	"net/http"
-	"strings"
 )
 
 func EnrichContext(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id, err := GetSessionIdentity(r)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+	checker, _ := NewTrustedProxyChecker(nil)
+	return enrichContextWithTrustedProxies(checker)(next)
+}
 
-		if id == nil {
-			id = identity.NewUser()
-		}
+func EnrichContextWithTrustedProxyCIDRs(cidrs []string) (func(http.Handler) http.Handler, error) {
+	checker, err := NewTrustedProxyChecker(cidrs)
+	if err != nil {
+		return nil, err
+	}
+	return enrichContextWithTrustedProxies(checker), nil
+}
 
-		log.Printf("Identity SessionId: %s, UserName: %s: Authenticated: %t",
-			id.SessionId(), id.UserName(), id.Authenticated())
-
-		h := r.Header.Get("X-Forwarded-For")
-		if h != "" {
-			var proxies []string
-			ips := strings.Split(h, ",")
-			for i := range ips {
-				ips[i] = strings.TrimSpace(ips[i])
+func enrichContextWithTrustedProxies(trustedProxies *TrustedProxyChecker) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			id, err := GetSessionIdentity(r)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
 			}
-			clientIp := ips[0]
-			if len(ips) > 1 {
-				proxies = ips[1:]
+
+			if id == nil {
+				id = identity.NewUser()
 			}
-			id.SetAttribute(identity.AttrClientIp, clientIp)
+
+			log.Printf("Identity SessionId: %s, UserName: %s: Authenticated: %t",
+				id.SessionId(), id.UserName(), id.Authenticated())
+
+			clientIP, proxies := trustedProxies.ClientIPAndProxies(r)
+			id.SetAttribute(identity.AttrClientIp, clientIP)
 			id.SetAttribute(identity.AttrProxies, proxies)
-		}
+			id.SetAttribute(identity.AttrRemoteAddr, r.RemoteAddr)
 
-		id.SetAttribute(identity.AttrRemoteAddr, r.RemoteAddr)
-		if h == "" {
-			clientIp, _, _ := net.SplitHostPort(r.RemoteAddr)
-			id.SetAttribute(identity.AttrClientIp, clientIp)
-		}
-		next.ServeHTTP(w, identity.AddToRequestCtx(id, r))
-	})
+			next.ServeHTTP(w, identity.AddToRequestCtx(id, r))
+		})
+	}
 }
 
 func TransposeSPNEGOContext(next http.Handler) http.Handler {

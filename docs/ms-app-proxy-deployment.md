@@ -101,6 +101,12 @@ Server:
   Tls: disable
   GatewayAddress: https://rdpgw.yourdomain.com
   Port: 80
+  # App Proxy terminates HTTPS externally; force Secure cookies on browser sessions.
+  SecureCookies: true
+  # Replace this with the narrow connector/source CIDR that rdpgw sees as RemoteAddr.
+  # Header auth will fail closed unless the immediate peer is inside this range.
+  TrustedProxyCIDRs:
+    - "10.0.0.0/24"
   Hosts:
     - server1.internal.domain:3389
     - server2.internal.domain:3389
@@ -112,6 +118,9 @@ Header:
   EmailHeader: "X-MS-CLIENT-PRINCIPAL-EMAIL"
 
 Security:
+  # Keep true only if App Proxy provides a stable forwarded client IP from a trusted
+  # connector/source. If App Proxy NAT makes client IP unstable, disable this explicitly
+  # and rely on short token lifetime plus normal session controls.
   VerifyClientIp: false
   PAATokenSigningKey: "your-32-character-signing-key-here"
   PAATokenEncryptionKey: "your-32-character-encryption-key"
@@ -200,12 +209,11 @@ curl -v https://rdpgw.yourdomain.com/connect
 
 ### Verify Headers
 
-Check that App Proxy forwards correct headers:
+Check that App Proxy forwards correct headers by testing through the published App Proxy URL after Azure AD authentication. Do not validate header authentication by curling rdpgw directly with identity headers; direct requests should return `401 Unauthorized` unless they originate from the configured `Server.TrustedProxyCIDRs` range.
 
 ```bash
-# From internal network, test RDPGW directly
-curl -H "X-MS-CLIENT-PRINCIPAL-NAME: user@domain.com" \
-     http://rdpgw-server/connect
+# Test through Azure Application Proxy, not directly against rdpgw.
+curl -v https://rdpgw.yourdomain.com/connect
 ```
 
 ## Troubleshooting
@@ -219,7 +227,8 @@ curl -H "X-MS-CLIENT-PRINCIPAL-NAME: user@domain.com" \
 
 2. **Authentication Loop**:
    - Verify header configuration matches App Proxy headers
-   - Check `VerifyClientIp: false` setting
+   - Confirm `Server.TrustedProxyCIDRs` contains the App Proxy connector/source CIDR that rdpgw sees as `RemoteAddr`
+   - If `Security.VerifyClientIp` is true, confirm App Proxy provides a stable trusted forwarded client IP; otherwise disable it explicitly for App Proxy NAT
    - Validate App Proxy connector connectivity
 
 3. **CAP Not Enforced**:
@@ -233,9 +242,9 @@ curl -H "X-MS-CLIENT-PRINCIPAL-NAME: user@domain.com" \
 # Check RDPGW logs
 docker logs rdpgw-container
 
-# Test internal connectivity
-curl -H "X-MS-CLIENT-PRINCIPAL-NAME: test@domain.com" \
-     http://rdpgw-internal/connect
+# Test internal connectivity without spoofed identity headers; a direct request should
+# return 401 unless it comes from a configured trusted proxy CIDR.
+curl -v http://rdpgw-internal/connect
 
 # Verify token generation
 curl -v https://rdpgw.yourdomain.com/connect
@@ -251,8 +260,9 @@ Monitor these logs for authentication issues:
 
 ## Security Considerations
 
-- **Network Isolation**: Deploy RDPGW in private network
-- **Connector Security**: Ensure App Proxy connector is secured
-- **Token Validation**: Monitor for token replay attacks
+- **Network Isolation**: Deploy RDPGW in private network and allow inbound access only from the App Proxy connector/source CIDR configured in `Server.TrustedProxyCIDRs`
+- **Connector Security**: Ensure App Proxy connector is secured and strips or overwrites identity and forwarding headers before reaching rdpgw
+- **Secure Cookies**: Set `Server.SecureCookies: true` when App Proxy terminates HTTPS externally
+- **Token Validation**: Monitor for token replay attacks; keep `Security.VerifyClientIp` enabled only when forwarded client IPs are stable and trusted
 - **Audit Logging**: Enable comprehensive logging for compliance
 - **Certificate Management**: Ensure proper TLS certificate chain

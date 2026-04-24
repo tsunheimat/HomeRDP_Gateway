@@ -17,7 +17,7 @@ const (
 
 var sessionStore sessions.Store
 
-func InitStore(sessionKey []byte, encryptionKey []byte, storeType string, maxLength int) {
+func InitStore(sessionKey []byte, encryptionKey []byte, storeType string, maxLength int, secureCookies ...bool) {
 	if len(sessionKey) < 32 {
 		log.Fatal("Session key too small")
 	}
@@ -25,10 +25,15 @@ func InitStore(sessionKey []byte, encryptionKey []byte, storeType string, maxLen
 		log.Fatal("Session key too small")
 	}
 
+	secure := false
+	if len(secureCookies) > 0 {
+		secure = secureCookies[0]
+	}
+
 	if storeType == "file" {
 		log.Println("Filesystem is used as session storage")
 		fs := sessions.NewFilesystemStore(os.TempDir(), sessionKey, encryptionKey)
-		fs.Options = defaultSessionOptions()
+		fs.Options = defaultSessionOptions(secure)
 
 		// set max length
 		if maxLength == 0 {
@@ -41,7 +46,7 @@ func InitStore(sessionKey []byte, encryptionKey []byte, storeType string, maxLen
 	} else {
 		log.Println("Cookies are used as session storage")
 		cs := sessions.NewCookieStore(sessionKey, encryptionKey)
-		cs.Options = defaultSessionOptions()
+		cs.Options = defaultSessionOptions(secure)
 		sessionStore = cs
 	}
 }
@@ -87,10 +92,11 @@ func SaveSessionIdentity(r *http.Request, w http.ResponseWriter, id identity.Ide
 
 }
 
-func defaultSessionOptions() *sessions.Options {
+func defaultSessionOptions(secureCookies bool) *sessions.Options {
 	return &sessions.Options{
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
+		Secure:   secureCookies,
 	}
 }
