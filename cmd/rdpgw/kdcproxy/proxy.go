@@ -1,6 +1,7 @@
 package kdcproxy
 
 import (
+	"encoding/binary"
 	"fmt"
 	krbconfig "github.com/bolkedebruin/gokrb5/v8/config"
 	"github.com/jcmturner/gofork/encoding/asn1"
@@ -120,19 +121,29 @@ func (k *KerberosProxy) forward(realm string, data []byte) (resp []byte, err err
 	}
 
 	// merge the kdcs
-	kdcs := make([]Kdc, tcpCnt+udpCnt)
-	for i := range udpKdcs {
-		kdcs[i] = Kdc{Realm: realm, Host: udpKdcs[i], Proto: "udp"}
+	kdcs := make([]Kdc, 0, tcpCnt+udpCnt)
+	for i := 0; i <= udpCnt; i++ {
+		if host, ok := udpKdcs[i]; ok {
+			kdcs = append(kdcs, Kdc{Realm: realm, Host: host, Proto: "udp"})
+		}
 	}
-	for i := range tcpKdcs {
-		kdcs[i+udpCnt] = Kdc{Realm: realm, Host: tcpKdcs[i], Proto: "tcp"}
+	for i := 0; i <= tcpCnt; i++ {
+		if host, ok := tcpKdcs[i]; ok {
+			kdcs = append(kdcs, Kdc{Realm: realm, Host: host, Proto: "tcp"})
+		}
+	}
+	if len(kdcs) == 0 {
+		return nil, fmt.Errorf("cannot get any kdcs (tcp or udp) for realm %s", realm)
 	}
 
 	replies := make(chan []byte, len(kdcs))
+	startedConns := make([]net.Conn, 0, len(kdcs))
+	var lastErr error
 	for i := range kdcs {
-		conn, err := net.Dial(kdcs[i].Proto, kdcs[i].Host)
+		conn, err := net.DialTimeout(kdcs[i].Proto, kdcs[i].Host, timeout)
 
 		if err != nil {
+			lastErr = err
 			log.Printf("error connecting to %s due to %s, trying next if available", kdcs[i], err)
 			continue
 		}
@@ -142,30 +153,42 @@ func (k *KerberosProxy) forward(realm string, data []byte) (resp []byte, err err
 		if kdcs[i].Proto == "tcp" {
 			_, err = conn.Write(data)
 		} else {
+			if len(data) < 4 {
+				lastErr = fmt.Errorf("udp kdc packet too short: %d bytes", len(data))
+				log.Printf("cannot write packet data to %s due to %s, trying next if available", kdcs[i], lastErr)
+				conn.Close()
+				continue
+			}
 			_, err = conn.Write(data[4:])
 		}
 		if err != nil {
+			lastErr = err
 			log.Printf("cannot write packet data to %s due to %s, trying next if available", kdcs[i], err)
 			conn.Close()
 			continue
 		}
 
 		kdcs[i].Conn = conn
+		startedConns = append(startedConns, conn)
 		go awaitReply(conn, kdcs[i].Proto == "udp", replies)
 	}
 
-	reply := <-replies
-
-	// close all the connections and return the first reply
-	for kdc := range kdcs {
-		if kdcs[kdc].Conn != nil {
-			kdcs[kdc].Conn.Close()
-		}
-		<-replies
+	for _, conn := range startedConns {
+		defer conn.Close()
 	}
 
-	if reply != nil {
-		return reply, nil
+	if len(startedConns) == 0 {
+		if lastErr != nil {
+			return nil, fmt.Errorf("no kdc connections started for realm %s: %w", realm, lastErr)
+		}
+		return nil, fmt.Errorf("no kdc connections started for realm %s", realm)
+	}
+
+	for range startedConns {
+		reply := <-replies
+		if reply != nil {
+			return reply, nil
+		}
 	}
 
 	return nil, fmt.Errorf("no replies received from kdcs for realm %s", realm)
@@ -196,15 +219,43 @@ func encode(krb5data []byte) (r []byte, err error) {
 }
 
 func awaitReply(conn net.Conn, isUdp bool, reply chan<- []byte) {
-	resp, err := io.ReadAll(conn)
-	if err != nil {
+	if isUdp {
+		buf := make([]byte, maxLength)
+		n, err := conn.Read(buf)
+		if err != nil {
+			log.Printf("error reading from kdc due to %s", err)
+			reply <- nil
+			return
+		}
+
+		// udp will be missing the length prefix so add it
+		resp := make([]byte, n+4)
+		binary.BigEndian.PutUint32(resp[:4], uint32(n))
+		copy(resp[4:], buf[:n])
+		reply <- resp
+		return
+	}
+
+	lengthPrefix := make([]byte, 4)
+	if _, err := io.ReadFull(conn, lengthPrefix); err != nil {
 		log.Printf("error reading from kdc due to %s", err)
 		reply <- nil
 		return
 	}
-	if isUdp {
-		// udp will be missing the length prefix so add it
-		resp = append([]byte{byte(len(resp))}, resp...)
+
+	length := binary.BigEndian.Uint32(lengthPrefix)
+	if length > maxLength {
+		log.Printf("error reading from kdc due to response length %d exceeding max length", length)
+		reply <- nil
+		return
+	}
+
+	resp := make([]byte, int(length)+4)
+	copy(resp[:4], lengthPrefix)
+	if _, err := io.ReadFull(conn, resp[4:]); err != nil {
+		log.Printf("error reading from kdc due to %s", err)
+		reply <- nil
+		return
 	}
 	reply <- resp
 }
