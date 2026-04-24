@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/identity"
 	"github.com/bolkedebruin/rdpgw/shared/auth"
@@ -86,13 +87,32 @@ func (h *NTLMAuthHandler) NTLMAuth(next http.HandlerFunc) http.HandlerFunc {
 
 func (h *NTLMAuthHandler) getAuthPayload(r *http.Request) (payload string, authMode ntlmAuthMode, err error) {
 	authorisationEncoded := r.Header.Get("Authorization")
-	if strings.HasPrefix(authorisationEncoded, "NTLM ") && len(authorisationEncoded) > len("NTLM ") {
-		return authorisationEncoded[len("NTLM "):], authNTLM, nil
+	if strings.HasPrefix(authorisationEncoded, "NTLM ") {
+		payload = strings.TrimSpace(authorisationEncoded[len("NTLM "):])
+		if isValidAuthPayload(payload) {
+			return payload, authNTLM, nil
+		}
+		return "", authNone, errors.New("Invalid NTLM Authorisation header")
 	}
-	if strings.HasPrefix(authorisationEncoded, "Negotiate ") && len(authorisationEncoded) > len("Negotiate ") {
-		return authorisationEncoded[len("Negotiate "):], authNegotiate, nil
+	if strings.HasPrefix(authorisationEncoded, "Negotiate ") {
+		payload = strings.TrimSpace(authorisationEncoded[len("Negotiate "):])
+		if isValidAuthPayload(payload) {
+			return payload, authNegotiate, nil
+		}
+		return "", authNone, errors.New("Invalid NTLM Authorisation header")
 	}
 	return "", authNone, errors.New("Invalid NTLM Authorisation header")
+}
+
+func isValidAuthPayload(payload string) bool {
+	if payload == "" {
+		return false
+	}
+	if _, err := base64.StdEncoding.Strict().DecodeString(payload); err == nil {
+		return true
+	}
+	_, err := base64.RawStdEncoding.Strict().DecodeString(payload)
+	return err == nil
 }
 
 func (h *NTLMAuthHandler) requestAuthenticate(w http.ResponseWriter) {

@@ -1,9 +1,13 @@
 package web
 
 import (
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestNTLMGetAuthPayloadRejectsShortHeadersWithoutPanic(t *testing.T) {
@@ -16,9 +20,13 @@ func TestNTLMGetAuthPayloadRejectsShortHeadersWithoutPanic(t *testing.T) {
 		{name: "single character", header: "N"},
 		{name: "short ntlm scheme", header: "NTLM"},
 		{name: "empty ntlm payload", header: "NTLM "},
+		{name: "whitespace-only ntlm payload", header: "NTLM  "},
+		{name: "malformed ntlm payload", header: "NTLM X"},
 		{name: "wrong ntlm delimiter", header: "NTLMx"},
 		{name: "short negotiate scheme", header: "Negotiate"},
 		{name: "empty negotiate payload", header: "Negotiate "},
+		{name: "whitespace-only negotiate payload", header: "Negotiate  "},
+		{name: "malformed negotiate payload", header: "Negotiate X"},
 		{name: "partial negotiate scheme", header: "Neg"},
 		{name: "unsupported scheme", header: "Basic abc"},
 	}
@@ -39,6 +47,69 @@ func TestNTLMGetAuthPayloadRejectsShortHeadersWithoutPanic(t *testing.T) {
 			}
 			if payload != "" {
 				t.Fatalf("expected empty payload, got %q", payload)
+			}
+		})
+	}
+}
+
+func TestNTLMAuthRejectsMalformedPayloadsBeforeBackend(t *testing.T) {
+	cases := []struct {
+		name   string
+		header string
+	}{
+		{name: "ntlm malformed base64", header: "NTLM X"},
+		{name: "negotiate malformed base64", header: "Negotiate X"},
+		{name: "ntlm whitespace only", header: "NTLM  "},
+		{name: "negotiate whitespace only", header: "Negotiate  "},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			socketPath := filepath.Join(t.TempDir(), "auth.sock")
+			listener, err := net.Listen("unix", socketPath)
+			if err != nil {
+				t.Fatalf("listen on unix socket: %v", err)
+			}
+			defer listener.Close()
+
+			var backendCalls atomic.Int32
+			acceptDone := make(chan struct{})
+			go func() {
+				defer close(acceptDone)
+				if unixListener, ok := listener.(*net.UnixListener); ok {
+					_ = unixListener.SetDeadline(time.Now().Add(250 * time.Millisecond))
+				}
+				conn, err := listener.Accept()
+				if err != nil {
+					return
+				}
+				backendCalls.Add(1)
+				_ = conn.Close()
+			}()
+
+			handler := &NTLMAuthHandler{SocketAddress: socketPath, Timeout: 1}
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.Header.Set("Authorization", tc.header)
+			rec := httptest.NewRecorder()
+
+			nextCalled := false
+			handler.NTLMAuth(func(w http.ResponseWriter, r *http.Request) {
+				nextCalled = true
+			}).ServeHTTP(rec, req)
+
+			<-acceptDone
+
+			if nextCalled {
+				t.Fatal("next handler was called for malformed Authorization header")
+			}
+			if calls := backendCalls.Load(); calls != 0 {
+				t.Fatalf("backend was called %d time(s) for malformed Authorization header", calls)
+			}
+			if rec.Code != http.StatusUnauthorized {
+				t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
+			}
+			if got := rec.Header().Values("WWW-Authenticate"); len(got) != 2 {
+				t.Fatalf("expected NTLM and Negotiate challenges, got %v", got)
 			}
 		})
 	}
