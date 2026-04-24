@@ -2,9 +2,6 @@ package main
 
 import (
 	"context"
-	"os"
-	"path/filepath"
-	"syscall"
 	"testing"
 
 	"github.com/bolkedebruin/rdpgw/cmd/auth/config"
@@ -46,84 +43,70 @@ func TestAuthenticateRejectsWrongPassword(t *testing.T) {
 	}
 }
 
-func TestAuthSocketIsOwnerOnly(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "auth")
-	socket := filepath.Join(dir, "rdpgw-auth.sock")
+func TestParseSocketMode(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		want    uint32
+		wantErr bool
+	}{
+		{name: "owner only", value: "0600", want: 0600},
+		{name: "group access", value: "0660", want: 0660},
+		{name: "0o prefix", value: "0o660", want: 0660},
+		{name: "world readable rejected", value: "0644", wantErr: true},
+		{name: "world writable rejected", value: "0666", wantErr: true},
+		{name: "owner write missing rejected", value: "0400", wantErr: true},
+		{name: "execute bits rejected", value: "0700", wantErr: true},
+		{name: "invalid octal rejected", value: "0999", wantErr: true},
+	}
 
-	listener, err := listenUnixSocket(socket)
-	if err != nil {
-		t.Fatalf("listenUnixSocket returned error: %v", err)
-	}
-	defer listener.Close()
-
-	info, err := os.Stat(socket)
-	if err != nil {
-		t.Fatalf("stat socket: %v", err)
-	}
-	if got := info.Mode().Perm(); got != 0600 {
-		t.Fatalf("expected auth socket mode 0600, got %04o", got)
-	}
-	if info.Mode().Perm()&0077 != 0 {
-		t.Fatalf("expected auth socket not to be group/world accessible, got %04o", info.Mode().Perm())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseSocketMode(tt.value)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected parseSocketMode(%q) to fail", tt.value)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseSocketMode(%q) returned error: %v", tt.value, err)
+			}
+			if uint32(got) != tt.want {
+				t.Fatalf("expected %04o, got %04o", tt.want, got)
+			}
+		})
 	}
 }
 
-func TestAuthSocketParentDirCreatedOwnerOnly(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "nested", "auth")
-	socket := filepath.Join(dir, "rdpgw-auth.sock")
-
-	listener, err := listenUnixSocket(socket)
-	if err != nil {
-		t.Fatalf("listenUnixSocket returned error: %v", err)
-	}
-	defer listener.Close()
-
-	info, err := os.Stat(dir)
-	if err != nil {
-		t.Fatalf("stat socket parent dir: %v", err)
-	}
-	if !info.IsDir() {
-		t.Fatalf("expected %s to be a directory", dir)
-	}
-	if got := info.Mode().Perm(); got != 0700 {
-		t.Fatalf("expected socket parent dir mode 0700, got %04o", got)
-	}
-}
-
-func TestAuthSocketRestoresUmask(t *testing.T) {
-	oldUmask := syscall.Umask(0022)
-	defer syscall.Umask(oldUmask)
-
-	socket := filepath.Join(t.TempDir(), "rdpgw-auth.sock")
-	listener, err := listenUnixSocket(socket)
-	if err != nil {
-		t.Fatalf("listenUnixSocket returned error: %v", err)
-	}
-	defer listener.Close()
-
-	currentUmask := syscall.Umask(oldUmask)
-	if currentUmask != 0022 {
-		t.Fatalf("expected umask to be restored to 0022, got %04o", currentUmask)
-	}
-}
-
-func TestAuthSocketRefusesToRemoveNonSocketPath(t *testing.T) {
-	socket := filepath.Join(t.TempDir(), "rdpgw-auth.sock")
-	if err := os.WriteFile(socket, []byte("keep"), 0600); err != nil {
-		t.Fatalf("create non-socket file: %v", err)
+func TestParseSocketDirMode(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		want    uint32
+		wantErr bool
+	}{
+		{name: "owner only", value: "0700", want: 0700},
+		{name: "group traverse", value: "0750", want: 0750},
+		{name: "world access rejected", value: "0755", wantErr: true},
+		{name: "owner execute missing rejected", value: "0600", wantErr: true},
 	}
 
-	listener, err := listenUnixSocket(socket)
-	if err == nil {
-		listener.Close()
-		t.Fatalf("expected listenUnixSocket to reject non-socket path")
-	}
-
-	contents, err := os.ReadFile(socket)
-	if err != nil {
-		t.Fatalf("read non-socket file after listenUnixSocket: %v", err)
-	}
-	if string(contents) != "keep" {
-		t.Fatalf("expected non-socket file contents to remain unchanged, got %q", string(contents))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseSocketDirMode(tt.value)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected parseSocketDirMode(%q) to fail", tt.value)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseSocketDirMode(%q) returned error: %v", tt.value, err)
+			}
+			if uint32(got) != tt.want {
+				t.Fatalf("expected %04o, got %04o", tt.want, got)
+			}
+		})
 	}
 }

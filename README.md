@@ -156,7 +156,11 @@ Server:
   - openid
   # - ntlm
  # The socket to connect to if using local auth. Ensure rdpgw auth is configured to
- # use the same socket.
+ # use the same socket. rdpgw-auth creates the socket as 0600 by default; if the
+ # auth helper and gateway run as different users, run rdpgw-auth with an explicit
+ # shared group, for example: --socket-mode 0660 --socket-group rdpgw, and place
+ # the socket in a directory both users can traverse (or --socket-dir-mode 0750 for
+ # newly-created directories). Do not grant world access to the auth socket.
  # AuthSocket: /tmp/rdpgw-auth.sock
  # Basic auth timeout (in seconds). Useful if you're planning on waiting for MFA
  BasicAuthTimeout: 5
