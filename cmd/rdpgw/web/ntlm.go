@@ -86,10 +86,10 @@ func (h *NTLMAuthHandler) NTLMAuth(next http.HandlerFunc) http.HandlerFunc {
 
 func (h *NTLMAuthHandler) getAuthPayload(r *http.Request) (payload string, authMode ntlmAuthMode, err error) {
 	authorisationEncoded := r.Header.Get("Authorization")
-	if strings.HasPrefix(authorisationEncoded, "NTLM ") {
+	if strings.HasPrefix(authorisationEncoded, "NTLM ") && len(authorisationEncoded) > len("NTLM ") {
 		return authorisationEncoded[len("NTLM "):], authNTLM, nil
 	}
-	if strings.HasPrefix(authorisationEncoded, "Negotiate ") {
+	if strings.HasPrefix(authorisationEncoded, "Negotiate ") && len(authorisationEncoded) > len("Negotiate ") {
 		return authorisationEncoded[len("Negotiate "):], authNegotiate, nil
 	}
 	return "", authNone, errors.New("Invalid NTLM Authorisation header")

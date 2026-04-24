@@ -15,8 +15,10 @@ func TestNTLMGetAuthPayloadRejectsShortHeadersWithoutPanic(t *testing.T) {
 		{name: "missing", header: ""},
 		{name: "single character", header: "N"},
 		{name: "short ntlm scheme", header: "NTLM"},
+		{name: "empty ntlm payload", header: "NTLM "},
 		{name: "wrong ntlm delimiter", header: "NTLMx"},
 		{name: "short negotiate scheme", header: "Negotiate"},
+		{name: "empty negotiate payload", header: "Negotiate "},
 		{name: "partial negotiate scheme", header: "Neg"},
 		{name: "unsupported scheme", header: "Basic abc"},
 	}
