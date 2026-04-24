@@ -1,6 +1,6 @@
 module github.com/bolkedebruin/rdpgw
 
-go 1.24.2
+go 1.25.9
 
 require (
 	github.com/andrewheberle/rdpsign v1.1.0
