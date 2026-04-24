@@ -12,6 +12,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"syscall"
 )
 
@@ -69,6 +70,46 @@ func (s *AuthServiceImpl) NTLM(ctx context.Context, message *auth.NtlmRequest) (
 	return r, err
 }
 
+func listenUnixSocket(path string) (net.Listener, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return nil, fmt.Errorf("create auth socket directory: %w", err)
+	}
+	if err := removeStaleUnixSocket(path); err != nil {
+		return nil, err
+	}
+
+	oldUmask := syscall.Umask(0077)
+	listener, err := func() (net.Listener, error) {
+		defer syscall.Umask(oldUmask)
+		return net.Listen(protocol, path)
+	}()
+	if err != nil {
+		return nil, err
+	}
+	if err := os.Chmod(path, 0600); err != nil {
+		listener.Close()
+		return nil, fmt.Errorf("restrict auth socket permissions: %w", err)
+	}
+	return listener, nil
+}
+
+func removeStaleUnixSocket(path string) error {
+	info, err := os.Lstat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("stat auth socket: %w", err)
+	}
+	if info.Mode()&os.ModeSocket == 0 {
+		return fmt.Errorf("refusing to remove non-socket auth socket path %q", path)
+	}
+	if err := os.Remove(path); err != nil {
+		return fmt.Errorf("remove stale auth socket: %w", err)
+	}
+	return nil
+}
+
 func main() {
 	_, err := flags.Parse(&opts)
 	if err != nil {
@@ -83,18 +124,7 @@ func main() {
 	}
 
 	log.Printf("Starting auth server on %s", opts.SocketAddr)
-	cleanup := func() {
-		if _, err := os.Stat(opts.SocketAddr); err == nil {
-			if err := os.RemoveAll(opts.SocketAddr); err != nil {
-				log.Fatal(err)
-			}
-		}
-	}
-	cleanup()
-
-	oldUmask := syscall.Umask(0)
-	listener, err := net.Listen(protocol, opts.SocketAddr)
-	syscall.Umask(oldUmask)
+	listener, err := listenUnixSocket(opts.SocketAddr)
 	if err != nil {
 		log.Fatal(err)
 	}
