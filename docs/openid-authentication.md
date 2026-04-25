@@ -46,6 +46,8 @@ When OpenID Connect is enabled, the homelab dashboard uses OIDC group membership
 - `Dashboard.AdminGroups`: groups allowed to access `/admin` and admin APIs.
 - `Dashboard.MaxUploadSizeMb`: max upload size for template `.rdp` files. Default: `5`.
 
+These dashboard group controls are web/OIDC controls. Entry `AllowedGroups` is evaluated for OIDC dashboard visibility and `.rdp` download access, and `Dashboard.AdminGroups` is evaluated for the admin UI. They are not evaluated for native RDP clients using direct authentication (`local`, `ntlm`, or `kerberos`). Direct-auth host authorization uses the addresses from enabled dashboard host entries as its host allowlist because those authentication modes do not carry reliable group claims.
+
 Example:
 
 ```yaml
@@ -92,7 +94,8 @@ When dashboard mode is enabled, `/admin` manages two kinds of state:
 - published host and template entries for OIDC users
 - direct-auth users for `ntlm` and `local` gateway logins
 
-The server regenerates the helper YAML after every direct-auth user change, and `rdpgw-auth` reloads that file automatically. Allowed hosts for direct gateway auth are also read from enabled dashboard host entries instead of only `Server.Hosts`.
+The server regenerates the helper YAML after every direct-auth user change, and `rdpgw-auth` reloads that file automatically. In dashboard-managed direct-auth mode, enabled dashboard host entries are the native RDP host allowlist used by direct gateway auth.
+Entry `AllowedGroups` does not further restrict these direct-auth connections; publish only host entries that should be reachable by any valid direct-auth user.
 If the managed auth-user state or enabled host inventory is missing or invalid, direct `local` and `ntlm` auth fail closed.
 
 ## Authentication Flow

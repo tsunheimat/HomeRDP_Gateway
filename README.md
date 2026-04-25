@@ -87,6 +87,8 @@ For detailed OpenID Connect setup with providers like Keycloak, Azure AD, Google
 
 With OpenID Connect enabled, `/` serves a dashboard UI after OIDC login. Dashboard entries are filtered by the groups extracted from your OIDC token (claim configured by `OpenId.GroupsClaim`), so users only see entries where at least one of their groups matches the entry `AllowedGroups`.
 
+Dashboard group checks are evaluated for OIDC web sessions only. For native RDP clients using direct authentication (`local`, `ntlm`, or `kerberos`), enabled dashboard host entry addresses are used as the host allowlist; entry `AllowedGroups` is not evaluated because those authentication modes do not provide reliable group claims to the gateway.
+
 `Dashboard.AdminGroups` controls access to `/admin` and the admin API endpoints. Users in those groups can:
 
 - Create host entries (host/port-backed connections).
