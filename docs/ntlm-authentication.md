@@ -23,10 +23,13 @@ Configure RDPGW to use NTLM authentication:
 Server:
   Authentication:
     - ntlm
+  AuthSocket: /tmp/rdpgw-auth/rdpgw-auth.sock
   SecureCookies: true # Recommended when HTTPS is terminated by a reverse proxy
 Caps:
   TokenAuth: false
 ```
+
+Set `Server.AuthSocket` to the same socket path passed to `rdpgw-auth -s`; otherwise the gateway and helper will listen/connect to different Unix sockets.
 
 ### 2. Authentication Helper Configuration
 
@@ -52,7 +55,7 @@ Users:
 Run the `rdpgw-auth` helper with NTLM configuration:
 
 ```bash
-./rdpgw-auth -c /var/lib/rdpgw/dashboard/rdpgw-auth.yaml -s /tmp/rdpgw-auth.sock
+./rdpgw-auth -c /var/lib/rdpgw/dashboard/rdpgw-auth.yaml -s /tmp/rdpgw-auth/rdpgw-auth.sock
 ```
 
 ## Authentication Flow
@@ -90,7 +93,7 @@ After=network.target
 [Service]
 Type=simple
 User=rdpgw
-ExecStart=/usr/local/bin/rdpgw-auth -c /var/lib/rdpgw/dashboard/rdpgw-auth.yaml -s /tmp/rdpgw-auth.sock
+ExecStart=/usr/local/bin/rdpgw-auth -c /var/lib/rdpgw/dashboard/rdpgw-auth.yaml -s /tmp/rdpgw-auth/rdpgw-auth.sock
 Restart=always
 RestartSec=5
 
@@ -105,13 +108,23 @@ WantedBy=multi-user.target
 services:
   rdpgw:
     image: rdpgw
+    user: "1001:1001"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,mode=1777
     ports:
       - "8443:8443"
       - "9443:9443"
     volumes:
       - ./rdpgw.yaml:/opt/rdpgw/rdpgw.yaml:ro
-      - ./data/dashboard:/var/lib/rdpgw/dashboard
+      - ./data/dashboard:/var/lib/rdpgw/dashboard:rw
 ```
+
+The checked-in `dev/docker/docker-compose.yml` uses this hardened runtime model. The helper socket is created below `/tmp/rdpgw-auth/` rather than directly under `/tmp`, so the socket can keep a private parent directory even when `/tmp` is the writable tmpfs.
 
 Use the split gateway topology in one container:
 
@@ -207,7 +220,7 @@ ps aux | grep rdpgw-auth
 cat /var/lib/rdpgw/dashboard/rdpgw-auth.yaml
 
 # Test socket connectivity
-ls -la /tmp/rdpgw-auth.sock
+ls -la /tmp/rdpgw-auth/rdpgw-auth.sock
 
 # Monitor authentication logs
 journalctl -u rdpgw-auth -f
@@ -218,7 +231,7 @@ journalctl -u rdpgw-auth -f
 Enable debug logging in `rdpgw-auth` for detailed NTLM protocol analysis:
 
 ```bash
-./rdpgw-auth -c /var/lib/rdpgw/dashboard/rdpgw-auth.yaml -s /tmp/rdpgw-auth.sock -v
+./rdpgw-auth -c /var/lib/rdpgw/dashboard/rdpgw-auth.yaml -s /tmp/rdpgw-auth/rdpgw-auth.sock -v
 ```
 
 ## Future Enhancements

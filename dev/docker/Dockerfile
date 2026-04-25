@@ -1,4 +1,4 @@
-FROM golang:1.24 AS builder
+FROM golang:1.25.9 AS builder
 
 WORKDIR /src
 
@@ -33,17 +33,22 @@ RUN mkdir -p /opt/rdpgw && cd /opt/rdpgw && \
 # make tempdir in case filestore is used
 ADD dev/docker/tmp.tar /
 
-COPY --chown=1001 dev/docker/run.sh /run.sh
-COPY --chown=1001 dev/docker/run.lib.sh /run.lib.sh
-COPY --from=builder --chown=1001 /out/rdpgw /opt/rdpgw/rdpgw
-COPY --from=builder --chown=1001 /out/rdpgw-auth /opt/rdpgw/rdpgw-auth
-COPY --chown=1001 cmd/rdpgw/templates /opt/rdpgw/templates
-COPY --chown=1001 assets /opt/rdpgw/assets
+COPY dev/docker/run.sh /run.sh
+COPY dev/docker/run.lib.sh /run.lib.sh
+COPY --from=builder /out/rdpgw /opt/rdpgw/rdpgw
+COPY --from=builder /out/rdpgw-auth /opt/rdpgw/rdpgw-auth
+COPY cmd/rdpgw/templates /opt/rdpgw/templates
+COPY assets /opt/rdpgw/assets
 
-RUN chmod +x /opt/rdpgw/rdpgw && \
-    chmod +x /opt/rdpgw/rdpgw-auth && \
-    chmod u+s /opt/rdpgw/rdpgw-auth
+RUN mkdir -p /var/lib/rdpgw/dashboard && \
+    chown root:root /opt/rdpgw /opt/rdpgw/templates /opt/rdpgw/assets && \
+    chmod 0755 /opt/rdpgw /opt/rdpgw/templates /opt/rdpgw/assets && \
+    chmod 0555 /run.sh /run.lib.sh /opt/rdpgw/rdpgw /opt/rdpgw/rdpgw-auth && \
+    chown root:rdpgw /opt/rdpgw/key.pem /opt/rdpgw/server.pem && \
+    chmod 0640 /opt/rdpgw/key.pem && \
+    chmod 0644 /opt/rdpgw/server.pem && \
+    chown -R rdpgw:rdpgw /var/lib/rdpgw
 
-USER 0
+USER 1001:1001
 WORKDIR /opt/rdpgw
 ENTRYPOINT ["/bin/sh", "/run.sh"]

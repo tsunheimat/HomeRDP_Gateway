@@ -5,10 +5,18 @@ services:
     build:
       context: ../..
       dockerfile: dev/docker/Dockerfile
+    user: "1001:1001"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,mode=1777
     ports:
       - "8443:8443"
       - "9443:9443"
     restart: unless-stopped
     volumes:
       - ./rdpgw.yaml:/opt/rdpgw/rdpgw.yaml:ro
-      - ./data/dashboard:/var/lib/rdpgw/dashboard
+      - ./data/dashboard:/var/lib/rdpgw/dashboard:rw

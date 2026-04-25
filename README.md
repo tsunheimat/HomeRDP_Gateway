@@ -146,9 +146,11 @@ TLS termination.
 Server:
  # can be set to openid, kerberos, local and ntlm. If openid is used rdpgw expects
  # a configured openid provider, make sure to set caps.tokenauth to true. If local
- # rdpgw connects to rdpgw-auth over a socket to verify users and password. Note:
- # rdpgw-auth needs to be run as root or setuid in order to work. If kerberos is
- # used a keytab and krb5conf need to be supplied. local can be stacked with 
+ # auth is enabled, rdpgw connects to rdpgw-auth over a socket to verify users and
+ # passwords. The Docker image runs rdpgw-auth as the same non-root user as rdpgw
+ # and does not set the setuid bit. If a future PAM deployment requires a privileged
+ # helper, keep that helper isolated behind the restricted socket permissions below.
+ # If kerberos is used a keytab and krb5conf need to be supplied. local can be
  # kerberos or ntlm authentication, so that the clients selects what it wants.
  Authentication:
   # - kerberos
@@ -159,9 +161,10 @@ Server:
  # use the same socket. rdpgw-auth creates the socket as 0600 by default; if the
  # auth helper and gateway run as different users, run rdpgw-auth with an explicit
  # shared group, for example: --socket-mode 0660 --socket-group rdpgw, and place
- # the socket in a directory both users can traverse (or --socket-dir-mode 0750 for
- # newly-created directories). Do not grant world access to the auth socket.
- # AuthSocket: /tmp/rdpgw-auth.sock
+ # the socket in a dedicated directory both users can traverse (for example,
+ # /tmp/rdpgw-auth created with --socket-dir-mode 0750). Do not grant world
+ # access to the auth socket.
+ # AuthSocket: /tmp/rdpgw-auth/rdpgw-auth.sock
  # Basic auth timeout (in seconds). Useful if you're planning on waiting for MFA
  BasicAuthTimeout: 5
  # The default option 'auto' uses a certificate file if provided and found otherwise
@@ -281,6 +284,23 @@ cd dev/docker
 docker compose -f docker-compose.yml up --build
 ```
 
+The Docker image is hardened to run as the non-root `rdpgw` user (UID/GID 1001) by default. The bundled rdpgw-auth helper runs as the same non-root user and the image does not set the setuid bit on the helper. The local compose file mirrors that runtime model with `user: "1001:1001"`, `no-new-privileges`, dropped Linux capabilities, a read-only root filesystem, and a writable `/tmp` tmpfs where the helper creates the auth socket under `/tmp/rdpgw-auth/`. Keep `./data/dashboard` writable by UID 1001 because dashboard state and generated direct-auth helper configuration are stored there.
+
+For Kubernetes deployments, use an equivalent pod/container security context where it is compatible with your auth mode:
+
+```yaml
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  readOnlyRootFilesystem: true
+```
+
+Mount writable volumes only where needed, for example a `/tmp` tmpfs that allows the helper to create `/tmp/rdpgw-auth/rdpgw-auth.sock` and `/var/lib/rdpgw/dashboard` for dashboard state. If you deploy behind a TLS-terminating reverse proxy, keep the rdpgw backend service private to the proxy or ingress path and do not expose the backend listener directly to untrusted networks.
+
 ### Managed Direct Auth Docker Deployment (TLS-ready)
 
 The managed direct-auth sample runs everything inside a single container with two listeners:
@@ -290,14 +310,14 @@ The managed direct-auth sample runs everything inside a single container with tw
 
 The container starts two `rdpgw` processes plus the bundled `rdpgw-auth` helper. The OIDC listener owns the browser routes, `/admin`, and dashboard-generated `.rdp` files. The direct listener owns native `ntlm` and `local` RDP gateway traffic. Both listeners share the same dashboard-managed host inventory and direct-auth user list.
 
-1. Set the OpenID values in [`dev/docker/rdpgw.yaml`](/mnt/vibe-coding-share/rdpgw/dev/docker/rdpgw.yaml), then make sure the dashboard state directory is writable by the container.
+1. Set the OpenID values in [`dev/docker/rdpgw.yaml`](dev/docker/rdpgw.yaml), then make sure the dashboard state directory is writable by the container.
 2. From the repository root run:
 
 ```bash
 docker compose -f dev/docker/docker-compose.yml up --build
 ```
 
-3. Watch the `rdpgw` logs for: `Starting rdpgw-auth (socket: /tmp/rdpgw-auth.sock)` and `Split gateway mode enabled`, then verify both HTTPS listeners are up:
+3. Watch the `rdpgw` logs for: `Starting rdpgw-auth (socket: /tmp/rdpgw-auth/rdpgw-auth.sock)` and `Split gateway mode enabled`, then verify both HTTPS listeners are up:
 
 ```bash
 curl -k https://localhost:8443/
@@ -316,7 +336,7 @@ Security reminders:
 
 - Direct-auth passwords are stored in plain text inside the managed dashboard state so the helper can serve NTLM and local auth. Treat the dashboard store carefully and rotate credentials frequently.
 - If you later disable TLS for a reverse proxy deployment, never expose the plain HTTP listener directly to untrusted networks; terminate HTTPS in the proxy and forward HTTP only on a trusted network.
-- Replace the sample session/signing keys in [`dev/docker/rdpgw.yaml`](/mnt/vibe-coding-share/rdpgw/dev/docker/rdpgw.yaml) before production use.
+- Replace the sample session/signing keys in [`dev/docker/rdpgw.yaml`](dev/docker/rdpgw.yaml) before production use.
 - The gateway issues an HTTP-only cookie named `rdpgw-ntlm-session` to keep NTLM handshakes consistent; make sure any reverse proxy preserves cookies and allows subsequent requests to reach the same backend instance during authentication.
 
 Bootstrap configuration still lives in `rdpgw.yaml` or environment variables: listener ports, external hostnames, TLS, OpenID provider settings, and admin groups. Operational configuration is dashboard-managed: allowed hosts, uploaded templates, and direct-auth users for `local` and `ntlm`.

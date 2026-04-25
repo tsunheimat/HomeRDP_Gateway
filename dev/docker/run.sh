@@ -1,12 +1,11 @@
 #!/bin/sh
 
-USER=rdpgw
-
 cd /opt/rdpgw || exit 1
 
 . /run.lib.sh
 
-AUTH_SOCKET=${RDPGW_SERVER__AUTH_SOCKET:-/tmp/rdpgw-auth.sock}
+AUTH_SOCKET=${RDPGW_SERVER__AUTH_SOCKET:-/tmp/rdpgw-auth/rdpgw-auth.sock}
+export RDPGW_SERVER__AUTH_SOCKET="${AUTH_SOCKET}"
 AUTH_CONFIG=$(rdpgw_auth_helper_config_path "$@")
 SPLIT_MODE=$(rdpgw_split_enabled "$@")
 
@@ -18,9 +17,13 @@ start_rdpgw_instance() {
   shift
 
   (
-    eval "$(rdpgw_runtime_exports "${mode}" "$@")"
-    echo "Starting rdpgw-${mode} (port: ${RDPGW_SERVER__PORT:-default}, gateway: ${RDPGW_SERVER__GATEWAYADDRESS:-default})"
-    exec su -c /opt/rdpgw/rdpgw "${USER}" -- "$@"
+    if [ "${mode}" != "default" ]; then
+      eval "$(rdpgw_runtime_exports "${mode}" "$@")"
+      echo "Starting rdpgw-${mode} (port: ${RDPGW_SERVER__PORT:-default}, gateway: ${RDPGW_SERVER__GATEWAYADDRESS:-default})"
+    else
+      echo "Starting rdpgw (port: ${RDPGW_SERVER__PORT:-default}, gateway: ${RDPGW_SERVER__GATEWAYADDRESS:-default})"
+    fi
+    exec /opt/rdpgw/rdpgw "$@"
   ) &
 
   pids="${pids} $!"
@@ -28,14 +31,17 @@ start_rdpgw_instance() {
 
 if [ "${start_helper}" = "true" ]; then
   echo "Starting rdpgw-auth (socket: ${AUTH_SOCKET})"
-  AUTH_CMD="/opt/rdpgw/rdpgw-auth -s ${AUTH_SOCKET} --socket-mode 0660 --socket-dir-mode 0750 --socket-group ${USER}"
   if [ -f "${AUTH_CONFIG}" ]; then
     echo "Using auth helper config ${AUTH_CONFIG}"
-    AUTH_CMD="${AUTH_CMD} -c ${AUTH_CONFIG}"
   else
     echo "Auth helper config ${AUTH_CONFIG} not found yet; starting helper and waiting for generated config"
   fi
-  sh -c "${AUTH_CMD}" &
+  /opt/rdpgw/rdpgw-auth \
+    -s "${AUTH_SOCKET}" \
+    --socket-mode 0660 \
+    --socket-dir-mode 0750 \
+    --socket-group rdpgw \
+    -c "${AUTH_CONFIG}" &
   pids="${pids} $!"
 fi
 
@@ -44,9 +50,7 @@ if [ "${SPLIT_MODE}" = "true" ]; then
   start_rdpgw_instance oidc "$@"
   start_rdpgw_instance direct "$@"
 else
-  # drop privileges and run the application
-  su -c /opt/rdpgw/rdpgw "${USER}" -- "$@" &
-  pids="${pids} $!"
+  start_rdpgw_instance default "$@"
 fi
 
 while :; do
