@@ -29,6 +29,8 @@ const (
 	AuthenticationBasic    = "local"
 	AuthenticationKerberos = "kerberos"
 	AuthenticationHeader   = "header"
+
+	queryTokenSigningKeyMinBytes = 32
 )
 
 type Configuration struct {
@@ -315,10 +317,6 @@ func Load(configFile string) Configuration {
 		log.Printf("No valid `server.sessionencryptionkey` specified (empty or not 32 characters). Setting to random")
 	}
 
-	if Conf.Server.HostSelection == "signed" && len(Conf.Security.QueryTokenSigningKey) == 0 {
-		log.Fatalf("host selection is set to `signed` but `querytokensigningkey` is not set")
-	}
-
 	if Conf.Server.BasicAuthEnabled() && Conf.Server.Tls == "disable" {
 		log.Fatalf("basicauth=local and tls=disable are mutually exclusive")
 	}
@@ -369,6 +367,10 @@ func (c Configuration) Validate() error {
 		if !hasTrustedProxyCIDR(c.Server.TrustedProxyCIDRs) {
 			return fmt.Errorf("header authentication requires server.trustedproxycidrs to trust the authenticating reverse proxy")
 		}
+	}
+
+	if c.Server.HostSelection == HostSelectionSigned && len(c.Security.QueryTokenSigningKey) < queryTokenSigningKeyMinBytes {
+		return fmt.Errorf("host selection is set to %q but security.querytokensigningkey is shorter than %d bytes", HostSelectionSigned, queryTokenSigningKeyMinBytes)
 	}
 
 	return nil

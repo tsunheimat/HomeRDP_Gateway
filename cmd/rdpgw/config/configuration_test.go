@@ -161,6 +161,61 @@ func TestConfigurationValidateRejectsInvalidTrustedProxyCIDR(t *testing.T) {
 	}
 }
 
+func TestConfigurationValidateSignedHostSelectionQueryTokenSigningKey(t *testing.T) {
+	cases := []struct {
+		name        string
+		selection   string
+		key         string
+		shouldError bool
+	}{
+		{
+			name:        "signed empty key rejected",
+			selection:   HostSelectionSigned,
+			key:         "",
+			shouldError: true,
+		},
+		{
+			name:        "signed short key rejected",
+			selection:   HostSelectionSigned,
+			key:         "short-query-token-signing-key",
+			shouldError: true,
+		},
+		{
+			name:        "signed 32 byte key accepted",
+			selection:   HostSelectionSigned,
+			key:         "12345678901234567890123456789012",
+			shouldError: false,
+		},
+		{
+			name:        "non signed host selection unaffected",
+			selection:   HostSelectionRoundRobin,
+			key:         "",
+			shouldError: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := Configuration{
+				Server: ServerConfig{
+					HostSelection: tc.selection,
+				},
+				Security: SecurityConfig{
+					QueryTokenSigningKey: tc.key,
+				},
+			}
+
+			err := cfg.Validate()
+			if tc.shouldError && err == nil {
+				t.Fatal("expected config validation to fail")
+			}
+			if !tc.shouldError && err != nil {
+				t.Fatalf("expected config validation to pass, got %v", err)
+			}
+		})
+	}
+}
+
 func TestServerSecureCookiesDefaultsFalse(t *testing.T) {
 	unsetEnvWithCleanup(t, "RDPGW_SERVER__SECURECOOKIES")
 
