@@ -225,7 +225,28 @@ func (s *FileIconStore) readLocked() ([]Icon, error) {
 	if icons == nil {
 		return []Icon{}, nil
 	}
-	return icons, nil
+	return filterSafeIcons(icons), nil
+}
+
+func filterSafeIcons(icons []Icon) []Icon {
+	out := make([]Icon, 0, len(icons))
+	for _, icon := range icons {
+		if isSafeStoredIcon(icon) {
+			out = append(out, icon)
+		}
+	}
+	return out
+}
+
+func isSafeStoredIcon(icon Icon) bool {
+	_, contentType, err := validateIconName(icon.Filename)
+	if err != nil {
+		return false
+	}
+	if icon.ContentType != contentType {
+		return false
+	}
+	return true
 }
 
 func (s *FileIconStore) writeLocked(icons []Icon) error {
@@ -266,14 +287,12 @@ func validateIconName(filename string) (string, string, error) {
 	switch ext {
 	case ".ico", ".icon":
 		return ext, "image/x-icon", nil
-	case ".svg":
-		return ext, "image/svg+xml", nil
 	case ".png":
 		return ext, "image/png", nil
 	case ".jpg", ".jpeg":
 		return ext, "image/jpeg", nil
 	default:
-		return "", "", validationError("icon must be .ico, .icon, .svg, .png, .jpg, or .jpeg")
+		return "", "", validationError("icon must be .ico, .icon, .png, .jpg, or .jpeg")
 	}
 }
 

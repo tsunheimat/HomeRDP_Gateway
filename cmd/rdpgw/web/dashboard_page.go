@@ -397,7 +397,7 @@ const fallbackAdminTemplate = `<!DOCTYPE html>
                             <form id="iconForm" class="stack-form" action="/api/v1/admin/icon" method="post" enctype="multipart/form-data">
                                 <label>
                                     {{.Messages.IconFileLabel}}
-                                    <input type="file" name="icon" accept=".ico,.icon,.svg,.png,.jpg,.jpeg" required>
+                                    <input type="file" name="icon" accept=".ico,.icon,.png,.jpg,.jpeg" required>
                                 </label>
                                 <p class="form-hint">{{.Messages.IconUploadHint}}</p>
                                 <button type="submit" class="primary-button">{{.Messages.UploadIconButton}}</button>

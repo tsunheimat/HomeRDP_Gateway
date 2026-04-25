@@ -162,6 +162,7 @@ func (h *Handler) ServeAppIcon(w http.ResponseWriter, r *http.Request) {
 			path := h.dashboardIconStore.ResolveIcon(icon.Filename)
 			if _, statErr := os.Stat(path); statErr == nil {
 				w.Header().Set("Content-Type", icon.ContentType)
+				w.Header().Set("X-Content-Type-Options", "nosniff")
 				w.Header().Set("Cache-Control", "no-cache")
 				http.ServeFile(w, r, path)
 				return
@@ -202,6 +203,7 @@ func (h *Handler) ServeUploadedIcon(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("Content-Type", icon.ContentType)
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 		http.ServeFile(w, r, path)
 		return

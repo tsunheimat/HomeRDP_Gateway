@@ -3,6 +3,7 @@ package web
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/dashboard"
+	"github.com/gorilla/mux"
 )
 
 func TestAdminUploadGlobalIconStoresSelectsAndServesIcon(t *testing.T) {
@@ -59,8 +61,26 @@ func TestAdminUploadGlobalIconStoresSelectsAndServesIcon(t *testing.T) {
 	if serveRR.Header().Get("Content-Type") != "image/x-icon" {
 		t.Fatalf("content type = %q", serveRR.Header().Get("Content-Type"))
 	}
+	if serveRR.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("x-content-type-options = %q", serveRR.Header().Get("X-Content-Type-Options"))
+	}
 	if !bytes.Equal(serveRR.Body.Bytes(), iconBytes) {
 		t.Fatalf("served icon body mismatch")
+	}
+
+	uploadedReq := httptest.NewRequest(http.MethodGet, "/assets/icons/"+active.ID, nil)
+	uploadedReq = mux.SetURLVars(uploadedReq, map[string]string{"id": active.ID})
+	uploadedRR := httptest.NewRecorder()
+	handler.ServeUploadedIcon(uploadedRR, uploadedReq)
+
+	if uploadedRR.Code != http.StatusOK {
+		t.Fatalf("uploaded serve status = %d, want %d", uploadedRR.Code, http.StatusOK)
+	}
+	if uploadedRR.Header().Get("Content-Type") != "image/x-icon" {
+		t.Fatalf("uploaded content type = %q", uploadedRR.Header().Get("Content-Type"))
+	}
+	if uploadedRR.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("uploaded x-content-type-options = %q", uploadedRR.Header().Get("X-Content-Type-Options"))
 	}
 }
 
@@ -69,11 +89,11 @@ func TestAdminUploadGlobalIconBrowserFormRedirectsToBrandingPage(t *testing.T) {
 
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
-	fileWriter, err := writer.CreateFormFile("icon", "custom.svg")
+	fileWriter, err := writer.CreateFormFile("icon", "custom.png")
 	if err != nil {
 		t.Fatalf("create form file: %v", err)
 	}
-	iconBytes := []byte(`<svg xmlns="http://www.w3.org/2000/svg"></svg>`)
+	iconBytes := []byte{137, 80, 78, 71}
 	if _, err := fileWriter.Write(iconBytes); err != nil {
 		t.Fatalf("write icon upload: %v", err)
 	}
@@ -100,8 +120,40 @@ func TestAdminUploadGlobalIconBrowserFormRedirectsToBrandingPage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("active icon: %v", err)
 	}
-	if active.OriginalName != "custom.svg" {
+	if active.OriginalName != "custom.png" {
 		t.Fatalf("original name = %q", active.OriginalName)
+	}
+}
+
+func TestAdminUploadGlobalIconRejectsSVGFile(t *testing.T) {
+	handler, iconStore := newAdminIconTestHandler(t)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	fileWriter, err := writer.CreateFormFile("icon", "custom.svg")
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
+	if _, err := fileWriter.Write([]byte(`<svg xmlns="http://www.w3.org/2000/svg"></svg>`)); err != nil {
+		t.Fatalf("write icon upload: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close multipart writer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/icon", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Origin", "http://example.com")
+	req = withAdminIdentity(req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminUploadIcon(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status code = %d, want %d; body=%q", rr.Code, http.StatusBadRequest, rr.Body.String())
+	}
+	if _, err := iconStore.ActiveIcon(); !errors.Is(err, dashboard.ErrIconNotFound) {
+		t.Fatalf("active icon error = %v, want %v", err, dashboard.ErrIconNotFound)
 	}
 }
 
