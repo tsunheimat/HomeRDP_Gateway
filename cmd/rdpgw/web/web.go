@@ -468,7 +468,12 @@ func (h *Handler) HandleDownload(w http.ResponseWriter, r *http.Request) {
 	// determine host to connect to
 	host, err := h.getHost(ctx, r.URL)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Printf("Could not determine host for download due to %s", err)
+		message := "invalid host"
+		if h.hostSelection == "signed" {
+			message = "invalid token"
+		}
+		http.Error(w, message, http.StatusBadRequest)
 		return
 	}
 	host, err = security.ResolvePreferredUsernameHost(host, id.UserName())

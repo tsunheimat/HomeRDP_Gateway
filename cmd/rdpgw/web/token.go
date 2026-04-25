@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/security"
 	"log"
 	"net/http"
@@ -27,7 +26,7 @@ func TokenInfo(w http.ResponseWriter, r *http.Request) {
 	info, err := security.UserInfo(context.Background(), token)
 	if err != nil {
 		log.Printf("Token validation failed due to %s", err)
-		http.Error(w, fmt.Sprintf("token validation failed due to %s", err), http.StatusForbidden)
+		http.Error(w, "invalid token", http.StatusForbidden)
 		return
 	}
 

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/identity"
@@ -176,6 +177,57 @@ func TestOIDCAuthenticatedRedirectSetsSingleSessionCookie(t *testing.T) {
 	}
 	if retrievedURL != redirectReq.RequestURI && retrievedURL != "/" {
 		t.Fatalf("expected redirect URL to be preserved, got %q", retrievedURL)
+	}
+}
+
+func TestOIDCHandleCallbackReturnsGenericTokenExchangeError(t *testing.T) {
+	sessionKey := []byte("testsessionkeytestsessionkey1234")
+	encryptionKey := []byte("testencryptionkeytestencrypt1234")
+	InitStore(sessionKey, encryptionKey, "cookie", 8192)
+
+	const rawProviderError = "provider internal stack trace: invalid_client_secret"
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, rawProviderError, http.StatusInternalServerError)
+	}))
+	t.Cleanup(tokenServer.Close)
+
+	oidc := (&OIDCConfig{
+		OAuth2Config: &oauth2.Config{
+			ClientID:     "rdpgw",
+			ClientSecret: "client-secret",
+			Endpoint: oauth2.Endpoint{
+				TokenURL: tokenServer.URL,
+			},
+		},
+	}).New()
+
+	stateReq := httptest.NewRequest(http.MethodGet, "/connect", nil)
+	stateRec := httptest.NewRecorder()
+	if err := storeOIDCState(stateRec, stateReq, "state-123", "/original"); err != nil {
+		t.Fatalf("storeOIDCState returned error: %v", err)
+	}
+
+	callbackReq := httptest.NewRequest(http.MethodGet, "/callback?state=state-123&code=bad-code", nil)
+	for _, cookie := range stateRec.Result().Cookies() {
+		callbackReq.AddCookie(cookie)
+	}
+	callbackReq = identity.AddToRequestCtx(identity.NewUser(), callbackReq)
+
+	logs := captureTestLogs(t)
+	rec := httptest.NewRecorder()
+	oidc.HandleCallback(rec, callbackReq)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
+	}
+	if rec.Body.String() != "authentication failed\n" {
+		t.Fatalf("expected generic authentication failure, got %q", rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), rawProviderError) || strings.Contains(rec.Body.String(), "Failed to exchange token") {
+		t.Fatalf("response body leaked provider error: %q", rec.Body.String())
+	}
+	if !strings.Contains(logs.String(), rawProviderError) {
+		t.Fatalf("expected detailed provider error in server logs, got %q", logs.String())
 	}
 }
 

@@ -25,7 +25,8 @@ func enrichContextWithTrustedProxies(trustedProxies *TrustedProxyChecker) func(h
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			id, err := GetSessionIdentity(r)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				log.Printf("failed to get session identity: %v", err)
+				http.Error(w, "authentication failed", http.StatusInternalServerError)
 				return
 			}
 

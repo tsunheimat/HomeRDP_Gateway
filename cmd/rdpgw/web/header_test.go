@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -229,6 +230,42 @@ func TestHeaderAuthRejectsMissingTrustedProxyConfig(t *testing.T) {
 
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rr.Code)
+	}
+}
+
+func TestHeaderAuthSaveSessionErrorReturnsGenericMessage(t *testing.T) {
+	sessionKey := []byte("thisisasessionkeyreplacethisjetzt")
+	encryptionKey := []byte("thisisasessionencryptionkey12345")
+	InitStore(sessionKey, encryptionKey, "cookie", 8192)
+
+	headerAuth := (&HeaderConfig{
+		UserHeader:        "X-Forwarded-User",
+		TrustedProxyCIDRs: []string{"198.51.100.0/24"},
+	}).New()
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.RemoteAddr = "198.51.100.10:12345"
+	req.Header.Set("X-Forwarded-User", "user@example.com")
+	req.AddCookie(&http.Cookie{Name: rdpGwSession, Value: "not-a-valid-signed-session"})
+	req = identity.AddToRequestCtx(identity.NewUser(), req)
+
+	logs := captureTestLogs(t)
+	rr := httptest.NewRecorder()
+	headerAuth.Authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("next handler should not run when saving the session fails")
+	})).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rr.Code)
+	}
+	if rr.Body.String() != "failed to save session\n" {
+		t.Fatalf("expected generic save-session failure, got %q", rr.Body.String())
+	}
+	if strings.Contains(rr.Body.String(), "securecookie") || strings.Contains(rr.Body.String(), "not valid") {
+		t.Fatalf("response body leaked session error: %q", rr.Body.String())
+	}
+	if !strings.Contains(logs.String(), "securecookie") {
+		t.Fatalf("expected detailed session error in server logs, got %q", logs.String())
 	}
 }
 

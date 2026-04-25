@@ -88,7 +88,8 @@ func (h *Header) Authenticated(next http.Handler) http.Handler {
 
 		// Save the session identity
 		if err := SaveSessionIdentity(r, w, id); err != nil {
-			http.Error(w, "Failed to save session: "+err.Error(), http.StatusInternalServerError)
+			log.Printf("Header authentication: failed to save session: %v", err)
+			http.Error(w, "failed to save session", http.StatusInternalServerError)
 			return
 		}
 

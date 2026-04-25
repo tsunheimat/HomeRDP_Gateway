@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -300,6 +301,57 @@ func TestHandleWebInterface(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestHandleDownloadSignedQueryTokenErrorDoesNotLeakInternals(t *testing.T) {
+	internalErr := errors.New("token validation failed due to go-jose/go-jose/jwt: validation failed, token is expired (exp)")
+	logs := captureTestLogs(t)
+
+	handler := &Handler{
+		hostSelection:    "signed",
+		hosts:            []string{"host1.example.com"},
+		gatewayAddress:   &url.URL{Host: "gateway.example.com"},
+		queryTokenIssuer: "rdpgwtest",
+		queryInfo: func(ctx context.Context, token, issuer string) (string, error) {
+			if token != "signed-host-token" {
+				t.Fatalf("query token = %q, want %q", token, "signed-host-token")
+			}
+			if issuer != "rdpgwtest" {
+				t.Fatalf("issuer = %q, want %q", issuer, "rdpgwtest")
+			}
+			return "", internalErr
+		},
+		paaTokenGenerator: func(ctx context.Context, user, host string) (string, error) {
+			t.Fatalf("paaTokenGenerator should not be called after signed host token failure")
+			return "", nil
+		},
+	}
+
+	req := httptest.NewRequest("GET", "/connect?host=signed-host-token", nil)
+	user := identity.NewUser()
+	user.SetUserName("testuser")
+	user.SetAuthenticated(true)
+	user.SetAuthTime(time.Now())
+	req = identity.AddToRequestCtx(user, req)
+	rec := httptest.NewRecorder()
+
+	handler.HandleDownload(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status code = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+	body := rec.Body.String()
+	if body != "invalid token\n" {
+		t.Errorf("expected generic invalid token response, got %q", body)
+	}
+	for _, needle := range []string{"token validation failed", "go-jose", "jwt", "expired"} {
+		if strings.Contains(body, needle) {
+			t.Errorf("response body leaked %q: %q", needle, body)
+		}
+	}
+	if !strings.Contains(logs.String(), internalErr.Error()) {
+		t.Fatalf("expected detailed error in logs, got %q", logs.String())
 	}
 }
 

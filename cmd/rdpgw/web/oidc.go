@@ -104,18 +104,21 @@ func (h *OIDC) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	oauth2Token, err := h.oAuth2Config.Exchange(ctx, r.URL.Query().Get("code"))
 	if err != nil {
-		http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
+		log.Printf("OIDC HandleCallback: failed to exchange token: %v", err)
+		http.Error(w, "authentication failed", http.StatusInternalServerError)
 		return
 	}
 
 	rawIDToken, ok := oauth2Token.Extra("id_token").(string)
 	if !ok {
-		http.Error(w, "No id_token field in oauth2 token.", http.StatusInternalServerError)
+		log.Printf("OIDC HandleCallback: oauth2 token missing id_token")
+		http.Error(w, "authentication failed", http.StatusInternalServerError)
 		return
 	}
 	idToken, err := h.oidcTokenVerifier.Verify(ctx, rawIDToken)
 	if err != nil {
-		http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
+		log.Printf("OIDC HandleCallback: failed to verify ID token: %v", err)
+		http.Error(w, "authentication failed", http.StatusInternalServerError)
 		return
 	}
 
@@ -125,20 +128,23 @@ func (h *OIDC) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	}{oauth2Token, new(json.RawMessage)}
 
 	if err := idToken.Claims(&resp.IDTokenClaims); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Printf("OIDC HandleCallback: failed to read ID token claims: %v", err)
+		http.Error(w, "authentication failed", http.StatusInternalServerError)
 		return
 	}
 
 	var data map[string]interface{}
 	if err := json.Unmarshal(*resp.IDTokenClaims, &data); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Printf("OIDC HandleCallback: failed to parse ID token claims: %v", err)
+		http.Error(w, "authentication failed", http.StatusInternalServerError)
 		return
 	}
 
 	id := identity.FromRequestCtx(r)
 
 	if err := populateIdentityFromClaims(id, data, h.groupsClaim); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Printf("OIDC HandleCallback: failed to populate identity from claims: %v", err)
+		http.Error(w, "authentication failed", http.StatusInternalServerError)
 		return
 	}
 	id.SetAuthenticated(true)
@@ -146,7 +152,8 @@ func (h *OIDC) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	id.SetAttribute(identity.AttrAccessToken, oauth2Token.AccessToken)
 
 	if err := SaveSessionIdentity(r, w, id); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Printf("OIDC HandleCallback: failed to save session identity: %v", err)
+		http.Error(w, "failed to save session", http.StatusInternalServerError)
 		return
 	}
 
@@ -217,7 +224,8 @@ func (h *OIDC) Authenticated(next http.Handler) http.Handler {
 			seed := make([]byte, 16)
 			_, err := rand.Read(seed)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				log.Printf("OIDC Authenticated: failed to generate state: %v", err)
+				http.Error(w, "authentication failed", http.StatusInternalServerError)
 				return
 			}
 			state := hex.EncodeToString(seed)
@@ -226,7 +234,7 @@ func (h *OIDC) Authenticated(next http.Handler) http.Handler {
 			err = storeOIDCState(w, r, state, r.RequestURI)
 			if err != nil {
 				log.Printf("OIDC Authenticated: failed to store state: %v", err)
-				http.Error(w, "Failed to store OIDC state", http.StatusInternalServerError)
+				http.Error(w, "failed to save session", http.StatusInternalServerError)
 				return
 			}
 
