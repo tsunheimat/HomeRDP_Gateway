@@ -41,16 +41,19 @@ jobs:
       run: sudo apt-get -y install libpam-dev
 
     - name: Checkout repository
-      uses: actions/checkout@v4
+      # actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
     - name: Install Go
-      uses: actions/setup-go@v4
+      # actions/setup-go@v5
+      uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
       with:
         go-version-file: go.mod
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@v3
+      # github/codeql-action/init@v3
+      uses: github/codeql-action/init@865f5f5c36632f18690a3d569fa0a764f2da0c3e
       with:
         languages: ${{ matrix.language }}
         # If you wish to specify custom queries, you can do so here or in a config file.
@@ -64,7 +67,8 @@ jobs:
     # Autobuild attempts to build any compiled languages  (C/C++, C#, or Java).
     # If this step fails, then you should remove it and run the build manually (see below)
     - name: Autobuild
-      uses: github/codeql-action/autobuild@v3
+      # github/codeql-action/autobuild@v3
+      uses: github/codeql-action/autobuild@865f5f5c36632f18690a3d569fa0a764f2da0c3e
 
     # ℹ️ Command-line programs to run using the OS shell.
     # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
@@ -77,4 +81,5 @@ jobs:
     #   ./location_of_script_within_repo/buildscript.sh
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v3
+      # github/codeql-action/analyze@v3
+      uses: github/codeql-action/analyze@865f5f5c36632f18690a3d569fa0a764f2da0c3e
