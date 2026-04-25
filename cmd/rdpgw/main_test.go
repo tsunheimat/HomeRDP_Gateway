@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -39,6 +40,52 @@ func TestAuthHelperConfigPathHonorsRuntimeOverride(t *testing.T) {
 
 	if got := authHelperConfigPath(cfg); got != "/tmp/runtime-auth.yaml" {
 		t.Fatalf("auth helper config path = %q", got)
+	}
+}
+
+func TestConfigureTLSKeyLogRejectsSSLKEYLOGFILEWithoutOptIn(t *testing.T) {
+	cfg := &tls.Config{}
+	keyLogPath := filepath.Join(t.TempDir(), "tls.keys")
+
+	err := configureTLSKeyLog(cfg, config.Configuration{}, keyLogPath)
+
+	if err == nil {
+		t.Fatal("expected SSLKEYLOGFILE without Server.AllowTLSKeyLog to fail closed")
+	}
+	if !strings.Contains(err.Error(), "Server.AllowTLSKeyLog") {
+		t.Fatalf("expected error to name Server.AllowTLSKeyLog, got %v", err)
+	}
+	if cfg.KeyLogWriter != nil {
+		t.Fatal("expected key log writer to remain unset")
+	}
+	if _, statErr := os.Stat(keyLogPath); !os.IsNotExist(statErr) {
+		t.Fatalf("expected key log file not to be created, stat err=%v", statErr)
+	}
+}
+
+func TestConfigureTLSKeyLogHonorsSSLKEYLOGFILEWithOptIn(t *testing.T) {
+	cfg := &tls.Config{}
+	keyLogPath := filepath.Join(t.TempDir(), "tls.keys")
+
+	err := configureTLSKeyLog(cfg, config.Configuration{
+		Server: config.ServerConfig{
+			AllowTLSKeyLog: true,
+		},
+	}, keyLogPath)
+
+	if err != nil {
+		t.Fatalf("expected SSLKEYLOGFILE with Server.AllowTLSKeyLog to be honored, got %v", err)
+	}
+	if cfg.KeyLogWriter == nil {
+		t.Fatal("expected key log writer to be configured")
+	}
+	if closer, ok := cfg.KeyLogWriter.(interface{ Close() error }); ok {
+		if err := closer.Close(); err != nil {
+			t.Fatalf("close key log writer: %v", err)
+		}
+	}
+	if _, statErr := os.Stat(keyLogPath); statErr != nil {
+		t.Fatalf("expected key log file to be created, stat err=%v", statErr)
 	}
 }
 

@@ -46,6 +46,23 @@ func authHelperConfigPath(conf config.Configuration) string {
 	return conf.Dashboard.AuthHelperConfigPath
 }
 
+func configureTLSKeyLog(cfg *tls.Config, conf config.Configuration, keyLogPath string) error {
+	if keyLogPath == "" {
+		return nil
+	}
+	if !conf.Server.AllowTLSKeyLog {
+		return fmt.Errorf("SSLKEYLOGFILE is set but Server.AllowTLSKeyLog is false; refusing to write TLS session keys")
+	}
+
+	w, err := os.OpenFile(keyLogPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return fmt.Errorf("cannot open TLS key log file %s for writing: %w", keyLogPath, err)
+	}
+	log.Printf("TLS key log file enabled: %s", keyLogPath)
+	cfg.KeyLogWriter = w
+	return nil
+}
+
 func validateManagedDirectAuthConfig(conf config.Configuration) error {
 	if !conf.Server.BasicAuthEnabled() && !conf.Server.NtlmEnabled() {
 		return nil
@@ -239,14 +256,8 @@ func main() {
 		// auto config
 		tlsConfigured := false
 
-		tlsDebug := os.Getenv("SSLKEYLOGFILE")
-		if tlsDebug != "" {
-			w, err := os.OpenFile(tlsDebug, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-			if err != nil {
-				log.Fatalf("Cannot open key log file %s for writing %s", tlsDebug, err)
-			}
-			log.Printf("Key log file set to: %s", tlsDebug)
-			cfg.KeyLogWriter = w
+		if err := configureTLSKeyLog(cfg, conf, os.Getenv("SSLKEYLOGFILE")); err != nil {
+			log.Fatalf("%s", err)
 		}
 
 		if conf.Server.KeyFile != "" && conf.Server.CertFile != "" {

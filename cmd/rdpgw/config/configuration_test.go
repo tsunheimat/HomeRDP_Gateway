@@ -225,6 +225,57 @@ func TestServerSecureCookiesDefaultsFalse(t *testing.T) {
 	}
 }
 
+func TestServerAllowTLSKeyLogDefaultsFalse(t *testing.T) {
+	unsetEnvWithCleanup(t, "RDPGW_SERVER__ALLOWTLSKEYLOG")
+
+	cfg := Load("/definitely-missing.yaml")
+	if cfg.Server.AllowTLSKeyLog {
+		t.Fatal("expected Server.AllowTLSKeyLog to default to false")
+	}
+}
+
+func TestServerAllowTLSKeyLogCanBeEnabledFromEnv(t *testing.T) {
+	t.Setenv("RDPGW_SERVER__ALLOWTLSKEYLOG", "true")
+
+	cfg := Load("/definitely-missing.yaml")
+	if !cfg.Server.AllowTLSKeyLog {
+		t.Fatal("expected Server.AllowTLSKeyLog to be enabled from environment")
+	}
+}
+
+func TestServerAllowTLSKeyLogCanBeEnabledFromFile(t *testing.T) {
+	unsetEnvWithCleanup(t, "RDPGW_SERVER__ALLOWTLSKEYLOG")
+	configPath := filepath.Join(t.TempDir(), "rdpgw.yaml")
+	configBody := "Server:\n  AllowTLSKeyLog: true\n"
+	if err := os.WriteFile(configPath, []byte(configBody), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg := Load(configPath)
+	if !cfg.Server.AllowTLSKeyLog {
+		t.Fatal("expected Server.AllowTLSKeyLog to be enabled from config file")
+	}
+}
+
+func TestServerAllowTLSKeyLogDoesNotPersistAcrossLoad(t *testing.T) {
+	unsetEnvWithCleanup(t, "RDPGW_SERVER__ALLOWTLSKEYLOG")
+	configPath := filepath.Join(t.TempDir(), "rdpgw.yaml")
+	configBody := "Server:\n  AllowTLSKeyLog: true\n"
+	if err := os.WriteFile(configPath, []byte(configBody), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg := Load(configPath)
+	if !cfg.Server.AllowTLSKeyLog {
+		t.Fatal("expected Server.AllowTLSKeyLog to be enabled from config file")
+	}
+
+	cfg = Load("/definitely-missing.yaml")
+	if cfg.Server.AllowTLSKeyLog {
+		t.Fatal("expected Server.AllowTLSKeyLog to reset to the false default when absent")
+	}
+}
+
 func CapsConfigWithTokenAuth() RDGCapsConfig {
 	return RDGCapsConfig{TokenAuth: true}
 }

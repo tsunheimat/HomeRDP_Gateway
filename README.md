@@ -138,6 +138,10 @@ KeyFile: key.pem
 __NOTE__: You can disable TLS on the gateway, but you will then need to make sure a proxy is run in front of it that does
 TLS termination. 
 
+`SSLKEYLOGFILE` writes TLS session keys that can decrypt captured gateway traffic. RDPGW fails closed if this environment
+variable is set unless `Server.AllowTLSKeyLog: true` is configured. Enable it only for short-lived debugging and remove
+the key log file afterwards.
+
 
 ## Example configuration file for Open ID Connect
 
@@ -173,6 +177,8 @@ Server:
  # set this option to 'disable'. This is mutually exclusive with 'authentication: local'
  # Note: rdp connections over a gateway require TLS
  Tls: auto
+ # Allows SSLKEYLOGFILE to write TLS session keys for debugging. Keep this false in production.
+ AllowTLSKeyLog: false
  # gateway address advertised in the rdp files and browser
  GatewayAddress: localhost
  # port to listen on (change to 80 or equivalent if not using TLS)

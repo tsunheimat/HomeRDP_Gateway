@@ -63,6 +63,7 @@ type ServerConfig struct {
 	BasicAuthTimeout     int      `koanf:"basicauthtimeout"`
 	TrustedProxyCIDRs    []string `koanf:"trustedproxycidrs"`
 	SecureCookies        bool     `koanf:"securecookies"`
+	AllowTLSKeyLog       bool     `koanf:"allowtlskeylog"`
 }
 
 type KerberosConfig struct {
@@ -174,6 +175,7 @@ var envKeyOverrides = map[string]string{
 	"Dashboard.Maxuploadsizemb":      "Dashboard.MaxUploadSizeMb",
 	"Server.Trustedproxycidrs":       "Server.TrustedProxyCIDRs",
 	"Server.Securecookies":           "Server.SecureCookies",
+	"Server.Allowtlskeylog":          "Server.AllowTLSKeyLog",
 }
 
 var Conf Configuration
@@ -231,6 +233,7 @@ func Load(configFile string) Configuration {
 		"Server.Authentication":      "openid",
 		"Server.AuthSocket":          "/tmp/rdpgw-auth.sock",
 		"Server.BasicAuthTimeout":    5,
+		"Server.AllowTLSKeyLog":      false,
 		"OpenId.GroupsClaim":         "groups",
 		"Dashboard.StorePath":        "./data/dashboard",
 		"Dashboard.MaxUploadSizeMb":  5,
