@@ -71,12 +71,18 @@ func validateManagedDirectAuthConfig(conf config.Configuration) error {
 }
 
 func initDashboardState(conf config.Configuration, helperConfigPath string) (dashboard.Store, dashboard.AuthUserStore, dashboard.IconStore, error) {
-	dashboardStore, err := dashboard.NewFileStore(conf.Dashboard.StorePath, conf.Dashboard.UploadDir)
+	dashboardStore, err := dashboard.NewFileStore(conf.Dashboard.StorePath, conf.Dashboard.UploadDir, dashboard.FileStoreOptions{
+		MaxUploads:      conf.Dashboard.MaxTemplateUploads,
+		MaxStorageBytes: megabytesToBytes(conf.Dashboard.MaxTemplateUploadStorageMb),
+	})
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("initialize dashboard store: %w", err)
 	}
 
-	iconStore, err := dashboard.NewFileIconStore(conf.Dashboard.StorePath, conf.Dashboard.IconDir)
+	iconStore, err := dashboard.NewFileIconStore(conf.Dashboard.StorePath, conf.Dashboard.IconDir, dashboard.FileIconStoreOptions{
+		MaxIcons:        conf.Dashboard.MaxIconUploads,
+		MaxStorageBytes: megabytesToBytes(conf.Dashboard.MaxIconUploadStorageMb),
+	})
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("initialize dashboard icon store: %w", err)
 	}
@@ -106,6 +112,10 @@ func initDashboardState(conf config.Configuration, helperConfigPath string) (das
 	}
 
 	return dashboardStore, authUserStore, iconStore, nil
+}
+
+func megabytesToBytes(value int) int64 {
+	return int64(value) * 1024 * 1024
 }
 
 func initOIDC(callbackUrl *url.URL) *web.OIDC {

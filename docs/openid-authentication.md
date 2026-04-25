@@ -27,6 +27,10 @@ Dashboard:
   AdminGroups:
     - rdpgw-admins
   MaxUploadSizeMb: 5
+  MaxTemplateUploads: 100
+  MaxIconUploads: 100
+  MaxTemplateUploadStorageMb: 100
+  MaxIconUploadStorageMb: 100
 Caps:
   TokenAuth: true
 ```
@@ -44,7 +48,11 @@ When OpenID Connect is enabled, the homelab dashboard uses OIDC group membership
 - `Dashboard.AuthUsersPath`: JSON file storing direct-auth users managed from `/admin`. Default: derived from `StorePath` as `<StorePath>/auth-users.json`.
 - `Dashboard.AuthHelperConfigPath`: generated helper YAML consumed by `rdpgw-auth`. Default: derived from `StorePath` as `<StorePath>/rdpgw-auth.yaml`.
 - `Dashboard.AdminGroups`: groups allowed to access `/admin` and admin APIs.
-- `Dashboard.MaxUploadSizeMb`: max upload size for template `.rdp` files. Default: `5`.
+- `Dashboard.MaxUploadSizeMb`: max request upload size for template `.rdp` files and icon files. Default: `5`.
+- `Dashboard.MaxTemplateUploads`: max number of stored uploaded `.rdp` template files. Default: `100`; `0` disables this quota.
+- `Dashboard.MaxIconUploads`: max number of stored uploaded icon files. Default: `100`; `0` disables this quota.
+- `Dashboard.MaxTemplateUploadStorageMb`: max total storage for uploaded `.rdp` templates. Default: `100`; `0` disables this quota.
+- `Dashboard.MaxIconUploadStorageMb`: max total storage for uploaded icon files. Default: `100`; `0` disables this quota.
 
 These dashboard group controls are web/OIDC controls. Entry `AllowedGroups` is evaluated for OIDC dashboard visibility and `.rdp` download access, and `Dashboard.AdminGroups` is evaluated for the admin UI. They are not evaluated for native RDP clients using direct authentication (`local`, `ntlm`, or `kerberos`). Direct-auth host authorization uses the addresses from enabled dashboard host entries as its host allowlist because those authentication modes do not carry reliable group claims.
 
@@ -66,6 +74,10 @@ Dashboard:
     - rdpgw-admins
     - homelab-admins
   MaxUploadSizeMb: 10
+  MaxTemplateUploads: 100
+  MaxIconUploads: 100
+  MaxTemplateUploadStorageMb: 100
+  MaxIconUploadStorageMb: 100
 ```
 
 ### Environment Variable Overrides
@@ -80,6 +92,10 @@ You can override the same settings via environment variables:
 - `RDPGW_DASHBOARD__AUTHHELPERCONFIGPATH`
 - `RDPGW_DASHBOARD__ADMINGROUPS`
 - `RDPGW_DASHBOARD__MAXUPLOADSIZEMB`
+- `RDPGW_DASHBOARD__MAXTEMPLATEUPLOADS`
+- `RDPGW_DASHBOARD__MAXICONUPLOADS`
+- `RDPGW_DASHBOARD__MAXTEMPLATEUPLOADSTORAGEMB`
+- `RDPGW_DASHBOARD__MAXICONUPLOADSTORAGEMB`
 
 Notes:
 

@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -214,6 +215,106 @@ func TestFileStoreRejectsMissingTemplateUpload(t *testing.T) {
 	if err := store.Put(entry); err == nil {
 		t.Fatalf("expected missing uploaded template to fail")
 	}
+}
+
+func TestFileStoreEnforcesTemplateUploadCountQuota(t *testing.T) {
+	t.Parallel()
+
+	baseDir := t.TempDir()
+	store, err := NewFileStore(filepath.Join(baseDir, "catalog"), filepath.Join(baseDir, "uploads"), FileStoreOptions{
+		MaxUploads:      1,
+		MaxStorageBytes: 1024,
+	})
+	if err != nil {
+		t.Fatalf("new file store: %v", err)
+	}
+
+	uploadPath, err := store.SaveUpload(strings.NewReader("full address:s:first-template"))
+	if err != nil {
+		t.Fatalf("save first upload: %v", err)
+	}
+	entry := Entry{
+		ID:                   "template-1",
+		Type:                 EntryTypeTemplate,
+		Name:                 "Template",
+		AllowedGroups:        []string{"admins"},
+		Enabled:              true,
+		UploadedTemplatePath: uploadPath,
+	}
+	if err := store.Put(entry); err != nil {
+		t.Fatalf("put entry: %v", err)
+	}
+
+	if _, err := store.SaveUpload(strings.NewReader("full address:s:second-template")); !IsValidationError(err) {
+		t.Fatalf("second upload error = %v, want validation error", err)
+	}
+	if count := regularFileCount(t, filepath.Join(baseDir, "uploads")); count != 1 {
+		t.Fatalf("expected rejected upload to leave one file, got %d", count)
+	}
+
+	if err := store.Delete(entry.ID); err != nil {
+		t.Fatalf("delete entry: %v", err)
+	}
+	if _, err := store.SaveUpload(strings.NewReader("full address:s:after-delete")); err != nil {
+		t.Fatalf("expected upload after delete to fit quota, got %v", err)
+	}
+}
+
+func TestFileStoreEnforcesTemplateUploadStorageQuota(t *testing.T) {
+	t.Parallel()
+
+	baseDir := t.TempDir()
+	store, err := NewFileStore(filepath.Join(baseDir, "catalog"), filepath.Join(baseDir, "uploads"), FileStoreOptions{
+		MaxUploads:      10,
+		MaxStorageBytes: 3,
+	})
+	if err != nil {
+		t.Fatalf("new file store: %v", err)
+	}
+
+	if _, err := store.SaveUpload(strings.NewReader("abc")); err != nil {
+		t.Fatalf("save upload at storage quota: %v", err)
+	}
+	if _, err := store.SaveUpload(strings.NewReader("d")); !IsValidationError(err) {
+		t.Fatalf("upload beyond storage quota error = %v, want validation error", err)
+	}
+	if count := regularFileCount(t, filepath.Join(baseDir, "uploads")); count != 1 {
+		t.Fatalf("expected rejected upload to leave one file, got %d", count)
+	}
+}
+
+func TestEnforceFileQuotaRejectsStorageQuotaOverflow(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "existing.rdp"), []byte("x"), 0o600); err != nil {
+		t.Fatalf("write existing upload: %v", err)
+	}
+
+	err := enforceFileQuota(dir, 0, math.MaxInt64, math.MaxInt64, "template upload")
+	if !IsValidationError(err) {
+		t.Fatalf("quota overflow error = %v, want validation error", err)
+	}
+}
+
+func regularFileCount(t *testing.T, dir string) int {
+	t.Helper()
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read dir %s: %v", dir, err)
+	}
+	count := 0
+	for _, entry := range entries {
+		info, err := entry.Info()
+		if err != nil {
+			t.Fatalf("stat %s: %v", entry.Name(), err)
+		}
+		if info.Mode().IsRegular() {
+			count++
+		}
+	}
+	return count
 }
 
 func TestFileStoreDefaultsBlankIconToWindow(t *testing.T) {

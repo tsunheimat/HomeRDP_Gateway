@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log"
+	"math"
 	"net"
 	"os"
 	"strings"
@@ -31,6 +32,9 @@ const (
 	AuthenticationHeader   = "header"
 
 	queryTokenSigningKeyMinBytes = 32
+
+	uploadStorageBytesPerMegabyte = 1024 * 1024
+	maxUploadStorageMegabytes     = math.MaxInt64 / uploadStorageBytesPerMegabyte
 )
 
 type Configuration struct {
@@ -79,13 +83,17 @@ type OpenIDConfig struct {
 }
 
 type DashboardConfig struct {
-	StorePath            string   `koanf:"storepath"`
-	UploadDir            string   `koanf:"uploaddir"`
-	IconDir              string   `koanf:"icondir"`
-	AuthUsersPath        string   `koanf:"authuserspath"`
-	AuthHelperConfigPath string   `koanf:"authhelperconfigpath"`
-	AdminGroups          []string `koanf:"admingroups"`
-	MaxUploadSizeMb      int      `koanf:"maxuploadsizemb"`
+	StorePath                  string   `koanf:"storepath"`
+	UploadDir                  string   `koanf:"uploaddir"`
+	IconDir                    string   `koanf:"icondir"`
+	AuthUsersPath              string   `koanf:"authuserspath"`
+	AuthHelperConfigPath       string   `koanf:"authhelperconfigpath"`
+	AdminGroups                []string `koanf:"admingroups"`
+	MaxUploadSizeMb            int      `koanf:"maxuploadsizemb"`
+	MaxTemplateUploads         int      `koanf:"maxtemplateuploads"`
+	MaxIconUploads             int      `koanf:"maxiconuploads"`
+	MaxTemplateUploadStorageMb int      `koanf:"maxtemplateuploadstoragemb"`
+	MaxIconUploadStorageMb     int      `koanf:"maxiconuploadstoragemb"`
 }
 
 type HeaderConfig struct {
@@ -165,17 +173,21 @@ func ToCamel(s string) string {
 }
 
 var envKeyOverrides = map[string]string{
-	"Openid.Groupsclaim":             "OpenId.GroupsClaim",
-	"Dashboard.Storepath":            "Dashboard.StorePath",
-	"Dashboard.Uploaddir":            "Dashboard.UploadDir",
-	"Dashboard.Icondir":              "Dashboard.IconDir",
-	"Dashboard.Authuserspath":        "Dashboard.AuthUsersPath",
-	"Dashboard.Authhelperconfigpath": "Dashboard.AuthHelperConfigPath",
-	"Dashboard.Admingroups":          "Dashboard.AdminGroups",
-	"Dashboard.Maxuploadsizemb":      "Dashboard.MaxUploadSizeMb",
-	"Server.Trustedproxycidrs":       "Server.TrustedProxyCIDRs",
-	"Server.Securecookies":           "Server.SecureCookies",
-	"Server.Allowtlskeylog":          "Server.AllowTLSKeyLog",
+	"Openid.Groupsclaim":                   "OpenId.GroupsClaim",
+	"Dashboard.Storepath":                  "Dashboard.StorePath",
+	"Dashboard.Uploaddir":                  "Dashboard.UploadDir",
+	"Dashboard.Icondir":                    "Dashboard.IconDir",
+	"Dashboard.Authuserspath":              "Dashboard.AuthUsersPath",
+	"Dashboard.Authhelperconfigpath":       "Dashboard.AuthHelperConfigPath",
+	"Dashboard.Admingroups":                "Dashboard.AdminGroups",
+	"Dashboard.Maxuploadsizemb":            "Dashboard.MaxUploadSizeMb",
+	"Dashboard.Maxtemplateuploads":         "Dashboard.MaxTemplateUploads",
+	"Dashboard.Maxiconuploads":             "Dashboard.MaxIconUploads",
+	"Dashboard.Maxtemplateuploadstoragemb": "Dashboard.MaxTemplateUploadStorageMb",
+	"Dashboard.Maxiconuploadstoragemb":     "Dashboard.MaxIconUploadStorageMb",
+	"Server.Trustedproxycidrs":             "Server.TrustedProxyCIDRs",
+	"Server.Securecookies":                 "Server.SecureCookies",
+	"Server.Allowtlskeylog":                "Server.AllowTLSKeyLog",
 }
 
 var Conf Configuration
@@ -226,21 +238,25 @@ func Load(configFile string) Configuration {
 	var k = koanf.New(".")
 
 	k.Load(confmap.Provider(map[string]interface{}{
-		"Server.Tls":                 "auto",
-		"Server.Port":                443,
-		"Server.SessionStore":        "cookie",
-		"Server.HostSelection":       "roundrobin",
-		"Server.Authentication":      "openid",
-		"Server.AuthSocket":          "/tmp/rdpgw-auth.sock",
-		"Server.BasicAuthTimeout":    5,
-		"Server.AllowTLSKeyLog":      false,
-		"OpenId.GroupsClaim":         "groups",
-		"Dashboard.StorePath":        "./data/dashboard",
-		"Dashboard.MaxUploadSizeMb":  5,
-		"Client.NetworkAutoDetect":   1,
-		"Client.BandwidthAutoDetect": 1,
-		"Security.VerifyClientIp":    true,
-		"Caps.TokenAuth":             true,
+		"Server.Tls":                           "auto",
+		"Server.Port":                          443,
+		"Server.SessionStore":                  "cookie",
+		"Server.HostSelection":                 "roundrobin",
+		"Server.Authentication":                "openid",
+		"Server.AuthSocket":                    "/tmp/rdpgw-auth.sock",
+		"Server.BasicAuthTimeout":              5,
+		"Server.AllowTLSKeyLog":                false,
+		"OpenId.GroupsClaim":                   "groups",
+		"Dashboard.StorePath":                  "./data/dashboard",
+		"Dashboard.MaxUploadSizeMb":            5,
+		"Dashboard.MaxTemplateUploads":         100,
+		"Dashboard.MaxIconUploads":             100,
+		"Dashboard.MaxTemplateUploadStorageMb": 100,
+		"Dashboard.MaxIconUploadStorageMb":     100,
+		"Client.NetworkAutoDetect":             1,
+		"Client.BandwidthAutoDetect":           1,
+		"Security.VerifyClientIp":              true,
+		"Caps.TokenAuth":                       true,
 	}, "."), nil)
 
 	if _, err := os.Stat(configFile); os.IsNotExist(err) {
@@ -374,6 +390,31 @@ func (c Configuration) Validate() error {
 
 	if c.Server.HostSelection == HostSelectionSigned && len(c.Security.QueryTokenSigningKey) < queryTokenSigningKeyMinBytes {
 		return fmt.Errorf("host selection is set to %q but security.querytokensigningkey is shorter than %d bytes", HostSelectionSigned, queryTokenSigningKeyMinBytes)
+	}
+
+	if c.Dashboard.MaxUploadSizeMb < 0 {
+		return fmt.Errorf("dashboard.maxuploadsizemb must be greater than or equal to zero")
+	}
+	if c.Dashboard.MaxUploadSizeMb > maxUploadStorageMegabytes {
+		return fmt.Errorf("dashboard.maxuploadsizemb must be less than or equal to %d", maxUploadStorageMegabytes)
+	}
+	if c.Dashboard.MaxTemplateUploads < 0 {
+		return fmt.Errorf("dashboard.maxtemplateuploads must be greater than or equal to zero")
+	}
+	if c.Dashboard.MaxIconUploads < 0 {
+		return fmt.Errorf("dashboard.maxiconuploads must be greater than or equal to zero")
+	}
+	if c.Dashboard.MaxTemplateUploadStorageMb < 0 {
+		return fmt.Errorf("dashboard.maxtemplateuploadstoragemb must be greater than or equal to zero")
+	}
+	if c.Dashboard.MaxTemplateUploadStorageMb > maxUploadStorageMegabytes {
+		return fmt.Errorf("dashboard.maxtemplateuploadstoragemb must be less than or equal to %d", maxUploadStorageMegabytes)
+	}
+	if c.Dashboard.MaxIconUploadStorageMb < 0 {
+		return fmt.Errorf("dashboard.maxiconuploadstoragemb must be greater than or equal to zero")
+	}
+	if c.Dashboard.MaxIconUploadStorageMb > maxUploadStorageMegabytes {
+		return fmt.Errorf("dashboard.maxiconuploadstoragemb must be less than or equal to %d", maxUploadStorageMegabytes)
 	}
 
 	return nil

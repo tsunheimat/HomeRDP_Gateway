@@ -181,6 +181,10 @@ func (h *Handler) HandleAdminCreateTemplateEntry(w http.ResponseWriter, r *http.
 
 	uploadedPath, err := h.dashboardStore.SaveUpload(bytes.NewReader(data))
 	if err != nil {
+		if dashboard.IsValidationError(err) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		http.Error(w, "unable to save template upload", http.StatusInternalServerError)
 		return
 	}

@@ -36,10 +36,16 @@ type IconStore interface {
 type FileIconStore struct {
 	metadataPath string
 	iconDir      string
+	options      FileIconStoreOptions
 	mutex        sync.Mutex
 }
 
-func NewFileIconStore(storePath, iconDir string) (*FileIconStore, error) {
+type FileIconStoreOptions struct {
+	MaxIcons        int
+	MaxStorageBytes int64
+}
+
+func NewFileIconStore(storePath, iconDir string, options ...FileIconStoreOptions) (*FileIconStore, error) {
 	if strings.TrimSpace(iconDir) == "" {
 		if strings.TrimSpace(storePath) == "" {
 			iconDir = "icons"
@@ -53,9 +59,14 @@ func NewFileIconStore(storePath, iconDir string) (*FileIconStore, error) {
 	if err := os.MkdirAll(iconDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create icon directory: %w", err)
 	}
+	opts := FileIconStoreOptions{}
+	if len(options) > 0 {
+		opts = options[0]
+	}
 	return &FileIconStore{
 		metadataPath: filepath.Join(storePath, "icons.json"),
 		iconDir:      iconDir,
+		options:      opts,
 	}, nil
 }
 
@@ -86,6 +97,9 @@ func (s *FileIconStore) SaveIcon(originalName string, data []byte) (Icon, error)
 
 	icons, err := s.readLocked()
 	if err != nil {
+		return Icon{}, err
+	}
+	if err := enforceFileQuota(s.iconDir, s.options.MaxIcons, s.options.MaxStorageBytes, int64(len(data)), "icon upload"); err != nil {
 		return Icon{}, err
 	}
 

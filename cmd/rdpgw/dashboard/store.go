@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"sync"
@@ -26,19 +27,30 @@ type Store interface {
 type FileStore struct {
 	metadataPath string
 	uploadDir    string
+	options      FileStoreOptions
 	mutex        sync.Mutex
 }
 
-func NewFileStore(storePath, uploadDir string) (*FileStore, error) {
+type FileStoreOptions struct {
+	MaxUploads      int
+	MaxStorageBytes int64
+}
+
+func NewFileStore(storePath, uploadDir string, options ...FileStoreOptions) (*FileStore, error) {
 	if err := os.MkdirAll(storePath, 0o755); err != nil {
 		return nil, fmt.Errorf("create store path: %w", err)
 	}
 	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create upload directory: %w", err)
 	}
+	opts := FileStoreOptions{}
+	if len(options) > 0 {
+		opts = options[0]
+	}
 	return &FileStore{
 		metadataPath: filepath.Join(storePath, "entries.json"),
 		uploadDir:    uploadDir,
+		options:      opts,
 	}, nil
 }
 
@@ -168,6 +180,14 @@ func (s *FileStore) SaveUpload(src io.Reader) (string, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	data, err := io.ReadAll(src)
+	if err != nil {
+		return "", fmt.Errorf("read upload: %w", err)
+	}
+	if err := enforceFileQuota(s.uploadDir, s.options.MaxUploads, s.options.MaxStorageBytes, int64(len(data)), "template upload"); err != nil {
+		return "", err
+	}
+
 	random := make([]byte, 16)
 	if _, err := rand.Read(random); err != nil {
 		return "", fmt.Errorf("generate upload filename: %w", err)
@@ -180,7 +200,7 @@ func (s *FileStore) SaveUpload(src io.Reader) (string, error) {
 		return "", fmt.Errorf("create upload file: %w", err)
 	}
 
-	if _, err := io.Copy(file, src); err != nil {
+	if _, err := file.Write(data); err != nil {
 		_ = file.Close()
 		_ = os.Remove(fullPath)
 		return "", fmt.Errorf("write upload file: %w", err)
@@ -203,6 +223,47 @@ func removeUploadFile(path string) error {
 		return err
 	}
 	return nil
+}
+
+func enforceFileQuota(dir string, maxFiles int, maxStorageBytes int64, newFileBytes int64, label string) error {
+	count, size, err := regularFileUsage(dir)
+	if err != nil {
+		return err
+	}
+	if maxFiles > 0 && count >= maxFiles {
+		return validationError(fmt.Sprintf("%s count quota exceeded", label))
+	}
+	if maxStorageBytes > 0 {
+		if size > maxStorageBytes || newFileBytes > maxStorageBytes-size {
+			return validationError(fmt.Sprintf("%s storage quota exceeded", label))
+		}
+	}
+	return nil
+}
+
+func regularFileUsage(dir string) (int, int64, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return 0, 0, fmt.Errorf("read upload directory: %w", err)
+	}
+
+	var count int
+	var size int64
+	for _, entry := range entries {
+		info, err := entry.Info()
+		if err != nil {
+			return 0, 0, fmt.Errorf("stat upload file: %w", err)
+		}
+		if !info.Mode().IsRegular() {
+			continue
+		}
+		count++
+		if info.Size() > math.MaxInt64-size {
+			return 0, 0, fmt.Errorf("upload directory size overflow")
+		}
+		size += info.Size()
+	}
+	return count, size, nil
 }
 
 func (s *FileStore) readLocked() ([]Entry, error) {

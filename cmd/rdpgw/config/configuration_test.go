@@ -1,6 +1,7 @@
 package config
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -289,6 +290,10 @@ func TestLoadDashboardSettings(t *testing.T) {
 	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__AUTHHELPERCONFIGPATH")
 	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__ADMINGROUPS")
 	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__MAXUPLOADSIZEMB")
+	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__MAXTEMPLATEUPLOADS")
+	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__MAXICONUPLOADS")
+	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__MAXTEMPLATEUPLOADSTORAGEMB")
+	unsetEnvWithCleanup(t, "RDPGW_DASHBOARD__MAXICONUPLOADSTORAGEMB")
 
 	cfg := Load("/definitely-missing.yaml")
 
@@ -316,6 +321,18 @@ func TestLoadDashboardSettings(t *testing.T) {
 	if cfg.Dashboard.MaxUploadSizeMb != 5 {
 		t.Fatalf("expected default Dashboard.MaxUploadSizeMb to be 5, got %d", cfg.Dashboard.MaxUploadSizeMb)
 	}
+	if cfg.Dashboard.MaxTemplateUploads != 100 {
+		t.Fatalf("expected default Dashboard.MaxTemplateUploads to be 100, got %d", cfg.Dashboard.MaxTemplateUploads)
+	}
+	if cfg.Dashboard.MaxIconUploads != 100 {
+		t.Fatalf("expected default Dashboard.MaxIconUploads to be 100, got %d", cfg.Dashboard.MaxIconUploads)
+	}
+	if cfg.Dashboard.MaxTemplateUploadStorageMb != 100 {
+		t.Fatalf("expected default Dashboard.MaxTemplateUploadStorageMb to be 100, got %d", cfg.Dashboard.MaxTemplateUploadStorageMb)
+	}
+	if cfg.Dashboard.MaxIconUploadStorageMb != 100 {
+		t.Fatalf("expected default Dashboard.MaxIconUploadStorageMb to be 100, got %d", cfg.Dashboard.MaxIconUploadStorageMb)
+	}
 
 	t.Setenv("RDPGW_OPENID__GROUPSCLAIM", "ak_groups")
 	t.Setenv("RDPGW_DASHBOARD__STOREPATH", "/tmp/rdpgw-dashboard")
@@ -325,6 +342,10 @@ func TestLoadDashboardSettings(t *testing.T) {
 	t.Setenv("RDPGW_DASHBOARD__AUTHHELPERCONFIGPATH", "/tmp/rdpgw-dashboard/rdpgw-auth.yaml")
 	t.Setenv("RDPGW_DASHBOARD__ADMINGROUPS", "rdpgw-admins homelab-admins")
 	t.Setenv("RDPGW_DASHBOARD__MAXUPLOADSIZEMB", "7")
+	t.Setenv("RDPGW_DASHBOARD__MAXTEMPLATEUPLOADS", "12")
+	t.Setenv("RDPGW_DASHBOARD__MAXICONUPLOADS", "8")
+	t.Setenv("RDPGW_DASHBOARD__MAXTEMPLATEUPLOADSTORAGEMB", "64")
+	t.Setenv("RDPGW_DASHBOARD__MAXICONUPLOADSTORAGEMB", "16")
 
 	cfg = Load("/definitely-missing.yaml")
 
@@ -352,10 +373,69 @@ func TestLoadDashboardSettings(t *testing.T) {
 	if cfg.Dashboard.MaxUploadSizeMb != 7 {
 		t.Fatalf("expected Dashboard.MaxUploadSizeMb to be 7, got %d", cfg.Dashboard.MaxUploadSizeMb)
 	}
+	if cfg.Dashboard.MaxTemplateUploads != 12 {
+		t.Fatalf("expected Dashboard.MaxTemplateUploads to be 12, got %d", cfg.Dashboard.MaxTemplateUploads)
+	}
+	if cfg.Dashboard.MaxIconUploads != 8 {
+		t.Fatalf("expected Dashboard.MaxIconUploads to be 8, got %d", cfg.Dashboard.MaxIconUploads)
+	}
+	if cfg.Dashboard.MaxTemplateUploadStorageMb != 64 {
+		t.Fatalf("expected Dashboard.MaxTemplateUploadStorageMb to be 64, got %d", cfg.Dashboard.MaxTemplateUploadStorageMb)
+	}
+	if cfg.Dashboard.MaxIconUploadStorageMb != 16 {
+		t.Fatalf("expected Dashboard.MaxIconUploadStorageMb to be 16, got %d", cfg.Dashboard.MaxIconUploadStorageMb)
+	}
 
 	expectedGroups := []string{"rdpgw-admins", "homelab-admins"}
 	if !reflect.DeepEqual(cfg.Dashboard.AdminGroups, expectedGroups) {
 		t.Fatalf("expected Dashboard.AdminGroups to be %v, got %v", expectedGroups, cfg.Dashboard.AdminGroups)
+	}
+}
+
+func TestConfigurationValidateRejectsNegativeDashboardUploadQuotas(t *testing.T) {
+	tests := []struct {
+		name      string
+		dashboard DashboardConfig
+	}{
+		{name: "request upload size", dashboard: DashboardConfig{MaxUploadSizeMb: -1}},
+		{name: "template count", dashboard: DashboardConfig{MaxTemplateUploads: -1}},
+		{name: "icon count", dashboard: DashboardConfig{MaxIconUploads: -1}},
+		{name: "template storage", dashboard: DashboardConfig{MaxTemplateUploadStorageMb: -1}},
+		{name: "icon storage", dashboard: DashboardConfig{MaxIconUploadStorageMb: -1}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Configuration{
+				Dashboard: tt.dashboard,
+			}
+			if err := cfg.Validate(); err == nil {
+				t.Fatalf("expected negative dashboard upload quota to be rejected")
+			}
+		})
+	}
+}
+
+func TestConfigurationValidateRejectsTooLargeDashboardUploadStorageQuotas(t *testing.T) {
+	tooLargeMb := math.MaxInt64/(1024*1024) + 1
+	tests := []struct {
+		name      string
+		dashboard DashboardConfig
+	}{
+		{name: "request upload size", dashboard: DashboardConfig{MaxUploadSizeMb: tooLargeMb}},
+		{name: "template storage", dashboard: DashboardConfig{MaxTemplateUploadStorageMb: tooLargeMb}},
+		{name: "icon storage", dashboard: DashboardConfig{MaxIconUploadStorageMb: tooLargeMb}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Configuration{
+				Dashboard: tt.dashboard,
+			}
+			if err := cfg.Validate(); err == nil {
+				t.Fatalf("expected too-large dashboard upload storage quota to be rejected")
+			}
+		})
 	}
 }
 

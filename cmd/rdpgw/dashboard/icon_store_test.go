@@ -113,6 +113,56 @@ func TestFileIconStoreIgnoresLegacyStoredSVGIcons(t *testing.T) {
 	}
 }
 
+func TestFileIconStoreEnforcesIconCountQuota(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := NewFileIconStore(filepath.Join(tmpDir, "catalog"), filepath.Join(tmpDir, "icons"), FileIconStoreOptions{
+		MaxIcons:        1,
+		MaxStorageBytes: 1024,
+	})
+	if err != nil {
+		t.Fatalf("new icon store: %v", err)
+	}
+
+	first, err := store.SaveIcon("first.png", []byte{137, 80, 78, 71})
+	if err != nil {
+		t.Fatalf("save first icon: %v", err)
+	}
+	if _, err := store.SaveIcon("second.png", []byte{137, 80, 78, 71}); !IsValidationError(err) {
+		t.Fatalf("second icon error = %v, want validation error", err)
+	}
+	if count := regularFileCount(t, filepath.Join(tmpDir, "icons")); count != 1 {
+		t.Fatalf("expected rejected icon upload to leave one file, got %d", count)
+	}
+
+	if err := store.DeleteIcon(first.ID); err != nil {
+		t.Fatalf("delete first icon: %v", err)
+	}
+	if _, err := store.SaveIcon("after-delete.png", []byte{137, 80, 78, 71}); err != nil {
+		t.Fatalf("expected icon upload after delete to fit quota, got %v", err)
+	}
+}
+
+func TestFileIconStoreEnforcesIconStorageQuota(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := NewFileIconStore(filepath.Join(tmpDir, "catalog"), filepath.Join(tmpDir, "icons"), FileIconStoreOptions{
+		MaxIcons:        10,
+		MaxStorageBytes: 4,
+	})
+	if err != nil {
+		t.Fatalf("new icon store: %v", err)
+	}
+
+	if _, err := store.SaveIcon("first.png", []byte{137, 80, 78, 71}); err != nil {
+		t.Fatalf("save icon at storage quota: %v", err)
+	}
+	if _, err := store.SaveIcon("second.png", []byte{0}); !IsValidationError(err) {
+		t.Fatalf("icon beyond storage quota error = %v, want validation error", err)
+	}
+	if count := regularFileCount(t, filepath.Join(tmpDir, "icons")); count != 1 {
+		t.Fatalf("expected rejected icon upload to leave one file, got %d", count)
+	}
+}
+
 func TestFileIconStoreAcceptsSupportedSafeIconExtensions(t *testing.T) {
 	tests := []struct {
 		name        string

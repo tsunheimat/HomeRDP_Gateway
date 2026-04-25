@@ -96,7 +96,7 @@ Dashboard group checks are evaluated for OIDC web sessions only. For native RDP 
 - Update and delete existing entries.
 - Upload, select, and delete the global web page icon used by browser tabs and the page header.
 
-The dashboard catalog is stored on local disk (`Dashboard.StorePath`), uploaded templates are written to `Dashboard.UploadDir`, and uploaded web icons are written to `Dashboard.IconDir`. The current storage model is intended for single-node/homelab deployments unless you provide shared storage and routing affinity externally.
+The dashboard catalog is stored on local disk (`Dashboard.StorePath`), uploaded templates are written to `Dashboard.UploadDir`, and uploaded web icons are written to `Dashboard.IconDir`. Use `Dashboard.MaxTemplateUploads`, `Dashboard.MaxIconUploads`, `Dashboard.MaxTemplateUploadStorageMb`, and `Dashboard.MaxIconUploadStorageMb` to bound uploaded file count and total storage. The current storage model is intended for single-node/homelab deployments unless you provide shared storage and routing affinity externally.
 
 ### Kerberos
 
