@@ -31,7 +31,7 @@ RUN mkdir -p /opt/rdpgw && cd /opt/rdpgw && \
     openssl x509 -req -days 365 -in server.csr -signkey key.pem -out server.pem
 
 # make tempdir in case filestore is used
-ADD dev/docker/tmp.tar /
+RUN mkdir -p /tmp && chmod 1777 /tmp
 
 COPY dev/docker/run.sh /run.sh
 COPY dev/docker/run.lib.sh /run.lib.sh

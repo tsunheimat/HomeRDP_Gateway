@@ -15,9 +15,8 @@ GO Remote Desktop Gateway
 > components. It is not intended to be a full replacement for Microsoft Windows
 > Server Remote Desktop Gateway or Microsoft Remote Desktop Services.
 >
-> See [MODIFICATIONS.md](./MODIFICATIONS.md), [NOTICE](./NOTICE), and
-> [docs/AI_NAMING_PROMPT.md](./docs/AI_NAMING_PROMPT.md) for fork attribution,
-> modification details, and product naming context.
+> See [MODIFICATIONS.md](./MODIFICATIONS.md) and [NOTICE](./NOTICE) for fork
+> attribution, modification details, and product positioning context.
 
 ![Go](https://github.com/bolkedebruin/rdpgw/workflows/Go/badge.svg)
 [![Docker Pulls](https://badgen.net/docker/pulls/bolkedebruin/rdpgw?icon=docker&label=pulls)](https://hub.docker.com/r/bolkedebruin/rdpgw/)
