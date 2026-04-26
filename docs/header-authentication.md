@@ -218,6 +218,7 @@ Security:
 **nginx config**:
 ```nginx
 upstream rdpgw {
+    # rdpgw listens on plain HTTP because Server.Tls is disabled above.
     server rdpgw:443;
 }
 
@@ -270,7 +271,7 @@ server {
         # Disable buffering for real-time protocols
         proxy_buffering off;
 
-        proxy_pass https://rdpgw;
+        proxy_pass http://rdpgw;
     }
 }
 

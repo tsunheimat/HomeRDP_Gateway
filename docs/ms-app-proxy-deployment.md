@@ -143,7 +143,7 @@ services:
     ports:
       - "80:443"
     volumes:
-      - ./rdpgw.yaml:/app/rdpgw.yaml:ro
+      - ./rdpgw.yaml:/opt/rdpgw/rdpgw.yaml:ro
     environment:
       - RDPGW_SERVER__TLS=disable
       - RDPGW_SERVER__PORT=443
