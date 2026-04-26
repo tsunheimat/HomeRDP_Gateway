@@ -1,8 +1,8 @@
 # Contributing
 
-Thank you for your interest in contributing to PROJECT_NAME.
+Thank you for your interest in contributing to HomeRDP Gateway.
 
-PROJECT_NAME is an independent modified fork of rdpgw, maintained by tsunheimat and focused on homelab-oriented Remote Desktop Gateway use cases.
+HomeRDP Gateway is an independent modified fork of rdpgw, maintained by tsunheimat and focused on homelab-oriented Remote Desktop Gateway use cases.
 
 ## Project positioning
 

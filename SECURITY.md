@@ -2,7 +2,7 @@
 
 ## Project scope
 
-PROJECT_NAME is a homelab-oriented Remote Desktop Gateway fork intended for personal and self-hosted environments.
+HomeRDP Gateway is a homelab-oriented Remote Desktop Gateway fork intended for personal and self-hosted environments.
 
 Because this project handles authentication, gateway access, host authorization, and remote desktop connectivity, security reports are welcome and appreciated.
 

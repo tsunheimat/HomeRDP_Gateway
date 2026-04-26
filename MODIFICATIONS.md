@@ -4,7 +4,7 @@ This repository is an independent modified fork of rdpgw:
 
 https://github.com/bolkedebruin/rdpgw
 
-The fork is maintained by tsunheimat and is focused on homelab and self-hosted use cases.
+HomeRDP Gateway is maintained by tsunheimat and is focused on homelab and self-hosted use cases.
 
 ## Major modifications
 
@@ -40,7 +40,7 @@ Compared with the original rdpgw project, this fork includes the following major
 
 ## Maintenance status
 
-This fork is maintained independently by tsunheimat.
+This project is maintained independently by tsunheimat.
 
 It is not affiliated with, endorsed by, sponsored by, or maintained by the original rdpgw project or its maintainers.
 
