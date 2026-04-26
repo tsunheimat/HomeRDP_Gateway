@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -44,6 +45,23 @@ func (c *OIDCConfig) New() *OIDC {
 		oidcTokenVerifier: c.OIDCTokenVerifier,
 		groupsClaim:       groupsClaim,
 	}
+}
+
+// safeOIDCRedirectURL returns a site-local absolute-path reference suitable for
+// a post-login redirect. Unsafe values fall back to the application root so a
+// crafted unauthenticated request cannot become a protocol-relative or absolute
+// external redirect after OIDC login.
+func safeOIDCRedirectURL(redirectURL string) string {
+	if redirectURL == "" || !strings.HasPrefix(redirectURL, "/") || strings.HasPrefix(redirectURL, "//") {
+		return "/"
+	}
+
+	parsed, err := url.ParseRequestURI(redirectURL)
+	if err != nil || parsed.IsAbs() || parsed.Host != "" || !strings.HasPrefix(parsed.Path, "/") || strings.HasPrefix(parsed.Path, "//") {
+		return "/"
+	}
+
+	return parsed.RequestURI()
 }
 
 // storeOIDCState stores the OIDC state and redirect URL in the session
@@ -157,7 +175,7 @@ func (h *OIDC) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, url, http.StatusFound)
+	http.Redirect(w, r, safeOIDCRedirectURL(url), http.StatusFound)
 }
 
 func findUsernameInClaims(data map[string]interface{}) string {
@@ -230,8 +248,9 @@ func (h *OIDC) Authenticated(next http.Handler) http.Handler {
 			}
 			state := hex.EncodeToString(seed)
 
-			log.Printf("OIDC Authenticated: storing state '%s' for redirect to '%s'", state, r.RequestURI)
-			err = storeOIDCState(w, r, state, r.RequestURI)
+			redirectURL := safeOIDCRedirectURL(r.RequestURI)
+			log.Printf("OIDC Authenticated: storing state '%s' for redirect to '%s'", state, redirectURL)
+			err = storeOIDCState(w, r, state, redirectURL)
 			if err != nil {
 				log.Printf("OIDC Authenticated: failed to store state: %v", err)
 				http.Error(w, "failed to save session", http.StatusInternalServerError)

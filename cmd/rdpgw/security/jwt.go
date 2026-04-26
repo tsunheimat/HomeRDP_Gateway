@@ -65,26 +65,29 @@ func CheckPAACookie(ctx context.Context, tokenString string) (bool, error) {
 		return false, errors.New("no token to parse")
 	}
 
-	token, err := jwt.ParseSigned(tokenString, []jose.SignatureAlgorithm{jose.HS256})
+	enc, err := jwt.ParseSignedAndEncrypted(
+		tokenString,
+		[]jose.KeyAlgorithm{jose.DIRECT},
+		[]jose.ContentEncryption{jose.A128CBC_HS256},
+		[]jose.SignatureAlgorithm{jose.HS256},
+	)
 	if err != nil {
-		log.Printf("cannot parse token due to: %t", err)
+		log.Printf("cannot parse encrypted PAA token due to: %s", err)
 		return false, err
 	}
 
-	// check if the signing algo matches what we expect
-	for _, header := range token.Headers {
-		if header.Algorithm != string(jose.HS256) {
-			return false, fmt.Errorf("unexpected signing method: %v", header.Algorithm)
-		}
+	token, err := enc.Decrypt(EncryptionKey)
+	if err != nil {
+		log.Printf("cannot decrypt PAA token due to: %s", err)
+		return false, err
 	}
 
 	standard := jwt.Claims{}
 	custom := customClaims{}
 
-	// Claims automagically checks the signature...
 	err = token.Claims(SigningKey, &standard, &custom)
 	if err != nil {
-		log.Printf("token signature validation failed due to %tunnel", err)
+		log.Printf("token signature validation failed due to %s", err)
 		return false, err
 	}
 
@@ -120,9 +123,24 @@ func GeneratePAAToken(ctx context.Context, username string, server string) (stri
 	if len(SigningKey) < 32 {
 		return "", errors.New("token signing key not long enough or not specified")
 	}
+	if len(EncryptionKey) < 32 {
+		return "", errors.New("token encryption key not long enough or not specified")
+	}
 	sig, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.HS256, Key: SigningKey}, nil)
 	if err != nil {
 		log.Printf("Cannot obtain signer %s", err)
+		return "", err
+	}
+	enc, err := jose.NewEncrypter(
+		jose.A128CBC_HS256,
+		jose.Recipient{
+			Algorithm: jose.DIRECT,
+			Key:       EncryptionKey,
+		},
+		(&jose.EncrypterOptions{}).WithContentType("JWT"),
+	)
+	if err != nil {
+		log.Printf("Cannot obtain encrypter %s", err)
 		return "", err
 	}
 
@@ -139,8 +157,8 @@ func GeneratePAAToken(ctx context.Context, username string, server string) (stri
 		AccessToken:  id.GetAttribute(identity.AttrAccessToken).(string),
 	}
 
-	if token, err := jwt.Signed(sig).Claims(standard).Claims(private).Serialize(); err != nil {
-		log.Printf("Cannot sign PAA token %s", err)
+	if token, err := jwt.SignedAndEncrypted(sig, enc).Claims(standard).Claims(private).Serialize(); err != nil {
+		log.Printf("Cannot sign and encrypt PAA token %s", err)
 		return "", err
 	} else {
 		return token, nil

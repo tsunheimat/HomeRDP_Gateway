@@ -57,6 +57,30 @@ func TestFindUserNameInClaims(t *testing.T) {
 	}
 }
 
+func TestSafeOIDCRedirectURL(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "root", in: "/", want: "/"},
+		{name: "normal path", in: "/admin", want: "/admin"},
+		{name: "path with query", in: "/connect/entries/id.rdp?download=1", want: "/connect/entries/id.rdp?download=1"},
+		{name: "protocol relative external", in: "//evil.example/path", want: "/"},
+		{name: "absolute external", in: "https://evil.example/path", want: "/"},
+		{name: "empty", in: "", want: "/"},
+		{name: "relative path", in: "admin", want: "/"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := safeOIDCRedirectURL(tc.in); got != tc.want {
+				t.Fatalf("safeOIDCRedirectURL(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestOIDCStateManagement(t *testing.T) {
 	// Initialize session store for testing
 	sessionKey := []byte("testsessionkeytestsessionkey1234")    // 32 bytes
@@ -177,6 +201,70 @@ func TestOIDCAuthenticatedRedirectSetsSingleSessionCookie(t *testing.T) {
 	}
 	if retrievedURL != redirectReq.RequestURI && retrievedURL != "/" {
 		t.Fatalf("expected redirect URL to be preserved, got %q", retrievedURL)
+	}
+}
+
+func TestOIDCAuthenticatedStoresOnlySafeRedirectURL(t *testing.T) {
+	cases := []struct {
+		name       string
+		requestURI string
+		want       string
+	}{
+		{name: "normal admin path", requestURI: "/admin", want: "/admin"},
+		{name: "protocol relative external", requestURI: "//evil.example/path", want: "/"},
+		{name: "absolute external", requestURI: "https://evil.example/path", want: "/"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sessionKey := []byte("testsessionkeytestsessionkey1234")
+			encryptionKey := []byte("testencryptionkeytestencrypt1234")
+			InitStore(sessionKey, encryptionKey, "cookie", 8192)
+
+			oidc := (&OIDCConfig{
+				OAuth2Config: &oauth2.Config{
+					ClientID: "rdpgw",
+					Endpoint: oauth2.Endpoint{
+						AuthURL: "https://issuer.example/authorize",
+					},
+				},
+			}).New()
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.RequestURI = tc.requestURI
+			w := httptest.NewRecorder()
+
+			handler := EnrichContext(oidc.Authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				t.Fatal("unexpected downstream handler call")
+			})))
+			handler.ServeHTTP(w, req)
+
+			location := w.Result().Header.Get("Location")
+			if location == "" {
+				t.Fatal("expected redirect location to be set")
+			}
+			parsedLocation, err := http.NewRequest(http.MethodGet, location, nil)
+			if err != nil {
+				t.Fatalf("failed to parse auth redirect location %q: %v", location, err)
+			}
+			state := parsedLocation.URL.Query().Get("state")
+			if state == "" {
+				t.Fatalf("expected redirect location %q to include a state parameter", location)
+			}
+
+			callbackReq := httptest.NewRequest(http.MethodGet, "/callback", nil)
+			for _, cookie := range w.Result().Cookies() {
+				callbackReq.AddCookie(cookie)
+			}
+
+			got, found := getOIDCState(callbackReq, state)
+			if !found {
+				t.Fatal("expected to find OIDC state from the redirect session cookie")
+			}
+			if got != tc.want {
+				t.Fatalf("stored redirect URL = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 

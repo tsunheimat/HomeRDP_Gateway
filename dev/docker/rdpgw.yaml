@@ -1,0 +1,34 @@
+# Sanitized local Docker sample configuration.
+# Do not use these placeholder values in shared or production environments.
+# Replace every CHANGE_ME value through a local secret store, .env file, or
+# orchestrator-managed secret before exposing the gateway beyond disposable dev.
+
+Server:
+  GatewayAddress: https://localhost:8443
+  Port: 8443
+  Tls: disable
+  Authentication:
+    - openid
+  Hosts:
+    - xrdp:3389
+  SessionKey: CHANGE_ME_32_BYTES_SECRET_000001
+  SessionEncryptionKey: CHANGE_ME_32_BYTES_SECRET_000002
+  SecureCookies: true
+
+OpenId:
+  ProviderUrl: https://keycloak.example.invalid/realms/rdpgw
+  ClientId: rdpgw
+  ClientSecret: CHANGE_ME_USE_ENV_OR_SECRET_STORE
+
+Dashboard:
+  StorePath: /var/lib/rdpgw/dashboard
+  AdminGroups:
+    - admin
+
+Security:
+  PAATokenEncryptionKey: CHANGE_ME_32_BYTES_SECRET_000003
+  PAATokenSigningKey: CHANGE_ME_32_BYTES_SECRET_000004
+  VerifyClientIp: true
+
+Caps:
+  TokenAuth: true

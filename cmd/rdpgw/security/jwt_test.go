@@ -2,9 +2,14 @@ package security
 
 import (
 	"context"
+	"encoding/base64"
+	"strings"
+	"testing"
+
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/identity"
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/protocol"
-	"testing"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 )
 
 func TestGenerateUserToken(t *testing.T) {
@@ -63,9 +68,46 @@ func TestPAACookie(t *testing.T) {
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, identity.CTXKey, id)
 
-	_, err := GeneratePAAToken(ctx, "test_paa_cookie", "host.does.not.exist")
+	token, err := GeneratePAAToken(ctx, "test_paa_cookie", "host.does.not.exist")
 	if err != nil {
 		t.Fatalf("GeneratePAAToken failed: %s", err)
+	}
+	if strings.Contains(token, attr_access_token) {
+		t.Fatalf("serialized PAA token contains access token in plaintext")
+	}
+	for _, segment := range strings.Split(token, ".") {
+		decoded, err := base64.RawURLEncoding.DecodeString(segment)
+		if err != nil {
+			continue
+		}
+		if strings.Contains(string(decoded), attr_access_token) {
+			t.Fatalf("serialized PAA token has readable segment containing access token: %q", string(decoded))
+		}
+	}
+
+	enc, err := jwt.ParseSignedAndEncrypted(
+		token,
+		[]jose.KeyAlgorithm{jose.DIRECT},
+		[]jose.ContentEncryption{jose.A128CBC_HS256},
+		[]jose.SignatureAlgorithm{jose.HS256},
+	)
+	if err != nil {
+		t.Fatalf("ParseSignedAndEncrypted failed: %s", err)
+	}
+	signedToken, err := enc.Decrypt(EncryptionKey)
+	if err != nil {
+		t.Fatalf("decrypting encrypted PAA token failed: %s", err)
+	}
+	standard := jwt.Claims{}
+	custom := customClaims{}
+	if err := signedToken.Claims(SigningKey, &standard, &custom); err != nil {
+		t.Fatalf("validating encrypted PAA token signature failed: %s", err)
+	}
+	if standard.Subject != username {
+		t.Fatalf("expected subject %q, got %q", username, standard.Subject)
+	}
+	if custom.AccessToken != attr_access_token {
+		t.Fatalf("expected encrypted access token claim to round-trip")
 	}
 	/*ok, err := CheckPAACookie(ctx, token)
 	if err != nil {
