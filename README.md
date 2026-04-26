@@ -1,6 +1,24 @@
 GO Remote Desktop Gateway
 =========================
 
+> Fork status: this repository is an independent modified fork of
+> [rdpgw](https://github.com/bolkedebruin/rdpgw), maintained by
+> [tsunheimat](https://github.com/tsunheimat). It is not affiliated with,
+> endorsed by, or maintained by the original rdpgw project.
+>
+> The final project name is still being evaluated. Until then, documents may
+> refer to the project as `PROJECT_NAME` or as this homelab-oriented rdpgw fork.
+>
+> This fork focuses on homelab and self-hosted use cases: WebUI-assisted OIDC
+> selection, RemoteApp tool file uploads, Windows `mstsc` and macOS Remote
+> Desktop client workflows, and unified host access control across two gateway
+> components. It is not intended to be a full replacement for Microsoft Windows
+> Server Remote Desktop Gateway or Microsoft Remote Desktop Services.
+>
+> See [MODIFICATIONS.md](./MODIFICATIONS.md), [NOTICE](./NOTICE), and
+> [docs/AI_NAMING_PROMPT.md](./docs/AI_NAMING_PROMPT.md) for fork attribution,
+> modification details, and product naming context.
+
 ![Go](https://github.com/bolkedebruin/rdpgw/workflows/Go/badge.svg)
 [![Docker Pulls](https://badgen.net/docker/pulls/bolkedebruin/rdpgw?icon=docker&label=pulls)](https://hub.docker.com/r/bolkedebruin/rdpgw/)
 [![Docker Stars](https://badgen.net/docker/stars/bolkedebruin/rdpgw?icon=docker&label=stars)](https://hub.docker.com/r/bolkedebruin/rdpgw/)
