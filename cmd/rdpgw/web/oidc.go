@@ -2,13 +2,15 @@ package web
 
 import (
 	"crypto/rand"
-	"encoding/hex"
+	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/identity"
@@ -26,12 +28,27 @@ type OIDC struct {
 	oAuth2Config      *oauth2.Config
 	oidcTokenVerifier *oidc.IDTokenVerifier
 	groupsClaim       string
+	consumedStates    *oidcConsumedStateCache
 }
 
 type OIDCConfig struct {
 	OAuth2Config      *oauth2.Config
 	OIDCTokenVerifier *oidc.IDTokenVerifier
 	GroupsClaim       string
+}
+
+type oidcTransaction struct {
+	State        string    `json:"state"`
+	RedirectURL  string    `json:"redirect_url"`
+	Nonce        string    `json:"nonce"`
+	CodeVerifier string    `json:"code_verifier"`
+	ExpiresAt    time.Time `json:"expires_at"`
+}
+
+type oidcConsumedStateCache struct {
+	mu     sync.Mutex
+	ttl    time.Duration
+	states map[string]time.Time
 }
 
 func (c *OIDCConfig) New() *OIDC {
@@ -44,7 +61,66 @@ func (c *OIDCConfig) New() *OIDC {
 		oAuth2Config:      c.OAuth2Config,
 		oidcTokenVerifier: c.OIDCTokenVerifier,
 		groupsClaim:       groupsClaim,
+		consumedStates:    newOIDCConsumedStateCache(CacheExpiration),
 	}
+}
+
+func newOIDCConsumedStateCache(ttl time.Duration) *oidcConsumedStateCache {
+	if ttl <= 0 {
+		ttl = CacheExpiration
+	}
+	return &oidcConsumedStateCache{
+		ttl:    ttl,
+		states: make(map[string]time.Time),
+	}
+}
+
+func (c *oidcConsumedStateCache) markConsumed(state string, now time.Time) bool {
+	if state == "" {
+		return false
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for cachedState, expiresAt := range c.states {
+		if !expiresAt.After(now) {
+			delete(c.states, cachedState)
+		}
+	}
+	if _, exists := c.states[state]; exists {
+		return false
+	}
+
+	c.states[state] = now.Add(c.ttl)
+	return true
+}
+
+func randomURLSafeString(byteLen int) (string, error) {
+	seed := make([]byte, byteLen)
+	if _, err := rand.Read(seed); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(seed), nil
+}
+
+func newOIDCTransaction(state string, redirectURL string) (*oidcTransaction, error) {
+	nonce, err := randomURLSafeString(32)
+	if err != nil {
+		return nil, err
+	}
+	codeVerifier, err := randomURLSafeString(32)
+	if err != nil {
+		return nil, err
+	}
+
+	return &oidcTransaction{
+		State:        state,
+		RedirectURL:  redirectURL,
+		Nonce:        nonce,
+		CodeVerifier: codeVerifier,
+		ExpiresAt:    time.Now().Add(CacheExpiration),
+	}, nil
 }
 
 // safeOIDCRedirectURL returns a site-local absolute-path reference suitable for
@@ -64,63 +140,129 @@ func safeOIDCRedirectURL(redirectURL string) string {
 	return parsed.RequestURI()
 }
 
-// storeOIDCState stores the OIDC state and redirect URL in the session
-func storeOIDCState(w http.ResponseWriter, r *http.Request, state string, redirectURL string) error {
+func storeOIDCTransaction(w http.ResponseWriter, r *http.Request, transaction *oidcTransaction) error {
 	session, err := GetSession(r)
 	if err != nil {
 		return err
 	}
 
-	// Store state data directly as a concatenated string: state + "|" + redirectURL
-	stateValue := state + "|" + redirectURL
-	session.Values[oidcStateKey] = stateValue
+	stateValue, err := json.Marshal(transaction)
+	if err != nil {
+		return err
+	}
+	session.Values[oidcStateKey] = string(stateValue)
 	session.Options.MaxAge = int(CacheExpiration.Seconds())
 
 	return sessionStore.Save(r, w, session)
 }
 
-// getOIDCState retrieves the redirect URL for the given state from the session
-func getOIDCState(r *http.Request, state string) (string, bool) {
+// storeOIDCState stores a complete OIDC transaction in the session.
+func storeOIDCState(w http.ResponseWriter, r *http.Request, state string, redirectURL string) error {
+	transaction, err := newOIDCTransaction(state, redirectURL)
+	if err != nil {
+		return err
+	}
+	return storeOIDCTransaction(w, r, transaction)
+}
+
+func readOIDCTransaction(r *http.Request) (*oidcTransaction, bool) {
 	session, err := GetSession(r)
 	if err != nil {
 		log.Printf("Error getting session for OIDC state: %v", err)
-		return "", false
+		return nil, false
 	}
 
 	stateData, exists := session.Values[oidcStateKey]
 	if !exists {
 		log.Printf("No OIDC state data found in session")
-		return "", false
+		return nil, false
 	}
 
 	stateValue, ok := stateData.(string)
 	if !ok {
 		log.Printf("Invalid OIDC state data format in session")
-		return "", false
+		return nil, false
 	}
 
-	// Parse state data: state + "|" + redirectURL
-	expectedPrefix := state + "|"
-	if !strings.HasPrefix(stateValue, expectedPrefix) {
-		log.Printf("OIDC state '%s' not found in session", state)
-		return "", false
+	var transaction oidcTransaction
+	if err := json.Unmarshal([]byte(stateValue), &transaction); err == nil {
+		return &transaction, true
 	}
 
-	redirectURL := stateValue[len(expectedPrefix):]
-	return redirectURL, true
+	parts := strings.SplitN(stateValue, "|", 2)
+	if len(parts) != 2 {
+		log.Printf("Invalid OIDC state data format in session")
+		return nil, false
+	}
+	return &oidcTransaction{State: parts[0], RedirectURL: parts[1]}, true
+}
+
+func getOIDCTransaction(r *http.Request, state string) (*oidcTransaction, bool) {
+	transaction, found := readOIDCTransaction(r)
+	if !found {
+		return nil, false
+	}
+	if transaction.State != state {
+		log.Printf("OIDC state not found in session")
+		return nil, false
+	}
+	if !transaction.ExpiresAt.After(time.Now()) {
+		log.Printf("OIDC transaction expired")
+		return nil, false
+	}
+	return transaction, true
+}
+
+// getOIDCState retrieves the redirect URL for the given state from the session
+func getOIDCState(r *http.Request, state string) (string, bool) {
+	transaction, found := getOIDCTransaction(r, state)
+	if !found {
+		return "", false
+	}
+	return transaction.RedirectURL, true
+}
+
+func (h *OIDC) consumeOIDCTransaction(w http.ResponseWriter, r *http.Request, state string) (*oidcTransaction, bool, error) {
+	session, err := GetSession(r)
+	if err != nil {
+		return nil, false, err
+	}
+
+	transaction, found := getOIDCTransaction(r, state)
+	if !found {
+		return nil, false, nil
+	}
+	if !h.consumedStates.markConsumed(state, time.Now()) {
+		return nil, false, nil
+	}
+	delete(session.Values, oidcStateKey)
+	if err := sessionStore.Save(r, w, session); err != nil {
+		return nil, false, err
+	}
+	return transaction, true, nil
 }
 
 func (h *OIDC) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	state := r.URL.Query().Get("state")
-	url, found := getOIDCState(r, state)
+	transaction, found, err := h.consumeOIDCTransaction(w, r, state)
+	if err != nil {
+		log.Printf("OIDC HandleCallback: failed to consume OIDC state: %v", err)
+		http.Error(w, "authentication failed", http.StatusInternalServerError)
+		return
+	}
 	if !found {
-		log.Printf("OIDC HandleCallback: unknown state '%s'", state)
+		log.Printf("OIDC HandleCallback: unknown state")
 		http.Error(w, "unknown state", http.StatusBadRequest)
+		return
+	}
+	if transaction.CodeVerifier == "" {
+		log.Printf("OIDC HandleCallback: OIDC transaction missing PKCE verifier")
+		http.Error(w, "authentication failed", http.StatusInternalServerError)
 		return
 	}
 
 	ctx := r.Context()
-	oauth2Token, err := h.oAuth2Config.Exchange(ctx, r.URL.Query().Get("code"))
+	oauth2Token, err := h.oAuth2Config.Exchange(ctx, r.URL.Query().Get("code"), oauth2.VerifierOption(transaction.CodeVerifier))
 	if err != nil {
 		log.Printf("OIDC HandleCallback: failed to exchange token: %v", err)
 		http.Error(w, "authentication failed", http.StatusInternalServerError)
@@ -157,6 +299,12 @@ func (h *OIDC) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "authentication failed", http.StatusInternalServerError)
 		return
 	}
+	nonce, ok := data["nonce"].(string)
+	if !ok || subtle.ConstantTimeCompare([]byte(nonce), []byte(transaction.Nonce)) != 1 {
+		log.Printf("OIDC HandleCallback: ID token nonce validation failed")
+		http.Error(w, "authentication failed", http.StatusInternalServerError)
+		return
+	}
 
 	id := identity.FromRequestCtx(r)
 
@@ -175,7 +323,7 @@ func (h *OIDC) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, safeOIDCRedirectURL(url), http.StatusFound)
+	http.Redirect(w, r, safeOIDCRedirectURL(transaction.RedirectURL), http.StatusFound)
 }
 
 func findUsernameInClaims(data map[string]interface{}) string {
@@ -239,25 +387,32 @@ func (h *OIDC) Authenticated(next http.Handler) http.Handler {
 		id := identity.FromRequestCtx(r)
 
 		if !id.Authenticated() {
-			seed := make([]byte, 16)
-			_, err := rand.Read(seed)
+			state, err := randomURLSafeString(32)
 			if err != nil {
 				log.Printf("OIDC Authenticated: failed to generate state: %v", err)
 				http.Error(w, "authentication failed", http.StatusInternalServerError)
 				return
 			}
-			state := hex.EncodeToString(seed)
 
 			redirectURL := safeOIDCRedirectURL(r.RequestURI)
-			log.Printf("OIDC Authenticated: storing state '%s' for redirect to '%s'", state, redirectURL)
-			err = storeOIDCState(w, r, state, redirectURL)
+			transaction, err := newOIDCTransaction(state, redirectURL)
 			if err != nil {
+				log.Printf("OIDC Authenticated: failed to generate OIDC transaction: %v", err)
+				http.Error(w, "authentication failed", http.StatusInternalServerError)
+				return
+			}
+			log.Printf("OIDC Authenticated: storing OIDC transaction for redirect to '%s'", redirectURL)
+			if err := storeOIDCTransaction(w, r, transaction); err != nil {
 				log.Printf("OIDC Authenticated: failed to store state: %v", err)
 				http.Error(w, "failed to save session", http.StatusInternalServerError)
 				return
 			}
 
-			http.Redirect(w, r, h.oAuth2Config.AuthCodeURL(state), http.StatusFound)
+			http.Redirect(w, r, h.oAuth2Config.AuthCodeURL(
+				state,
+				oauth2.SetAuthURLParam("nonce", transaction.Nonce),
+				oauth2.S256ChallengeOption(transaction.CodeVerifier),
+			), http.StatusFound)
 			return
 		}
 
