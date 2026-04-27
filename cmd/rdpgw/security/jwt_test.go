@@ -106,8 +106,16 @@ func TestPAACookie(t *testing.T) {
 	if standard.Subject != username {
 		t.Fatalf("expected subject %q, got %q", username, standard.Subject)
 	}
-	if custom.AccessToken != attr_access_token {
-		t.Fatalf("expected encrypted access token claim to round-trip")
+	if custom.AccessTokenRef == "" {
+		t.Fatalf("expected non-empty AccessTokenRef in JWT claims")
+	}
+	// Verify the actual token is in the server-side cache, not in the JWT
+	cachedToken, found := accessTokenCache.Get(custom.AccessTokenRef)
+	if !found {
+		t.Fatalf("expected access token to be cached under ref %q", custom.AccessTokenRef)
+	}
+	if cachedToken.(string) != attr_access_token {
+		t.Fatalf("cached token = %q, want %q", cachedToken, attr_access_token)
 	}
 	/*ok, err := CheckPAACookie(ctx, token)
 	if err != nil {

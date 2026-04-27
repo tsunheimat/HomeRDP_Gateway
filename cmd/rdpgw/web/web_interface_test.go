@@ -411,8 +411,8 @@ func TestHostSelectionIntegration(t *testing.T) {
 			name:          "any host allowed",
 			hostSelection: "any",
 			hosts:         []string{"host1.com"},
-			queryParams:   "?host=any-host.com",
-			expectHost:    "any-host.com",
+			queryParams:   "?host=8.8.8.8:3389",
+			expectHost:    "8.8.8.8:3389",
 			expectError:   false,
 		},
 	}

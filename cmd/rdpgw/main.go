@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bolkedebruin/gokrb5/v8/keytab"
 	"github.com/bolkedebruin/gokrb5/v8/service"
@@ -240,11 +241,16 @@ func main() {
 	security.ManagedHostList = nil
 
 	// init session store
+	// H-7: Default secure cookies to true when TLS is not disabled
+	secureCookies := conf.Server.SecureCookies
+	if conf.Server.Tls != config.TlsDisable {
+		secureCookies = true
+	}
 	web.InitStore([]byte(conf.Server.SessionKey),
 		[]byte(conf.Server.SessionEncryptionKey),
 		conf.Server.SessionStore,
 		conf.Server.MaxSessionLength,
-		conf.Server.SecureCookies,
+		secureCookies,
 	)
 
 	dashboardStore, authUserStore, iconStore, err := initDashboardState(conf, helperConfigPath)
@@ -321,12 +327,22 @@ func main() {
 			certMgr := autocert.Manager{
 				Prompt:     autocert.AcceptTOS,
 				HostPolicy: autocert.HostWhitelist(url.Host),
-				Cache:      autocert.DirCache("/tmp/rdpgw"),
+				Cache:      autocert.DirCache("/var/lib/rdpgw/certs"),
 			}
 			cfg.GetCertificate = certMgr.GetCertificate
 
 			go func() {
-				http.ListenAndServe(":80", certMgr.HTTPHandler(nil))
+				httpServer := &http.Server{
+					Addr:              ":80",
+					Handler:           certMgr.HTTPHandler(nil),
+					ReadHeaderTimeout: 10 * time.Second,
+					ReadTimeout:       30 * time.Second,
+					WriteTimeout:      60 * time.Second,
+					IdleTimeout:       120 * time.Second,
+				}
+				if err := httpServer.ListenAndServe(); err != nil {
+					log.Printf("HTTP (port 80) listener error: %s", err)
+				}
 			}()
 		}
 	}
@@ -348,7 +364,15 @@ func main() {
 	registerMetricsRoute(r, conf)
 
 	// for sso callbacks
-	r.HandleFunc("/tokeninfo", web.TokenInfo)
+	// H-6: Require session authentication on /tokeninfo
+	r.HandleFunc("/tokeninfo", func(w http.ResponseWriter, r *http.Request) {
+		id, err := web.GetSessionIdentity(r)
+		if err != nil || id == nil || !id.Authenticated() {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		web.TokenInfo(w, r)
+	})
 
 	// API routes
 	api := r.PathPrefix("/api/v1").Subrouter()
@@ -474,10 +498,14 @@ func main() {
 
 	// setup server
 	server := http.Server{
-		Addr:         ":" + strconv.Itoa(conf.Server.Port),
-		Handler:      r,
-		TLSConfig:    cfg,
-		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)), // disable http2
+		Addr:              ":" + strconv.Itoa(conf.Server.Port),
+		Handler:           r,
+		TLSConfig:         cfg,
+		TLSNextProto:      make(map[string]func(*http.Server, *tls.Conn, http.Handler)), // disable http2
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      120 * time.Second,
+		IdleTimeout:       300 * time.Second,
 	}
 
 	if conf.Server.Tls == config.TlsDisable {

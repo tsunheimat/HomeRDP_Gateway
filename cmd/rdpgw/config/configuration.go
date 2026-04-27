@@ -245,7 +245,7 @@ func Load(configFile string) Configuration {
 		"Server.SessionStore":                  "cookie",
 		"Server.HostSelection":                 "roundrobin",
 		"Server.Authentication":                "openid",
-		"Server.AuthSocket":                    "/tmp/rdpgw-auth.sock",
+		"Server.AuthSocket":                    "/run/rdpgw/rdpgw-auth.sock",
 		"Server.BasicAuthTimeout":              5,
 		"Server.AllowTLSKeyLog":                false,
 		"OpenId.GroupsClaim":                   "groups",

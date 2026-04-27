@@ -12,6 +12,7 @@ import (
 	"html/template"
 	"log"
 	rnd "math/rand"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -466,10 +467,77 @@ func (h *Handler) getHost(ctx context.Context, u *url.URL) (string, error) {
 		if !ok {
 			return "", errors.New("invalid query parameter")
 		}
-		return hosts[0], nil
+		host := hosts[0]
+		if isRestrictedHost(host) {
+			log.Printf("Blocked connection to restricted host: %s", host)
+			return "", errors.New("connection to internal or reserved addresses is not allowed")
+		}
+		return host, nil
 	default:
 		return h.selectRandomHost(), nil
 	}
+}
+
+// isRestrictedHost returns true if the host resolves to a private, loopback,
+// link-local, or cloud metadata IP address. This prevents SSRF when
+// host selection is set to "any".
+func isRestrictedHost(host string) bool {
+	hostname := host
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		hostname = h
+	}
+
+	// Check if hostname is an IP address directly
+	if ip := net.ParseIP(hostname); ip != nil {
+		return isRestrictedIP(ip)
+	}
+
+	// Resolve hostname and check all addresses
+	addrs, err := net.LookupHost(hostname)
+	if err != nil {
+		// If we can't resolve, block it to be safe
+		return true
+	}
+	for _, addr := range addrs {
+		if ip := net.ParseIP(addr); ip != nil && isRestrictedIP(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+func isRestrictedIP(ip net.IP) bool {
+	// Loopback (127.0.0.0/8, ::1)
+	if ip.IsLoopback() {
+		return true
+	}
+	// Link-local (169.254.0.0/16, fe80::/10)
+	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return true
+	}
+	// Unspecified (0.0.0.0, ::)
+	if ip.IsUnspecified() {
+		return true
+	}
+
+	// Private ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7)
+	privateRanges := []string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"fc00::/7",
+		"169.254.169.254/32", // Cloud metadata endpoint
+	}
+	for _, cidr := range privateRanges {
+		_, network, err := net.ParseCIDR(cidr)
+		if err != nil {
+			continue
+		}
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *Handler) applyRdpRedirectionPolicy(builder *rdp.Builder) {

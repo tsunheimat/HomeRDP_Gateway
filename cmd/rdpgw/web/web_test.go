@@ -84,9 +84,9 @@ func TestGetHost(t *testing.T) {
 		t.Fatalf("host %s is not equal to input %s", host, hosts[0])
 	}
 
-	// check any
+	// check any — use a public IP that the SSRF deny-list allows
 	c.HostSelection = "any"
-	test := "bla.bla.com"
+	test := "8.8.8.8:3389"
 	vals.Set("host", test)
 	u.RawQuery = vals.Encode()
 	h = c.NewHandler()

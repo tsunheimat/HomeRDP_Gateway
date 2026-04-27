@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"reflect"
+	"strings"
 	"syscall"
 	"time"
 
@@ -53,7 +54,20 @@ type Gateway struct {
 	SendBuf    int
 }
 
-var upgrader = websocket.Upgrader{}
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			return true // non-browser client (e.g., mstsc.exe)
+		}
+		// Reject cross-origin WebSocket upgrades
+		host := r.Host
+		if host == "" {
+			return false
+		}
+		return strings.Contains(origin, host)
+	},
+}
 var c = cache.New(5*time.Minute, 10*time.Minute)
 
 func (g *Gateway) HandleGatewayProtocol(w http.ResponseWriter, r *http.Request) {
@@ -65,6 +79,13 @@ func (g *Gateway) HandleGatewayProtocol(w http.ResponseWriter, r *http.Request) 
 	id := identity.FromRequestCtx(r)
 
 	connId := r.Header.Get(rdgConnectionIdKey)
+	if connId != "" {
+		if _, err := uuid.Parse(connId); err != nil {
+			log.Printf("Invalid Rdg-Connection-Id format: %s", connId)
+			http.Error(w, "invalid connection id", http.StatusBadRequest)
+			return
+		}
+	}
 	x, found := c.Get(connId)
 	if !found {
 		t = &Tunnel{

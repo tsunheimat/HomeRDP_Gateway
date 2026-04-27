@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -16,6 +17,7 @@ import (
 	"github.com/bolkedebruin/rdpgw/cmd/auth/ntlm"
 	"github.com/bolkedebruin/rdpgw/shared/auth"
 	"github.com/thought-machine/go-flags"
+	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
 )
 
@@ -26,7 +28,7 @@ const (
 )
 
 var opts struct {
-	SocketAddr    string `short:"s" long:"socket" default:"/tmp/rdpgw-auth.sock" description:"the location of the socket"`
+	SocketAddr    string `short:"s" long:"socket" default:"/run/rdpgw/rdpgw-auth.sock" description:"the location of the socket"`
 	SocketMode    string `long:"socket-mode" default:"0600" description:"octal permissions for the auth socket; owner read/write required, world access rejected (use 0660 with --socket-group for cross-user access)"`
 	SocketDirMode string `long:"socket-dir-mode" default:"0700" description:"octal permissions for a newly-created auth socket directory; owner rwx required, world access rejected"`
 	SocketOwner   string `long:"socket-owner" description:"user name or numeric UID to own the auth socket (optional)"`
@@ -61,14 +63,29 @@ func NewAuthService(database database.Database) auth.AuthenticateServer {
 func (s *AuthServiceImpl) Authenticate(ctx context.Context, message *auth.UserPass) (*auth.AuthResponse, error) {
 	r := &auth.AuthResponse{}
 	storedPassword := s.database.GetPassword(message.Username)
-	if storedPassword == "" || storedPassword != message.Password {
-		log.Printf("Authentication for user: %s failed", message.Username)
+	if storedPassword == "" {
+		log.Printf("Authentication for user: %s failed (unknown user)", message.Username)
 		r.Error = "Authentication failure"
 		return r, nil
 	}
 
-	log.Printf("User: %s authenticated", message.Username)
-	r.Authenticated = true
+	// Try bcrypt verification first (hashed passwords)
+	if err := bcrypt.CompareHashAndPassword([]byte(storedPassword), []byte(message.Password)); err == nil {
+		log.Printf("User: %s authenticated (bcrypt)", message.Username)
+		r.Authenticated = true
+		return r, nil
+	}
+
+	// Fall back to constant-time comparison for legacy plaintext passwords
+	// (needed for NTLM which requires plaintext for NT hash computation)
+	if subtle.ConstantTimeCompare([]byte(storedPassword), []byte(message.Password)) == 1 {
+		log.Printf("User: %s authenticated (legacy plaintext — consider re-hashing)", message.Username)
+		r.Authenticated = true
+		return r, nil
+	}
+
+	log.Printf("Authentication for user: %s failed", message.Username)
+	r.Error = "Authentication failure"
 	return r, nil
 }
 
