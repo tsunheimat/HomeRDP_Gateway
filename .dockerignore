@@ -1,0 +1,36 @@
+# Version control and local tooling
+.git
+.gitignore
+.github
+
+# Local environment and secrets
+.env
+.env.*
+*.env
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+rdpgw.yaml
+rdpgw-*.yaml
+rdpgw-auth.yaml
+
+# Runtime state and logs
+data/
+dev/docker/data/
+logs/
+*.log
+
+# Build/test artifacts
+bin/
+dist/
+build/
+coverage/
+*.test
+*.out
+
+# JavaScript dependencies/caches if present
+node_modules/
+.next/
+.cache/

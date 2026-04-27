@@ -305,7 +305,7 @@ func TestHandler_HandleSignedDownload(t *testing.T) {
 			data["full address"], hosts)
 	}
 
-	signscopeWant := "GatewayHostname,Full Address,GatewayCredentialsSource,GatewayProfileUsageMethod,GatewayUsageMethod,Alternate Full Address"
+	signscopeWant := "GatewayHostname,Full Address,GatewayCredentialsSource,GatewayProfileUsageMethod,GatewayUsageMethod,DevicesToRedirect,DrivesToRedirect,RedirectClipboard,RedirectCOMPorts,RedirectPrinters,Alternate Full Address"
 	if data["signscope"] != signscopeWant {
 		t.Errorf("signscope key in rdp does not match: got %v want %v", data["signscope"], signscopeWant)
 	}

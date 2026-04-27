@@ -160,6 +160,93 @@ func TestHandleEntryDownloadTemplateEntryPreservesRemoteApp(t *testing.T) {
 	}
 }
 
+func TestHandleEntryDownloadOverridesTemplateRedirectionSettingsFromConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := dashboard.NewFileStore(filepath.Join(tmpDir, "catalog"), filepath.Join(tmpDir, "uploads"))
+	if err != nil {
+		t.Fatalf("new dashboard store: %v", err)
+	}
+
+	template := strings.Join([]string{
+		"full address:s:template.internal:3389",
+		"redirectclipboard:i:1",
+		"redirectprinters:i:1",
+		"redirectcomports:i:1",
+		"drivestoredirect:s:*",
+		"devicestoredirect:s:*",
+		"usbdevicestoredirect:s:*",
+	}, rdp.CRLF) + rdp.CRLF
+	uploadPath, err := store.SaveUpload(strings.NewReader(template))
+	if err != nil {
+		t.Fatalf("save upload: %v", err)
+	}
+
+	entry := dashboard.Entry{
+		ID:                   "locked-down-app",
+		Type:                 dashboard.EntryTypeTemplate,
+		Name:                 "Locked Down App",
+		AllowedGroups:        []string{"office-users"},
+		Enabled:              true,
+		UploadedTemplatePath: uploadPath,
+	}
+	if err := store.Put(entry); err != nil {
+		t.Fatalf("put entry: %v", err)
+	}
+
+	gatewayAddress, _ := url.Parse("https://gw.example.com:443")
+	handler := (&Config{
+		Hosts:             []string{"fallback.internal:3389"},
+		HostSelection:     "roundrobin",
+		DashboardStore:    store,
+		PAATokenGenerator: paaTokenMock,
+		GatewayAddress:    gatewayAddress,
+		RdpRedirection: RdpRedirectionPolicy{
+			Clipboard: false,
+			Drive:     false,
+			Printer:   false,
+			Port:      false,
+			Device:    false,
+			Pnp:       false,
+		},
+	}).NewHandler()
+
+	req := httptest.NewRequest("GET", "/connect/entries/locked-down-app.rdp", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "locked-down-app"})
+
+	id := identity.NewUser()
+	id.SetUserName("bob")
+	id.SetAuthenticated(true)
+	id.SetGroups([]string{"office-users"})
+	req = identity.AddToRequestCtx(id, req)
+
+	recorder := httptest.NewRecorder()
+	handler.HandleEntryDownload(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusOK)
+	}
+
+	data := rdpToMap(strings.Split(recorder.Body.String(), rdp.CRLF))
+	if data["redirectclipboard"] != "0" {
+		t.Fatalf("redirectclipboard = %q, want 0", data["redirectclipboard"])
+	}
+	if data["redirectprinters"] != "0" {
+		t.Fatalf("redirectprinters = %q, want 0", data["redirectprinters"])
+	}
+	if data["redirectcomports"] != "0" {
+		t.Fatalf("redirectcomports = %q, want 0", data["redirectcomports"])
+	}
+	if data["drivestoredirect"] != "false" {
+		t.Fatalf("drivestoredirect = %q, want false", data["drivestoredirect"])
+	}
+	if data["devicestoredirect"] != "false" {
+		t.Fatalf("devicestoredirect = %q, want false", data["devicestoredirect"])
+	}
+	if data["usbdevicestoredirect"] != "false" {
+		t.Fatalf("usbdevicestoredirect = %q, want false", data["usbdevicestoredirect"])
+	}
+}
+
 func TestHandleEntryDownloadTemplateEntryRequiresTargetHost(t *testing.T) {
 	tmpDir := t.TempDir()
 	store, err := dashboard.NewFileStore(filepath.Join(tmpDir, "catalog"), filepath.Join(tmpDir, "uploads"))

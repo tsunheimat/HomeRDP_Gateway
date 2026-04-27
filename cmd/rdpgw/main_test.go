@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"crypto/tls"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +15,7 @@ import (
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/config"
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/dashboard"
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/security"
+	"github.com/gorilla/mux"
 )
 
 func TestAuthHelperConfigPathUsesDashboardSettingByDefault(t *testing.T) {
@@ -110,6 +113,67 @@ func TestValidateManagedDirectAuthConfigAllowsOpenIDManagedDirectAuth(t *testing
 
 	if err := validateManagedDirectAuthConfig(cfg); err != nil {
 		t.Fatalf("expected openid-managed direct auth to validate, got %v", err)
+	}
+}
+
+func TestRegisterMetricsRouteDisabledByDefault(t *testing.T) {
+	router := mux.NewRouter()
+	registerMetricsRoute(router, config.Configuration{})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("/metrics status = %d, want %d when metrics are disabled by default", rec.Code, http.StatusNotFound)
+	}
+}
+
+func TestRegisterMetricsRouteEnabledByConfig(t *testing.T) {
+	router := mux.NewRouter()
+	registerMetricsRoute(router, config.Configuration{
+		Server: config.ServerConfig{EnableMetrics: true},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("/metrics status = %d, want %d when metrics are enabled", rec.Code, http.StatusOK)
+	}
+}
+
+func TestRdpRedirectionPolicyFromCapsHonorsRedirectAllAndDisableRedirect(t *testing.T) {
+	all := rdpRedirectionPolicyFromCaps(config.RDGCapsConfig{RedirectAll: true})
+	if !all.Clipboard || !all.Drive || !all.Printer || !all.Port || !all.Device || !all.Pnp {
+		t.Fatalf("RedirectAll policy did not enable every redirection flag: %+v", all)
+	}
+
+	disabled := rdpRedirectionPolicyFromCaps(config.RDGCapsConfig{
+		RedirectAll:     true,
+		DisableRedirect: true,
+		EnableClipboard: true,
+		EnableDrive:     true,
+		EnablePrinter:   true,
+		EnablePort:      true,
+		EnablePnp:       true,
+	})
+	if disabled.Clipboard || disabled.Drive || disabled.Printer || disabled.Port || disabled.Device || disabled.Pnp {
+		t.Fatalf("DisableRedirect policy should disable every redirection flag: %+v", disabled)
+	}
+}
+
+func TestRdpRedirectionPolicyFromCapsUsesIndividualFlags(t *testing.T) {
+	policy := rdpRedirectionPolicyFromCaps(config.RDGCapsConfig{
+		EnableClipboard: true,
+		EnablePrinter:   true,
+	})
+	if !policy.Clipboard || !policy.Printer {
+		t.Fatalf("expected individual clipboard/printer flags to be enabled: %+v", policy)
+	}
+	if policy.Drive || policy.Port || policy.Device || policy.Pnp {
+		t.Fatalf("unexpected redirection flags enabled: %+v", policy)
 	}
 }
 

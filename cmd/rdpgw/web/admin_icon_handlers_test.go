@@ -89,11 +89,11 @@ func TestAdminUploadGlobalIconBrowserFormRedirectsToBrandingPage(t *testing.T) {
 
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
-	fileWriter, err := writer.CreateFormFile("icon", "custom.png")
+	fileWriter, err := writer.CreateFormFile("icon", "custom.ico")
 	if err != nil {
 		t.Fatalf("create form file: %v", err)
 	}
-	iconBytes := []byte{137, 80, 78, 71}
+	iconBytes := []byte{0, 0, 1, 0, 1, 0}
 	if _, err := fileWriter.Write(iconBytes); err != nil {
 		t.Fatalf("write icon upload: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestAdminUploadGlobalIconBrowserFormRedirectsToBrandingPage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("active icon: %v", err)
 	}
-	if active.OriginalName != "custom.png" {
+	if active.OriginalName != "custom.ico" {
 		t.Fatalf("original name = %q", active.OriginalName)
 	}
 }
@@ -160,11 +160,11 @@ func TestAdminUploadGlobalIconRejectsSVGFile(t *testing.T) {
 func TestAdminSelectGlobalIconSwitchesActiveIcon(t *testing.T) {
 	handler, iconStore := newAdminIconTestHandler(t)
 
-	first, err := iconStore.SaveIcon("first.ico", []byte{0, 0, 1, 0})
+	first, err := iconStore.SaveIcon("first.ico", []byte{0, 0, 1, 0, 1, 0})
 	if err != nil {
 		t.Fatalf("save first icon: %v", err)
 	}
-	second, err := iconStore.SaveIcon("second.png", []byte{137, 80, 78, 71})
+	second, err := iconStore.SaveIcon("second.icon", []byte{0, 0, 1, 0, 1, 0})
 	if err != nil {
 		t.Fatalf("save second icon: %v", err)
 	}

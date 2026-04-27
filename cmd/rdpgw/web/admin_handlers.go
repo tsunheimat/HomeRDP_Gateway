@@ -87,7 +87,7 @@ func (h *Handler) HandleAdminListEntries(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *Handler) HandleAdminCreateHostEntry(w http.ResponseWriter, r *http.Request) {
-	if !sameOriginAdminRequest(r) {
+	if !h.sameOriginAdminRequest(r) {
 		http.Error(w, "cross-origin admin request forbidden", http.StatusForbidden)
 		return
 	}
@@ -136,7 +136,7 @@ func (h *Handler) HandleAdminCreateHostEntry(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *Handler) HandleAdminCreateTemplateEntry(w http.ResponseWriter, r *http.Request) {
-	if !sameOriginAdminRequest(r) {
+	if !h.sameOriginAdminRequest(r) {
 		http.Error(w, "cross-origin admin request forbidden", http.StatusForbidden)
 		return
 	}
@@ -231,7 +231,7 @@ func (h *Handler) HandleAdminCreateTemplateEntry(w http.ResponseWriter, r *http.
 }
 
 func (h *Handler) HandleAdminUpdateEntry(w http.ResponseWriter, r *http.Request) {
-	if !sameOriginAdminRequest(r) {
+	if !h.sameOriginAdminRequest(r) {
 		http.Error(w, "cross-origin admin request forbidden", http.StatusForbidden)
 		return
 	}
@@ -299,7 +299,7 @@ func (h *Handler) HandleAdminUpdateEntry(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *Handler) HandleAdminDeleteEntry(w http.ResponseWriter, r *http.Request) {
-	if !sameOriginAdminRequest(r) {
+	if !h.sameOriginAdminRequest(r) {
 		http.Error(w, "cross-origin admin request forbidden", http.StatusForbidden)
 		return
 	}
@@ -348,7 +348,7 @@ func (h *Handler) HandleAdminListAuthUsers(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) HandleAdminCreateAuthUser(w http.ResponseWriter, r *http.Request) {
-	if !sameOriginAdminRequest(r) {
+	if !h.sameOriginAdminRequest(r) {
 		http.Error(w, "cross-origin admin request forbidden", http.StatusForbidden)
 		return
 	}
@@ -394,7 +394,7 @@ func (h *Handler) HandleAdminCreateAuthUser(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *Handler) HandleAdminUpdateAuthUser(w http.ResponseWriter, r *http.Request) {
-	if !sameOriginAdminRequest(r) {
+	if !h.sameOriginAdminRequest(r) {
 		http.Error(w, "cross-origin admin request forbidden", http.StatusForbidden)
 		return
 	}
@@ -452,7 +452,7 @@ func (h *Handler) HandleAdminUpdateAuthUser(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *Handler) HandleAdminDeleteAuthUser(w http.ResponseWriter, r *http.Request) {
-	if !sameOriginAdminRequest(r) {
+	if !h.sameOriginAdminRequest(r) {
 		http.Error(w, "cross-origin admin request forbidden", http.StatusForbidden)
 		return
 	}
@@ -543,14 +543,55 @@ func (h *Handler) normalizeAdminEntryIcon(value string) (string, error) {
 	return "", dashboard.ErrIconNotFound
 }
 
-func sameOriginAdminRequest(r *http.Request) bool {
+func (h *Handler) sameOriginAdminRequest(r *http.Request) bool {
 	if target, ok := requestOriginURL(r); ok {
-		return sameOriginHost(target, r.Host)
+		return h.sameOriginAllowed(target, r)
 	}
 	if target, ok := requestRefererURL(r); ok {
-		return sameOriginHost(target, r.Host)
+		return h.sameOriginAllowed(target, r)
 	}
 	return false
+}
+
+func (h *Handler) sameOriginAllowed(target *url.URL, r *http.Request) bool {
+	if target == nil {
+		return false
+	}
+	if h.gatewayAddress != nil && h.gatewayAddress.Host != "" {
+		return sameConfiguredOrigin(target, h.gatewayAddress)
+	}
+	return sameOriginHost(target, r.Host)
+}
+
+func sameConfiguredOrigin(target *url.URL, configured *url.URL) bool {
+	if target == nil || configured == nil || configured.Hostname() == "" {
+		return false
+	}
+	configuredScheme := configured.Scheme
+	if configuredScheme == "" {
+		configuredScheme = target.Scheme
+	}
+	if !strings.EqualFold(target.Scheme, configuredScheme) {
+		return false
+	}
+	if !strings.EqualFold(target.Hostname(), configured.Hostname()) {
+		return false
+	}
+	return effectiveOriginPort(target) == effectiveOriginPort(configured)
+}
+
+func effectiveOriginPort(u *url.URL) string {
+	if port := u.Port(); port != "" {
+		return port
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "https":
+		return "443"
+	case "http":
+		return "80"
+	default:
+		return ""
+	}
 }
 
 func requestOriginURL(r *http.Request) (*url.URL, bool) {

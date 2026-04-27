@@ -76,6 +76,35 @@ async function loadServers() {
 }
 
 // Render servers in the grid
+function createServerContent(server) {
+    const content = document.createElement('div');
+    content.className = 'server-content';
+
+    const icon = document.createElement('div');
+    icon.className = 'server-icon';
+    const img = document.createElement('img');
+    img.src = '/assets/connect.svg';
+    img.alt = 'Connect';
+    icon.appendChild(img);
+
+    const info = document.createElement('div');
+    info.className = 'server-info';
+
+    const name = document.createElement('div');
+    name.className = 'server-name';
+    name.textContent = server.name || '';
+
+    const description = document.createElement('div');
+    description.className = 'server-description';
+    description.textContent = server.description || '';
+
+    info.appendChild(name);
+    info.appendChild(description);
+    content.appendChild(icon);
+    content.appendChild(info);
+    return content;
+}
+
 function renderServers(servers) {
     const grid = document.getElementById('serversGrid');
     grid.innerHTML = '';
@@ -92,19 +121,11 @@ function renderServers(servers) {
             connectToServer(server, connectButton);
         };
 
-        card.innerHTML = `
-            <div class="server-content">
-                <div class="server-icon">
-                    <img src="/assets/connect.svg" alt="Connect" />
-                </div>
-                <div class="server-info">
-                    <div class="server-name">${server.name}</div>
-                    <div class="server-description">${server.description}</div>
-                </div>
-            </div>
-        `;
+        card.replaceChildren(
+            createServerContent(server),
+            connectButton,
+        );
 
-        card.appendChild(connectButton);
         grid.appendChild(card);
     });
 }

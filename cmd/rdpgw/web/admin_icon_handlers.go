@@ -46,7 +46,7 @@ func (h *Handler) HandleAdminListIcons(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) HandleAdminUploadIcon(w http.ResponseWriter, r *http.Request) {
-	if !sameOriginAdminRequest(r) {
+	if !h.sameOriginAdminRequest(r) {
 		http.Error(w, "cross-origin admin request forbidden", http.StatusForbidden)
 		return
 	}
@@ -101,7 +101,7 @@ func (h *Handler) HandleAdminUploadIcon(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) HandleAdminSelectIcon(w http.ResponseWriter, r *http.Request) {
-	if !sameOriginAdminRequest(r) {
+	if !h.sameOriginAdminRequest(r) {
 		http.Error(w, "cross-origin admin request forbidden", http.StatusForbidden)
 		return
 	}
@@ -132,7 +132,7 @@ func (h *Handler) HandleAdminSelectIcon(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) HandleAdminDeleteIcon(w http.ResponseWriter, r *http.Request) {
-	if !sameOriginAdminRequest(r) {
+	if !h.sameOriginAdminRequest(r) {
 		http.Error(w, "cross-origin admin request forbidden", http.StatusForbidden)
 		return
 	}

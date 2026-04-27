@@ -209,7 +209,6 @@ func isZero(f *structs.Field) bool {
 func isSet(f *structs.Field, metadata mapstructure.Metadata) bool {
 	for _, v := range metadata.Unset {
 		if v == f.Name() {
-			log.Printf("field %s is unset", f.Name())
 			return true
 		}
 	}

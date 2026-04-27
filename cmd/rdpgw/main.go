@@ -148,6 +148,36 @@ func initOIDC(callbackUrl *url.URL) *web.OIDC {
 	return o.New()
 }
 
+func rdpRedirectionPolicyFromCaps(caps config.RDGCapsConfig) web.RdpRedirectionPolicy {
+	if caps.DisableRedirect {
+		return web.RdpRedirectionPolicy{}
+	}
+	if caps.RedirectAll {
+		return web.RdpRedirectionPolicy{
+			Clipboard: true,
+			Drive:     true,
+			Printer:   true,
+			Port:      true,
+			Device:    true,
+			Pnp:       true,
+		}
+	}
+	return web.RdpRedirectionPolicy{
+		Clipboard: caps.EnableClipboard,
+		Drive:     caps.EnableDrive,
+		Printer:   caps.EnablePrinter,
+		Port:      caps.EnablePort,
+		Device:    caps.EnablePnp,
+		Pnp:       caps.EnablePnp,
+	}
+}
+
+func registerMetricsRoute(r *mux.Router, conf config.Configuration) {
+	if conf.Server.EnableMetrics {
+		r.Handle("/metrics", promhttp.Handler())
+	}
+}
+
 func buildGateway(conf config.Configuration, tokenAuth bool) protocol.Gateway {
 	gw := protocol.Gateway{
 		RedirectFlags: protocol.RedirectFlags{
@@ -235,6 +265,7 @@ func main() {
 			SplitUserDomain:  conf.Client.SplitUserDomain,
 			NoUsername:       conf.Client.NoUsername,
 		},
+		RdpRedirection:         rdpRedirectionPolicyFromCaps(conf.Caps),
 		GatewayAddress:         url,
 		TemplateFile:           conf.Client.Defaults,
 		RdpSigningCert:         conf.Client.SigningCert,
@@ -313,8 +344,8 @@ func main() {
 	}
 	r.Use(enrichContext)
 
-	// prometheus metrics
-	r.Handle("/metrics", promhttp.Handler())
+	// prometheus metrics (opt-in; disabled by default)
+	registerMetricsRoute(r, conf)
 
 	// for sso callbacks
 	r.HandleFunc("/tokeninfo", web.TokenInfo)

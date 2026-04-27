@@ -104,11 +104,14 @@ Remote Desktop clients normally require a valid TLS certificate whose hostname m
 
 Security reminders:
 
-- Do not expose a plain HTTP backend directly to untrusted networks.
-- Replace all `CHANGE_ME` sample keys and secrets before production use.
-- Keep `SessionKey`, `SessionEncryptionKey`, `PAATokenSigningKey`, and `PAATokenEncryptionKey` random and deployment-specific.
+- Do not expose a plain HTTP backend directly to untrusted networks. If TLS terminates at a reverse proxy, keep the backend reachable only from that proxy/private network and set `Server.SecureCookies: true`.
+- Replace all `CHANGE_ME` sample keys and secrets before production use. Do not use placeholder values even when they happen to be the right length.
+- Keep `SessionKey`, `SessionEncryptionKey`, `PAATokenSigningKey`, and `PAATokenEncryptionKey` random and deployment-specific. These values must be exactly 32 characters; generate suitable hex strings with a command such as `openssl rand -hex 16`.
+- Treat dashboard entries as privileged routing policy: an entry controls which internal `host:port` a user can reach through the gateway. Limit admin access and review entries before publishing them.
+- RDP template uploads are treated as admin-managed content. The gateway overwrites the final target, username, gateway token, and configured redirection settings before serving a generated `.rdp` file.
 - Keep dashboard data directories writable only by the gateway runtime user.
-- Direct-auth passwords are sensitive. Treat dashboard state and backups as credential-bearing data.
+- Direct-auth passwords are sensitive. Treat dashboard state and backups as credential-bearing data, exclude them from Docker build contexts, and encrypt backups.
+- `/metrics` is disabled by default. Enable it only with `Server.EnableMetrics: true`, and do not expose it publicly unless your reverse proxy or network policy protects it.
 - `SSLKEYLOGFILE` can decrypt captured TLS traffic. HomeRDP Gateway fails closed if it is set unless `Server.AllowTLSKeyLog: true` is explicitly configured. Enable it only for short-lived debugging.
 
 ## Container images
@@ -213,8 +216,8 @@ Server:
   KeyFile: /path/to/key.pem
   Hosts:
     - example-host:3389
-  SessionKey: CHANGE_ME_32_BYTES_SECRET_000001
-  SessionEncryptionKey: CHANGE_ME_32_BYTES_SECRET_000002
+  SessionKey: REPLACE_WITH_RANDOM_SESSION_KEY
+  SessionEncryptionKey: REPLACE_WITH_RANDOM_SESSION_ENCRYPTION_KEY
   SecureCookies: true
 
 OpenId:
@@ -231,12 +234,17 @@ Dashboard:
     - admin
 
 Security:
-  PAATokenSigningKey: CHANGE_ME_32_BYTES_SECRET_000003
-  PAATokenEncryptionKey: CHANGE_ME_32_BYTES_SECRET_000004
+  PAATokenSigningKey: REPLACE_WITH_RANDOM_PAA_SIGNING_KEY
+  PAATokenEncryptionKey: REPLACE_WITH_RANDOM_PAA_ENCRYPTION_KEY
   VerifyClientIp: true
 
 Caps:
   TokenAuth: true
+  EnableClipboard: false
+  EnableDrive: false
+  EnablePrinter: false
+  EnablePort: false
+  EnablePnp: false
 ```
 
 ## Client caveats

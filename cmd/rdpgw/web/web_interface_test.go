@@ -7,12 +7,30 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/identity"
 )
+
+func TestDashboardClientScriptsDoNotRenderServerFieldsWithInnerHTML(t *testing.T) {
+	staticApp, err := os.ReadFile("../templates/app.js")
+	if err != nil {
+		t.Fatalf("read static app.js: %v", err)
+	}
+	for name, source := range map[string]string{
+		"templates/app.js":     string(staticApp),
+		"fallbackHTMLTemplate": fallbackHTMLTemplate,
+	} {
+		for _, needle := range []string{"card.innerHTML", "server.name}</", "server.description}</"} {
+			if strings.Contains(source, needle) {
+				t.Fatalf("%s renders server fields through HTML sink %q", name, needle)
+			}
+		}
+	}
+}
 
 func TestHandleHostList(t *testing.T) {
 	tests := []struct {

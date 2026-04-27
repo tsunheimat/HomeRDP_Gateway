@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -80,7 +81,7 @@ func TestAdminCreateHostEntry(t *testing.T) {
 func TestAdminCreateHostEntryPreservesUploadedIconReference(t *testing.T) {
 	handler, store, iconStore := newAdminEntryIconTestHandler(t)
 
-	icon, err := iconStore.SaveIcon("custom.png", []byte{137, 80, 78, 71})
+	icon, err := iconStore.SaveIcon("custom.ico", []byte{0, 0, 1, 0, 1, 0})
 	if err != nil {
 		t.Fatalf("save icon: %v", err)
 	}
@@ -609,6 +610,71 @@ func TestAdminCreateHostEntryValidationReturnsBadRequest(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusBadRequest)
+	}
+}
+
+func TestAdminCreateHostEntryAcceptsConfiguredGatewayOriginWithDefaultPort(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := dashboard.NewFileStore(filepath.Join(tmpDir, "catalog"), filepath.Join(tmpDir, "uploads"))
+	if err != nil {
+		t.Fatalf("new dashboard store: %v", err)
+	}
+	gatewayAddress, err := url.Parse("https://gw.example.com:443")
+	if err != nil {
+		t.Fatalf("parse gateway address: %v", err)
+	}
+	handler := (&Config{
+		Hosts:          []string{"fallback.internal:3389"},
+		HostSelection:  "roundrobin",
+		DashboardStore: store,
+		AdminGroups:    []string{"rdpgw-admins"},
+		GatewayAddress: gatewayAddress,
+	}).NewHandler()
+
+	payload := `{"name":"Lab Host","allowedGroups":["homelab-users"],"host":"lab.internal:3389"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/entries/host", strings.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "https://gw.example.com")
+	req = withAdminIdentity(req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminCreateHostEntry(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("status code = %d, want %d; body=%q", rr.Code, http.StatusCreated, rr.Body.String())
+	}
+}
+
+func TestAdminCreateHostEntryRejectsOriginThatDoesNotMatchConfiguredGateway(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := dashboard.NewFileStore(filepath.Join(tmpDir, "catalog"), filepath.Join(tmpDir, "uploads"))
+	if err != nil {
+		t.Fatalf("new dashboard store: %v", err)
+	}
+	gatewayAddress, err := url.Parse("https://gw.example.com")
+	if err != nil {
+		t.Fatalf("parse gateway address: %v", err)
+	}
+	handler := (&Config{
+		Hosts:                   []string{"fallback.internal:3389"},
+		HostSelection:           "roundrobin",
+		DashboardStore:          store,
+		DashboardMaxUploadBytes: 1 << 20,
+		AdminGroups:             []string{"rdpgw-admins"},
+		GatewayAddress:          gatewayAddress,
+	}).NewHandler()
+
+	payload := `{"name":"Lab Host","allowedGroups":["homelab-users"],"host":"lab.internal:3389"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/entries/host", strings.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "http://example.com")
+	req = withAdminIdentity(req)
+	rr := httptest.NewRecorder()
+
+	handler.HandleAdminCreateHostEntry(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusForbidden)
 	}
 }
 

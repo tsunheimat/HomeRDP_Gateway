@@ -1,10 +1,14 @@
 package dashboard
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"os"
 	"path/filepath"
 	"strings"
@@ -90,6 +94,9 @@ func (s *FileIconStore) SaveIcon(originalName string, data []byte) (Icon, error)
 	}
 	if len(data) == 0 {
 		return Icon{}, validationError("icon upload is empty")
+	}
+	if err := validateIconContent(contentType, data); err != nil {
+		return Icon{}, err
 	}
 
 	s.mutex.Lock()
@@ -308,6 +315,35 @@ func validateIconName(filename string) (string, string, error) {
 	default:
 		return "", "", validationError("icon must be .ico, .icon, .png, .jpg, or .jpeg")
 	}
+}
+
+func validateIconContent(contentType string, data []byte) error {
+	switch contentType {
+	case "image/png":
+		format, err := decodeImageFormat(data)
+		if err != nil || format != "png" {
+			return validationError("icon content must be a valid PNG image")
+		}
+		return nil
+	case "image/jpeg":
+		format, err := decodeImageFormat(data)
+		if err != nil || format != "jpeg" {
+			return validationError("icon content must be a valid JPEG image")
+		}
+		return nil
+	case "image/x-icon":
+		if len(data) < 6 || data[0] != 0 || data[1] != 0 || (data[2] != 1 && data[2] != 2) || data[3] != 0 || data[4] == 0 || data[5] != 0 {
+			return validationError("icon content must be a valid ICO header")
+		}
+		return nil
+	default:
+		return validationError("unsupported icon content type")
+	}
+}
+
+func decodeImageFormat(data []byte) (string, error) {
+	_, format, err := image.DecodeConfig(bytes.NewReader(data))
+	return format, err
 }
 
 func newIconID() (string, error) {

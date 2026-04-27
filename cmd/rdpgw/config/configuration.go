@@ -68,6 +68,7 @@ type ServerConfig struct {
 	TrustedProxyCIDRs    []string `koanf:"trustedproxycidrs"`
 	SecureCookies        bool     `koanf:"securecookies"`
 	AllowTLSKeyLog       bool     `koanf:"allowtlskeylog"`
+	EnableMetrics        bool     `koanf:"enablemetrics"`
 }
 
 type KerberosConfig struct {
@@ -188,6 +189,7 @@ var envKeyOverrides = map[string]string{
 	"Server.Trustedproxycidrs":             "Server.TrustedProxyCIDRs",
 	"Server.Securecookies":                 "Server.SecureCookies",
 	"Server.Allowtlskeylog":                "Server.AllowTLSKeyLog",
+	"Server.Enablemetrics":                 "Server.EnableMetrics",
 }
 
 var Conf Configuration

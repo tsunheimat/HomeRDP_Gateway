@@ -50,6 +50,7 @@ type Config struct {
 	RdpSigningCert          string
 	RdpSigningKey           string
 	TemplatesPath           string
+	RdpRedirection          RdpRedirectionPolicy
 }
 
 // WebConfig represents the web interface configuration
@@ -82,6 +83,15 @@ type RdpOpts struct {
 	NoUsername       bool
 }
 
+type RdpRedirectionPolicy struct {
+	Clipboard bool
+	Drive     bool
+	Printer   bool
+	Port      bool
+	Device    bool
+	Pnp       bool
+}
+
 type Handler struct {
 	paaTokenGenerator       TokenGeneratorFunc
 	enableUserToken         bool
@@ -103,6 +113,7 @@ type Handler struct {
 	templatesPath           string
 	webConfig               *WebConfig
 	htmlTemplate            *template.Template
+	rdpRedirection          RdpRedirectionPolicy
 }
 
 func (c *Config) NewHandler() *Handler {
@@ -126,6 +137,7 @@ func (c *Config) NewHandler() *Handler {
 		hosts:                   c.Hosts,
 		hostSelection:           c.HostSelection,
 		rdpOpts:                 c.RdpOpts,
+		rdpRedirection:          c.RdpRedirection,
 		rdpDefaults:             c.TemplateFile,
 		templatesPath:           c.TemplatesPath,
 	}
@@ -376,7 +388,14 @@ const fallbackHTMLTemplate = `<!DOCTYPE html>
             servers.forEach(server => {
                 const card = document.createElement('div');
                 card.className = 'server-card';
-                card.innerHTML = server.icon + ' ' + server.name + '<br><small>' + server.description + '</small>';
+                const icon = document.createElement('span');
+                icon.textContent = (server.icon || '') + ' ';
+                const name = document.createElement('span');
+                name.textContent = server.name || '';
+                const lineBreak = document.createElement('br');
+                const description = document.createElement('small');
+                description.textContent = server.description || '';
+                card.replaceChildren(icon, name, lineBreak, description);
                 card.onclick = () => {
                     document.querySelectorAll('.server-card').forEach(c => c.classList.remove('selected'));
                     card.classList.add('selected');
@@ -451,6 +470,38 @@ func (h *Handler) getHost(ctx context.Context, u *url.URL) (string, error) {
 	default:
 		return h.selectRandomHost(), nil
 	}
+}
+
+func (h *Handler) applyRdpRedirectionPolicy(builder *rdp.Builder) {
+	policy := h.rdpRedirection
+	builder.Settings.RedirectClipboard = policy.Clipboard
+	builder.Settings.RedirectPrinters = policy.Printer
+	builder.Settings.RedirectComPorts = policy.Port
+	builder.Settings.DriveStoreRedirect = redirectionString(policy.Drive)
+	builder.Settings.DeviceStoreRedirect = redirectionString(policy.Device)
+	builder.Settings.UsbDeviceStoRedirect = redirectionString(policy.Pnp)
+	forceRdpField(builder, "RedirectClipboard")
+	forceRdpField(builder, "RedirectPrinters")
+	forceRdpField(builder, "RedirectComPorts")
+	forceRdpField(builder, "DriveStoreRedirect")
+	forceRdpField(builder, "DeviceStoreRedirect")
+	forceRdpField(builder, "UsbDeviceStoRedirect")
+}
+
+func forceRdpField(builder *rdp.Builder, field string) {
+	for _, existing := range builder.Metadata.Unset {
+		if existing == field {
+			return
+		}
+	}
+	builder.Metadata.Unset = append(builder.Metadata.Unset, field)
+}
+
+func redirectionString(enabled bool) string {
+	if enabled {
+		return "*"
+	}
+	return "false"
 }
 
 func (h *Handler) HandleDownload(w http.ResponseWriter, r *http.Request) {
@@ -559,6 +610,7 @@ func (h *Handler) HandleDownload(w http.ResponseWriter, r *http.Request) {
 	d.Settings.GatewayAccessToken = token
 	d.Settings.GatewayCredentialMethod = 1
 	d.Settings.GatewayUsageMethod = 1
+	h.applyRdpRedirectionPolicy(d)
 
 	// no rdp siging so return as-is
 	if h.rdpSigner == nil {

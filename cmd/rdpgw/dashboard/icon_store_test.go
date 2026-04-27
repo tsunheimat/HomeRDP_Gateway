@@ -1,12 +1,40 @@
 package dashboard
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"image"
+	"image/jpeg"
+	"image/png"
 	"os"
 	"path/filepath"
 	"testing"
 )
+
+func validICOBytes() []byte {
+	return []byte{0, 0, 1, 0, 1, 0, 16, 16, 0, 0, 1, 0, 32, 0, 0, 0, 0, 0, 22, 0, 0, 0}
+}
+
+func validPNGBytes(t *testing.T) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("encode png: %v", err)
+	}
+	return buf.Bytes()
+}
+
+func validJPEGBytes(t *testing.T) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, nil); err != nil {
+		t.Fatalf("encode jpeg: %v", err)
+	}
+	return buf.Bytes()
+}
 
 func TestFileIconStoreSavesListsAndSelectsActiveIcon(t *testing.T) {
 	tmpDir := t.TempDir()
@@ -15,11 +43,11 @@ func TestFileIconStoreSavesListsAndSelectsActiveIcon(t *testing.T) {
 		t.Fatalf("new icon store: %v", err)
 	}
 
-	first, err := store.SaveIcon("first.ico", []byte{0, 0, 1, 0})
+	first, err := store.SaveIcon("first.ico", validICOBytes())
 	if err != nil {
 		t.Fatalf("save first icon: %v", err)
 	}
-	second, err := store.SaveIcon("second.png", []byte{137, 80, 78, 71})
+	second, err := store.SaveIcon("second.png", validPNGBytes(t))
 	if err != nil {
 		t.Fatalf("save second icon: %v", err)
 	}
@@ -61,6 +89,17 @@ func TestFileIconStoreRejectsUnsupportedIconExtension(t *testing.T) {
 
 	if _, err := store.SaveIcon("notes.txt", []byte("not an icon")); err == nil {
 		t.Fatalf("expected unsupported icon extension to fail")
+	}
+}
+
+func TestFileIconStoreRejectsMismatchedImageContent(t *testing.T) {
+	store, err := NewFileIconStore(t.TempDir(), filepath.Join(t.TempDir(), "icons"))
+	if err != nil {
+		t.Fatalf("new icon store: %v", err)
+	}
+
+	if _, err := store.SaveIcon("custom.png", []byte("not really a png")); err == nil {
+		t.Fatalf("expected png upload with non-png content to fail")
 	}
 }
 
@@ -123,7 +162,7 @@ func TestFileIconStoreEnforcesIconCountQuota(t *testing.T) {
 		t.Fatalf("new icon store: %v", err)
 	}
 
-	first, err := store.SaveIcon("first.png", []byte{137, 80, 78, 71})
+	first, err := store.SaveIcon("first.png", validPNGBytes(t))
 	if err != nil {
 		t.Fatalf("save first icon: %v", err)
 	}
@@ -137,22 +176,23 @@ func TestFileIconStoreEnforcesIconCountQuota(t *testing.T) {
 	if err := store.DeleteIcon(first.ID); err != nil {
 		t.Fatalf("delete first icon: %v", err)
 	}
-	if _, err := store.SaveIcon("after-delete.png", []byte{137, 80, 78, 71}); err != nil {
+	if _, err := store.SaveIcon("after-delete.png", validPNGBytes(t)); err != nil {
 		t.Fatalf("expected icon upload after delete to fit quota, got %v", err)
 	}
 }
 
 func TestFileIconStoreEnforcesIconStorageQuota(t *testing.T) {
 	tmpDir := t.TempDir()
+	validPNG := validPNGBytes(t)
 	store, err := NewFileIconStore(filepath.Join(tmpDir, "catalog"), filepath.Join(tmpDir, "icons"), FileIconStoreOptions{
 		MaxIcons:        10,
-		MaxStorageBytes: 4,
+		MaxStorageBytes: int64(len(validPNG)),
 	})
 	if err != nil {
 		t.Fatalf("new icon store: %v", err)
 	}
 
-	if _, err := store.SaveIcon("first.png", []byte{137, 80, 78, 71}); err != nil {
+	if _, err := store.SaveIcon("first.png", validPNG); err != nil {
 		t.Fatalf("save icon at storage quota: %v", err)
 	}
 	if _, err := store.SaveIcon("second.png", []byte{0}); !IsValidationError(err) {
@@ -170,11 +210,11 @@ func TestFileIconStoreAcceptsSupportedSafeIconExtensions(t *testing.T) {
 		data        []byte
 		contentType string
 	}{
-		{name: "ico", filename: "custom.ico", data: []byte{0, 0, 1, 0}, contentType: "image/x-icon"},
-		{name: "icon", filename: "custom.icon", data: []byte{0, 0, 1, 0}, contentType: "image/x-icon"},
-		{name: "png", filename: "custom.png", data: []byte{137, 80, 78, 71}, contentType: "image/png"},
-		{name: "jpg", filename: "custom.jpg", data: []byte{0xff, 0xd8, 0xff, 0xdb}, contentType: "image/jpeg"},
-		{name: "jpeg", filename: "custom.jpeg", data: []byte{0xff, 0xd8, 0xff, 0xdb}, contentType: "image/jpeg"},
+		{name: "ico", filename: "custom.ico", data: validICOBytes(), contentType: "image/x-icon"},
+		{name: "icon", filename: "custom.icon", data: validICOBytes(), contentType: "image/x-icon"},
+		{name: "png", filename: "custom.png", data: validPNGBytes(t), contentType: "image/png"},
+		{name: "jpg", filename: "custom.jpg", data: validJPEGBytes(t), contentType: "image/jpeg"},
+		{name: "jpeg", filename: "custom.jpeg", data: validJPEGBytes(t), contentType: "image/jpeg"},
 	}
 
 	for _, tt := range tests {

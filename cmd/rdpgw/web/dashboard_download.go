@@ -110,6 +110,7 @@ func (h *Handler) HandleEntryDownload(w http.ResponseWriter, r *http.Request) {
 	builder.Settings.GatewayAccessToken = token
 	builder.Settings.GatewayCredentialMethod = 1
 	builder.Settings.GatewayUsageMethod = 1
+	h.applyRdpRedirectionPolicy(builder)
 
 	h.serveBuiltRDP(w, r, entry.ID, builder)
 }

@@ -74,7 +74,7 @@ func TestHandleEntryListFiltersByGroups(t *testing.T) {
 func TestHandleEntryListPreservesUploadedIconReference(t *testing.T) {
 	handler, store, iconStore := newDashboardEntryIconTestHandler(t)
 
-	icon, err := iconStore.SaveIcon("custom.png", []byte{137, 80, 78, 71})
+	icon, err := iconStore.SaveIcon("custom.ico", []byte{0, 0, 1, 0, 1, 0})
 	if err != nil {
 		t.Fatalf("save icon: %v", err)
 	}
