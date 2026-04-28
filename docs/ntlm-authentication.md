@@ -23,7 +23,7 @@ Configure RDPGW to use NTLM authentication:
 Server:
   Authentication:
     - ntlm
-  AuthSocket: /tmp/rdpgw-auth/rdpgw-auth.sock
+  AuthSocket: /run/rdpgw/rdpgw-auth.sock
   SecureCookies: true # Recommended when HTTPS is terminated by a reverse proxy
 Caps:
   TokenAuth: false
@@ -55,7 +55,7 @@ Users:
 Run the `rdpgw-auth` helper with NTLM configuration:
 
 ```bash
-./rdpgw-auth -c /var/lib/rdpgw/dashboard/rdpgw-auth.yaml -s /tmp/rdpgw-auth/rdpgw-auth.sock
+./rdpgw-auth -c /var/lib/rdpgw/dashboard/rdpgw-auth.yaml -s /run/rdpgw/rdpgw-auth.sock
 ```
 
 ## Authentication Flow
@@ -93,7 +93,9 @@ After=network.target
 [Service]
 Type=simple
 User=rdpgw
-ExecStart=/usr/local/bin/rdpgw-auth -c /var/lib/rdpgw/dashboard/rdpgw-auth.yaml -s /tmp/rdpgw-auth/rdpgw-auth.sock
+RuntimeDirectory=rdpgw
+RuntimeDirectoryMode=0700
+ExecStart=/usr/local/bin/rdpgw-auth -c /var/lib/rdpgw/dashboard/rdpgw-auth.yaml -s /run/rdpgw/rdpgw-auth.sock
 Restart=always
 RestartSec=5
 
@@ -220,7 +222,7 @@ ps aux | grep rdpgw-auth
 cat /var/lib/rdpgw/dashboard/rdpgw-auth.yaml
 
 # Test socket connectivity
-ls -la /tmp/rdpgw-auth/rdpgw-auth.sock
+ls -la /run/rdpgw/rdpgw-auth.sock
 
 # Monitor authentication logs
 journalctl -u rdpgw-auth -f
@@ -231,7 +233,7 @@ journalctl -u rdpgw-auth -f
 Enable debug logging in `rdpgw-auth` for detailed NTLM protocol analysis:
 
 ```bash
-./rdpgw-auth -c /var/lib/rdpgw/dashboard/rdpgw-auth.yaml -s /tmp/rdpgw-auth/rdpgw-auth.sock -v
+./rdpgw-auth -c /var/lib/rdpgw/dashboard/rdpgw-auth.yaml -s /run/rdpgw/rdpgw-auth.sock -v
 ```
 
 ## Future Enhancements

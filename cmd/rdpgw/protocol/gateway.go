@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
 	"syscall"
@@ -55,23 +56,58 @@ type Gateway struct {
 }
 
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		origin := r.Header.Get("Origin")
-		if origin == "" {
-			return true // non-browser client (e.g., mstsc.exe)
-		}
-		// Reject cross-origin WebSocket upgrades
-		host := r.Host
-		if host == "" {
-			return false
-		}
-		return strings.Contains(origin, host)
-	},
+	CheckOrigin: sameOriginRequest,
 }
 var c = cache.New(5*time.Minute, 10*time.Minute)
 
+func sameOriginRequest(r *http.Request) bool {
+	rawOrigin := strings.TrimSpace(r.Header.Get("Origin"))
+	if rawOrigin == "" {
+		return true // non-browser clients such as mstsc.exe do not send Origin.
+	}
+	if rawOrigin == "null" || r.Host == "" {
+		return false
+	}
+	origin, err := url.Parse(rawOrigin)
+	if err != nil || origin.Host == "" {
+		return false
+	}
+	if origin.Scheme != "http" && origin.Scheme != "https" {
+		return false
+	}
+	return sameOriginHost(origin, r.Host)
+}
+
+func sameOriginHost(origin *url.URL, requestHost string) bool {
+	requestURL := &url.URL{Scheme: origin.Scheme, Host: requestHost}
+	if origin.Hostname() == "" || requestURL.Hostname() == "" {
+		return false
+	}
+	if !strings.EqualFold(origin.Hostname(), requestURL.Hostname()) {
+		return false
+	}
+	return effectiveOriginPort(origin) == effectiveOriginPort(requestURL)
+}
+
+func effectiveOriginPort(u *url.URL) string {
+	if port := u.Port(); port != "" {
+		return port
+	}
+	if u.Scheme == "https" {
+		return "443"
+	}
+	if u.Scheme == "http" {
+		return "80"
+	}
+	return ""
+}
+
 func (g *Gateway) HandleGatewayProtocol(w http.ResponseWriter, r *http.Request) {
 	connectionCache.Set(float64(c.ItemCount()))
+	if (r.Method == MethodRDGOUT || r.Method == MethodRDGIN) && !sameOriginRequest(r) {
+		http.Error(w, "cross-origin gateway request forbidden", http.StatusForbidden)
+		return
+	}
 
 	var t *Tunnel
 

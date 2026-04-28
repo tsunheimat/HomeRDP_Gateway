@@ -3,6 +3,7 @@ package protocol
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"testing"
 )
 
@@ -252,5 +253,35 @@ func TestChannelCreation(t *testing.T) {
 	}
 	if channelId < 1 {
 		t.Fatalf("channelResponse failed got channeld id %d, expected > 0", channelId)
+	}
+}
+
+func TestSameOriginRequestRejectsOriginHostSubstringBypass(t *testing.T) {
+	req, err := http.NewRequest(http.MethodGet, "https://gateway.example.com/remoteDesktopGateway/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Host = "gateway.example.com"
+	req.Header.Set("Origin", "https://gateway.example.com.evil.test")
+
+	if sameOriginRequest(req) {
+		t.Fatalf("substring origin bypass was accepted")
+	}
+}
+
+func TestSameOriginRequestAllowsExactOriginAndNonBrowserRequests(t *testing.T) {
+	req, err := http.NewRequest(http.MethodGet, "https://gateway.example.com/remoteDesktopGateway/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Host = "gateway.example.com"
+	req.Header.Set("Origin", "https://gateway.example.com")
+	if !sameOriginRequest(req) {
+		t.Fatalf("exact same-origin request was rejected")
+	}
+
+	req.Header.Del("Origin")
+	if !sameOriginRequest(req) {
+		t.Fatalf("non-browser request without Origin was rejected")
 	}
 }

@@ -217,7 +217,7 @@ func ensureSocketDir(dir string, mode fs.FileMode) error {
 	if dir == "" {
 		dir = "."
 	}
-	_, statErr := os.Stat(dir)
+	info, statErr := os.Stat(dir)
 	if statErr != nil && !os.IsNotExist(statErr) {
 		return statErr
 	}
@@ -226,6 +226,19 @@ func ensureSocketDir(dir string, mode fs.FileMode) error {
 	}
 	if os.IsNotExist(statErr) {
 		return os.Chmod(dir, mode)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("auth socket parent path %q is not a directory", dir)
+	}
+	currentMode := info.Mode().Perm()
+	if currentMode&0700 != 0700 {
+		return fmt.Errorf("auth socket directory %q mode %04o must allow owner read/write/execute", dir, currentMode)
+	}
+	if currentMode&0002 != 0 {
+		return fmt.Errorf("auth socket directory %q mode %04o must not be world-writable", dir, currentMode)
+	}
+	if mode&0020 == 0 && currentMode&0020 != 0 {
+		return fmt.Errorf("auth socket directory %q mode %04o must not be group-writable when configured mode is %04o", dir, currentMode, mode)
 	}
 	return nil
 }

@@ -111,6 +111,25 @@ func TestAuthSocketParentDirAllowsConfiguredGroupMode(t *testing.T) {
 	}
 }
 
+func TestAuthSocketRejectsPreexistingWorldWritableParentDir(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "auth")
+	if err := os.MkdirAll(dir, 0777); err != nil {
+		t.Fatalf("create parent dir: %v", err)
+	}
+	if err := os.Chmod(dir, 0777); err != nil {
+		t.Fatalf("chmod parent dir: %v", err)
+	}
+
+	listener, err := listenUnixSocketWithOptions(filepath.Join(dir, "rdpgw-auth.sock"), unixSocketOptions{
+		Mode:    0600,
+		DirMode: 0700,
+	})
+	if err == nil {
+		listener.Close()
+		t.Fatalf("expected insecure preexisting socket parent dir to be rejected")
+	}
+}
+
 func TestAuthSocketRestoresUmask(t *testing.T) {
 	oldUmask := setProcessUmask(0022)
 	defer setProcessUmask(oldUmask)

@@ -9,7 +9,6 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
-	"github.com/patrickmn/go-cache"
 	"golang.org/x/oauth2"
 	"log"
 	"time"
@@ -28,15 +27,10 @@ var (
 var ExpiryTime time.Duration = 5
 var VerifyClientIP bool = true
 
-// accessTokenCache stores OAuth2 access tokens server-side, indexed by
-// a random reference ID that is placed in JWT claims instead of the
-// token itself. This avoids embedding long-lived access tokens in JWTs.
-var accessTokenCache = cache.New(10*time.Minute, 15*time.Minute)
-
 type customClaims struct {
-	RemoteServer    string `json:"remoteServer"`
-	ClientIP        string `json:"clientIp"`
-	AccessTokenRef  string `json:"accessTokenRef"`
+	RemoteServer string `json:"remoteServer"`
+	ClientIP     string `json:"clientIp"`
+	AccessToken  string `json:"accessToken"`
 }
 
 func CheckSession(next protocol.CheckHostFunc) protocol.CheckHostFunc {
@@ -108,13 +102,10 @@ func CheckPAACookie(ctx context.Context, tokenString string) (bool, error) {
 		return false, err
 	}
 
-	// validate the access token via server-side cache
-	accessToken, found := accessTokenCache.Get(custom.AccessTokenRef)
-	if !found {
-		log.Printf("Access token reference %s not found in cache", custom.AccessTokenRef)
-		return false, errors.New("access token reference expired or invalid")
-	}
-	tokenSource := Oauth2Config.TokenSource(ctx, &oauth2.Token{AccessToken: accessToken.(string)})
+	// validate the access token embedded in the encrypted PAA token. Keeping the
+	// token self-contained avoids process-local cache misses after restart or in
+	// multi-replica deployments.
+	tokenSource := Oauth2Config.TokenSource(ctx, &oauth2.Token{AccessToken: custom.AccessToken})
 	user, err := OIDCProvider.UserInfo(ctx, tokenSource)
 	if err != nil {
 		log.Printf("Cannot get user info for access token: %s", err)
@@ -163,19 +154,12 @@ func GeneratePAAToken(ctx context.Context, username string, server string) (stri
 
 	id := identity.FromCtx(ctx)
 
-	// Store access token server-side and use a reference in JWT
-	accessTokenRefBytes, err := GenerateRandomBytes(16)
-	if err != nil {
-		return "", fmt.Errorf("cannot generate access token reference: %w", err)
-	}
-	accessTokenRef := fmt.Sprintf("%x", accessTokenRefBytes)
 	accessToken := id.GetAttribute(identity.AttrAccessToken).(string)
-	accessTokenCache.Set(accessTokenRef, accessToken, 10*time.Minute)
 
 	private := customClaims{
-		RemoteServer:   server,
-		ClientIP:       id.GetAttribute(identity.AttrClientIp).(string),
-		AccessTokenRef: accessTokenRef,
+		RemoteServer: server,
+		ClientIP:     id.GetAttribute(identity.AttrClientIp).(string),
+		AccessToken:  accessToken,
 	}
 
 	if token, err := jwt.SignedAndEncrypted(sig, enc).Claims(standard).Claims(private).Serialize(); err != nil {

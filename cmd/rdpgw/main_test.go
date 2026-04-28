@@ -46,6 +46,32 @@ func TestAuthHelperConfigPathHonorsRuntimeOverride(t *testing.T) {
 	}
 }
 
+func TestSecureCookiesForConfigDefaultsTrueWhenTLSIsEnabled(t *testing.T) {
+	cfg := config.Configuration{
+		Server: config.ServerConfig{Tls: config.TlsAuto},
+	}
+	if !secureCookiesForConfig(cfg) {
+		t.Fatalf("expected TLS-enabled config to force secure cookies")
+	}
+}
+
+func TestBuildMainHTTPServerLeavesTunnelReadWriteTimeoutsDisabled(t *testing.T) {
+	router := mux.NewRouter()
+	server := buildMainHTTPServer(config.Configuration{
+		Server: config.ServerConfig{Port: 9443},
+	}, router, &tls.Config{})
+
+	if server.ReadHeaderTimeout != 10*time.Second {
+		t.Fatalf("ReadHeaderTimeout = %s, want 10s", server.ReadHeaderTimeout)
+	}
+	if server.ReadTimeout != 0 {
+		t.Fatalf("ReadTimeout = %s, want 0 for long-lived RDP tunnels", server.ReadTimeout)
+	}
+	if server.WriteTimeout != 0 {
+		t.Fatalf("WriteTimeout = %s, want 0 for long-lived RDP tunnels", server.WriteTimeout)
+	}
+}
+
 func TestConfigureTLSKeyLogRejectsSSLKEYLOGFILEWithoutOptIn(t *testing.T) {
 	cfg := &tls.Config{}
 	keyLogPath := filepath.Join(t.TempDir(), "tls.keys")

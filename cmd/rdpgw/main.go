@@ -179,6 +179,29 @@ func registerMetricsRoute(r *mux.Router, conf config.Configuration) {
 	}
 }
 
+func secureCookiesForConfig(conf config.Configuration) bool {
+	if conf.Server.Tls != config.TlsDisable {
+		return true
+	}
+	return conf.Server.SecureCookies
+}
+
+func buildMainHTTPServer(conf config.Configuration, handler http.Handler, tlsConfig *tls.Config) http.Server {
+	return http.Server{
+		Addr:         ":" + strconv.Itoa(conf.Server.Port),
+		Handler:      handler,
+		TLSConfig:    tlsConfig,
+		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)), // disable http2
+
+		// Keep header timeout for slowloris mitigation, but do not set global
+		// read/write deadlines on the gateway listener: RDG/WebSocket/legacy
+		// transports are long-lived RDP tunnels and may legitimately stay open
+		// for hours after the HTTP handshake.
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       300 * time.Second,
+	}
+}
+
 func buildGateway(conf config.Configuration, tokenAuth bool) protocol.Gateway {
 	gw := protocol.Gateway{
 		RedirectFlags: protocol.RedirectFlags{
@@ -241,11 +264,8 @@ func main() {
 	security.ManagedHostList = nil
 
 	// init session store
-	// H-7: Default secure cookies to true when TLS is not disabled
-	secureCookies := conf.Server.SecureCookies
-	if conf.Server.Tls != config.TlsDisable {
-		secureCookies = true
-	}
+	// H-7: Default secure cookies to true when TLS is not disabled.
+	secureCookies := secureCookiesForConfig(conf)
 	web.InitStore([]byte(conf.Server.SessionKey),
 		[]byte(conf.Server.SessionEncryptionKey),
 		conf.Server.SessionStore,
@@ -462,7 +482,7 @@ func main() {
 	// ntlm
 	if conf.Server.NtlmEnabled() {
 		log.Printf("enabling NTLM authentication")
-		ntlm := web.NTLMAuthHandler{SocketAddress: conf.Server.AuthSocket, Timeout: conf.Server.BasicAuthTimeout, SecureCookies: conf.Server.SecureCookies}
+		ntlm := web.NTLMAuthHandler{SocketAddress: conf.Server.AuthSocket, Timeout: conf.Server.BasicAuthTimeout, SecureCookies: secureCookies}
 		rdp.NewRoute().HeadersRegexp("Authorization", "NTLM").HandlerFunc(ntlm.NTLMAuth(directGateway.HandleGatewayProtocol))
 		rdp.NewRoute().HeadersRegexp("Authorization", "Negotiate").HandlerFunc(ntlm.NTLMAuth(directGateway.HandleGatewayProtocol))
 		auth.Register([]string{`NTLM`, `Negotiate`}, func(r *http.Request) bool {
@@ -497,16 +517,7 @@ func main() {
 	}
 
 	// setup server
-	server := http.Server{
-		Addr:              ":" + strconv.Itoa(conf.Server.Port),
-		Handler:           r,
-		TLSConfig:         cfg,
-		TLSNextProto:      make(map[string]func(*http.Server, *tls.Conn, http.Handler)), // disable http2
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      120 * time.Second,
-		IdleTimeout:       300 * time.Second,
-	}
+	server := buildMainHTTPServer(conf, r, cfg)
 
 	if conf.Server.Tls == config.TlsDisable {
 		err = server.ListenAndServe()

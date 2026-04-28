@@ -199,7 +199,7 @@ securityContext:
   readOnlyRootFilesystem: true
 ```
 
-Mount writable volumes only where needed, for example a `/tmp` tmpfs for `/tmp/rdpgw-auth/rdpgw-auth.sock` and a dashboard state volume such as `/var/lib/rdpgw/dashboard`.
+Mount writable volumes only where needed, for example a private auth-socket runtime directory such as `/run/rdpgw/rdpgw-auth.sock` for non-Docker deployments, the Docker sample's `/tmp` tmpfs for `/tmp/rdpgw-auth/rdpgw-auth.sock`, a dashboard state volume such as `/var/lib/rdpgw/dashboard`, and `/var/lib/rdpgw/certs` when ACME certificate caching is enabled.
 
 ## Minimal configuration sketch
 
