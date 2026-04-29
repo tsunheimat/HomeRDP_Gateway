@@ -84,18 +84,14 @@ func TestGetHost(t *testing.T) {
 		t.Fatalf("host %s is not equal to input %s", host, hosts[0])
 	}
 
-	// check any — this mode intentionally accepts arbitrary hosts, including internal RDP targets
+	// check any — direct client-supplied hosts are no longer accepted
 	c.HostSelection = "any"
-	test := "10.0.0.1:3389"
-	vals.Set("host", test)
+	vals.Set("host", "10.0.0.1:3389")
 	u.RawQuery = vals.Encode()
 	h = c.NewHandler()
 	host, err = h.getHost(ctx, u)
-	if err != nil {
-		t.Fatalf("%s is not accepted", host)
-	}
-	if test != host {
-		t.Fatalf("Returned host %s is not equal to input host %s", host, test)
+	if err == nil {
+		t.Fatalf("accepted client-supplied host %s in disabled any mode", host)
 	}
 
 	// check signed
@@ -203,6 +199,40 @@ func TestHandler_HandleDownload(t *testing.T) {
 			data["full address"], hosts)
 	}
 
+}
+
+func TestHandler_HandleDownloadRejectsClientSuppliedHostQuery(t *testing.T) {
+	req, err := http.NewRequest("GET", "/connect?host=10.0.0.1:3389", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+	id := identity.NewUser()
+	id.SetUserName(testuser)
+	id.SetAuthenticated(true)
+	req = identity.AddToRequestCtx(id, req)
+
+	u, _ := url.Parse(gateway)
+	c := Config{
+		HostSelection: "roundrobin",
+		Hosts:         hosts,
+		PAATokenGenerator: func(context.Context, string, string) (string, error) {
+			t.Fatal("PAA token generator must not be called for client-supplied host queries")
+			return "", nil
+		},
+		GatewayAddress: u,
+	}
+	h := c.NewHandler()
+
+	http.HandlerFunc(h.HandleDownload).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusBadRequest)
+	}
+	if body := rr.Body.String(); !strings.Contains(body, "host query parameter is disabled") {
+		t.Fatalf("response body = %q, want disabled host query message", body)
+	}
 }
 
 func TestHandler_HandleDownloadRejectsInvalidRenderedHost(t *testing.T) {

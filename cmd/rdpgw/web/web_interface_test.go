@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -50,28 +49,28 @@ func TestHandleHostList(t *testing.T) {
 			expectedType:  "roundrobin",
 		},
 		{
-			name:          "unsigned mode",
+			name:          "unsigned mode no longer exposes individual client-selectable hosts",
 			hostSelection: "unsigned",
 			hosts:         []string{"host1.example.com", "host2.example.com", "host3.example.com"},
 			authenticated: true,
-			expectedCount: 3,
-			expectedType:  "individual",
+			expectedCount: 1,
+			expectedType:  "roundrobin",
 		},
 		{
-			name:          "any mode",
+			name:          "any mode no longer exposes individual client-selectable hosts",
 			hostSelection: "any",
 			hosts:         []string{"host1.example.com"},
 			authenticated: true,
 			expectedCount: 1,
-			expectedType:  "individual",
+			expectedType:  "roundrobin",
 		},
 		{
-			name:          "signed mode",
+			name:          "signed mode no longer exposes individual client-selectable hosts",
 			hostSelection: "signed",
 			hosts:         []string{"host1.example.com", "host2.example.com"},
 			authenticated: true,
-			expectedCount: 2,
-			expectedType:  "signed",
+			expectedCount: 1,
+			expectedType:  "roundrobin",
 		},
 		{
 			name:          "unauthenticated user",
@@ -322,26 +321,18 @@ func TestHandleWebInterface(t *testing.T) {
 	}
 }
 
-func TestHandleDownloadSignedQueryTokenErrorDoesNotLeakInternals(t *testing.T) {
-	internalErr := errors.New("token validation failed due to go-jose/go-jose/jwt: validation failed, token is expired (exp)")
-	logs := captureTestLogs(t)
-
+func TestHandleDownloadSignedHostQueryRejectedBeforeTokenParsing(t *testing.T) {
 	handler := &Handler{
 		hostSelection:    "signed",
 		hosts:            []string{"host1.example.com"},
 		gatewayAddress:   &url.URL{Host: "gateway.example.com"},
 		queryTokenIssuer: "rdpgwtest",
 		queryInfo: func(ctx context.Context, token, issuer string) (string, error) {
-			if token != "signed-host-token" {
-				t.Fatalf("query token = %q, want %q", token, "signed-host-token")
-			}
-			if issuer != "rdpgwtest" {
-				t.Fatalf("issuer = %q, want %q", issuer, "rdpgwtest")
-			}
-			return "", internalErr
+			t.Fatalf("queryInfo should not be called for disabled host query parameters")
+			return "", nil
 		},
 		paaTokenGenerator: func(ctx context.Context, user, host string) (string, error) {
-			t.Fatalf("paaTokenGenerator should not be called after signed host token failure")
+			t.Fatalf("paaTokenGenerator should not be called for disabled host query parameters")
 			return "", nil
 		},
 	}
@@ -360,16 +351,8 @@ func TestHandleDownloadSignedQueryTokenErrorDoesNotLeakInternals(t *testing.T) {
 		t.Fatalf("status code = %d, want %d", rec.Code, http.StatusBadRequest)
 	}
 	body := rec.Body.String()
-	if body != "invalid token\n" {
-		t.Errorf("expected generic invalid token response, got %q", body)
-	}
-	for _, needle := range []string{"token validation failed", "go-jose", "jwt", "expired"} {
-		if strings.Contains(body, needle) {
-			t.Errorf("response body leaked %q: %q", needle, body)
-		}
-	}
-	if !strings.Contains(logs.String(), internalErr.Error()) {
-		t.Fatalf("expected detailed error in logs, got %q", logs.String())
+	if body != "host query parameter is disabled\n" {
+		t.Errorf("expected disabled host query response, got %q", body)
 	}
 }
 
@@ -392,15 +375,39 @@ func TestHostSelectionIntegration(t *testing.T) {
 			expectError:   false,
 		},
 		{
-			name:          "unsigned specific host",
+			name:          "unsigned without host query uses server-selected allow-list host",
 			hostSelection: "unsigned",
 			hosts:         []string{"host1.com", "host2.com"},
-			queryParams:   "?host=host2.com",
-			expectHost:    "host2.com",
+			queryParams:   "",
+			expectHost:    "", // Will be one of the hosts
 			expectError:   false,
 		},
 		{
-			name:          "unsigned invalid host",
+			name:          "signed without host query uses server-selected allow-list host",
+			hostSelection: "signed",
+			hosts:         []string{"host1.com", "host2.com"},
+			queryParams:   "",
+			expectHost:    "", // Will be one of the hosts
+			expectError:   false,
+		},
+		{
+			name:          "any without host query uses server-selected allow-list host",
+			hostSelection: "any",
+			hosts:         []string{"host1.com", "host2.com"},
+			queryParams:   "",
+			expectHost:    "", // Will be one of the hosts
+			expectError:   false,
+		},
+		{
+			name:          "unsigned client-supplied host rejected",
+			hostSelection: "unsigned",
+			hosts:         []string{"host1.com", "host2.com"},
+			queryParams:   "?host=host2.com",
+			expectHost:    "",
+			expectError:   true,
+		},
+		{
+			name:          "unsigned invalid host rejected before host validation",
 			hostSelection: "unsigned",
 			hosts:         []string{"host1.com", "host2.com"},
 			queryParams:   "?host=invalid.com",
@@ -408,12 +415,12 @@ func TestHostSelectionIntegration(t *testing.T) {
 			expectError:   true,
 		},
 		{
-			name:          "any host allowed",
+			name:          "any client-supplied host rejected",
 			hostSelection: "any",
 			hosts:         []string{"host1.com"},
 			queryParams:   "?host=8.8.8.8:3389",
-			expectHost:    "8.8.8.8:3389",
-			expectError:   false,
+			expectHost:    "",
+			expectError:   true,
 		},
 	}
 
@@ -466,11 +473,23 @@ func TestHostSelectionIntegration(t *testing.T) {
 					t.Errorf("Expected attachment disposition with .rdp file, got %s", disposition)
 				}
 
-				// Check RDP content for expected host
+				// Check RDP content for expected host. When the exact host is server-selected,
+				// ensure it still comes from the configured allow list.
 				body := w.Body.String()
 				if tt.expectHost != "" {
 					if !strings.Contains(body, tt.expectHost) {
 						t.Errorf("Expected RDP content to contain host %s", tt.expectHost)
+					}
+				} else {
+					foundAllowedHost := false
+					for _, allowedHost := range tt.hosts {
+						if strings.Contains(body, allowedHost) {
+							foundAllowedHost = true
+							break
+						}
+					}
+					if !foundAllowedHost {
+						t.Errorf("Expected RDP content to contain one configured allow-list host from %v", tt.hosts)
 					}
 				}
 

@@ -104,6 +104,7 @@ Caps:
 - **Passthrough configuration** for `/remoteDesktopGateway/` path
 - **Header authentication** only for `/connect` endpoint
 - **Token-based auth** for actual RDP connections
+- **Do not pass target hosts in the browser URL**: `/connect?host=...` is intentionally rejected. `/connect` chooses from the server-side configured allow list; OIDC/dashboard per-host downloads use `/connect/entries/{id}.rdp`.
 - **Keep IP verification enabled** only when App Proxy supplies stable forwarded client IPs from a trusted source; otherwise disable it explicitly for App Proxy NAT
 
 ### Google Cloud Identity-Aware Proxy (IAP)

@@ -231,11 +231,9 @@ async function connectToServer(server, button) {
     animateProgress();
 
     try {
-        // Build the RDP download URL
-        let url = '/connect';
-        if (server.address) {
-            url += '?host=' + encodeURIComponent(server.address);
-        }
+        // Build the RDP download URL. The server no longer accepts client-selected
+        // target hosts on /connect; it chooses from the configured allow list.
+        const url = '/connect';
 
         // Wait a moment for better UX
         await new Promise(resolve => setTimeout(resolve, 500));

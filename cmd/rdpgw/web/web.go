@@ -407,8 +407,7 @@ const fallbackHTMLTemplate = `<!DOCTYPE html>
         }
         async function connectToServer() {
             if (!selectedServer) return;
-            let url = '/connect';
-            if (selectedServer.address) url += '?host=' + encodeURIComponent(selectedServer.address);
+            const url = '/connect';
             window.location.href = url;
         }
         document.addEventListener('DOMContentLoaded', loadServers);
@@ -462,11 +461,7 @@ func (h *Handler) getHost(ctx context.Context, u *url.URL) (string, error) {
 		log.Printf("Invalid host %s specified in client request", hosts[0])
 		return "", errors.New("invalid host specified in query parameter")
 	case "any":
-		hosts, ok := u.Query()["host"]
-		if !ok {
-			return "", errors.New("invalid query parameter")
-		}
-		return hosts[0], nil
+		return "", errors.New("host selection mode 'any' is disabled because client-supplied targets are not allowed")
 	default:
 		return h.selectRandomHost(), nil
 	}
@@ -516,18 +511,19 @@ func (h *Handler) HandleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// determine host to connect to
-	host, err := h.getHost(ctx, r.URL)
-	if err != nil {
-		log.Printf("Could not determine host for download due to %s", err)
-		message := "invalid host"
-		if h.hostSelection == "signed" {
-			message = "invalid token"
-		}
-		http.Error(w, message, http.StatusBadRequest)
+	// Direct /connect downloads intentionally do not accept a client-selected target.
+	// OIDC/dashboard downloads must use /connect/entries/{id}.rdp, where the
+	// server-side entry and group policy determine the host.
+	if _, ok := r.URL.Query()["host"]; ok {
+		log.Printf("Rejected client-supplied host query for /connect")
+		http.Error(w, "host query parameter is disabled", http.StatusBadRequest)
 		return
 	}
-	host, err = security.ResolvePreferredUsernameHost(host, id.UserName())
+
+	// determine host to connect to. Direct /connect downloads are server-selected only;
+	// client-selected hosts were removed to prevent URL-level target tampering.
+	host := h.selectRandomHost()
+	host, err := security.ResolvePreferredUsernameHost(host, id.UserName())
 	if err != nil {
 		log.Printf("Invalid rendered host for user %s due to %s", id.UserName(), err)
 		http.Error(w, errors.New("invalid server configuration").Error(), http.StatusInternalServerError)
@@ -658,29 +654,13 @@ func (h *Handler) HandleHostList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var hosts []Host
-
-	// Simplified host selection - all modes work the same for the user
-	if h.hostSelection == "roundrobin" {
-		hosts = append(hosts, Host{
-			ID:          "roundrobin",
-			Name:        "Available Servers",
-			Address:     "",
-			Description: "Connect to an available server automatically",
-			IsDefault:   true,
-		})
-	} else {
-		// For all other modes (signed, unsigned, any), show the actual hosts
-		for i, hostAddr := range h.hosts {
-			hosts = append(hosts, Host{
-				ID:          fmt.Sprintf("host_%d", i),
-				Name:        hostAddr,
-				Address:     hostAddr,
-				Description: fmt.Sprintf("Connect to %s", hostAddr),
-				IsDefault:   i == 0,
-			})
-		}
-	}
+	hosts := []Host{{
+		ID:          "roundrobin",
+		Name:        "Available Servers",
+		Address:     "",
+		Description: "Connect to an available server automatically",
+		IsDefault:   true,
+	}}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(hosts)

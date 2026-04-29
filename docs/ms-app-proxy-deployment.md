@@ -9,7 +9,7 @@ Internet → Azure AD (Auth + CAP) → App Proxy → RDPGW (Internal) → RDP Ho
 ```
 
 **Authentication Flow:**
-- **Web requests** (`/connect`): Full Azure AD authentication with headers
+- **Web requests** (`/connect`): Full Azure AD authentication with headers, then server-side RDP file generation from configured allow-listed hosts. Browser-supplied targets such as `/connect?host=...` are rejected.
 - **RDP protocol** (`/remoteDesktopGateway/`): Passthrough with token validation
 
 ## Prerequisites
