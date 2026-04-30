@@ -2,11 +2,14 @@
 
 RDPGW supports header-based authentication for integration with reverse proxy services that handle authentication upstream.
 
+Web RDP downloads and PAA/user-token flows remain OIDC-bound: when `Server.Authentication` does not include `openid`, RDPGW disables `Caps.TokenAuth` and `Security.EnableUserToken` during configuration load. Use header-only mode only for trusted-proxy identity propagation that does not need the web token download path; use `openid` + `header` for the web UI/RDP download design.
+
 ## Configuration
 
 ```yaml
 Server:
   Authentication:
+    - openid
     - header
   Tls: disable  # Proxy handles TLS termination
   TrustedProxyCIDRs:
@@ -35,6 +38,7 @@ Header authentication fails closed unless `Server.TrustedProxyCIDRs` is configur
 ```yaml
 Server:
   Authentication:
+    - openid
     - header
   Tls: disable  # App Proxy handles TLS termination
   TrustedProxyCIDRs:
@@ -50,7 +54,7 @@ Security:
   VerifyClientIp: true
 
 Caps:
-  TokenAuth: true  # Essential for RDP client connections
+  TokenAuth: true  # Effective for OIDC-backed RDP client connections
 ```
 
 **Azure Configuration:**
@@ -92,18 +96,19 @@ Caps:
 
 1. **Web Authentication** (`/connect` endpoint):
    ```
-   User Browser → App Proxy (Azure AD auth) → RDPGW → Downloads RDP file
+   User Browser → App Proxy (trusted headers) → RDPGW OIDC session → Downloads RDP file
    ```
 
 2. **RDP Client Connection** (`/remoteDesktopGateway/` endpoint):
    ```
-   RDP Client → App Proxy (passthrough) → RDPGW (token validation) → RDP Host
+   RDP Client → App Proxy (passthrough) → RDPGW (OIDC-backed token validation) → RDP Host
    ```
 
 **Key Requirements:**
+- **OIDC enabled in RDPGW** for `/connect` web downloads and PAA/user-token generation. Header-only mode does not provide the web token download path.
 - **Passthrough configuration** for `/remoteDesktopGateway/` path
-- **Header authentication** only for `/connect` endpoint
-- **Token-based auth** for actual RDP connections
+- **Header authentication** only from configured trusted proxy CIDRs
+- **OIDC-backed token auth** for actual RDP connections
 - **Do not pass target hosts in the browser URL**: `/connect?host=...` is intentionally rejected. `/connect` chooses from the server-side configured allow list; OIDC/dashboard per-host downloads use `/connect/entries/{id}.rdp`.
 - **Keep IP verification enabled** only when App Proxy supplies stable forwarded client IPs from a trusted source; otherwise disable it explicitly for App Proxy NAT
 
@@ -112,6 +117,7 @@ Caps:
 ```yaml
 Server:
   Authentication:
+    - openid
     - header
   Tls: disable  # IAP/load balancer handles TLS termination
   TrustedProxyCIDRs:
@@ -137,6 +143,7 @@ Security:
 ```yaml
 Server:
   Authentication:
+    - openid
     - header
   Tls: disable  # ALB handles TLS termination
   TrustedProxyCIDRs:
@@ -164,6 +171,7 @@ For Traefik + Kubernetes Gateway API, rdpgw should be reachable only from Traefi
 ```yaml
 Server:
   Authentication:
+    - openid
     - header
   Tls: disable
   TrustedProxyCIDRs:
@@ -199,6 +207,7 @@ Security:
 ```yaml
 Server:
   Authentication:
+    - openid
     - header
   Tls: disable  # nginx handles TLS termination
   TrustedProxyCIDRs:
@@ -299,7 +308,7 @@ This nginx example overwrites `X-Forwarded-For` with `$remote_addr` instead of a
 Validate header authentication through the real proxy authentication flow. Do not send identity headers manually from an external client; the proxy or ForwardAuth service should strip client-supplied identity headers and inject fresh authenticated values.
 
 ```bash
-# Expected: redirect/challenge through the configured proxy auth flow, then a generated RDP download after successful authentication.
+# Expected: redirect/challenge through the configured proxy auth flow and RDPGW OIDC flow, then a generated RDP download after both authenticated sessions are available.
 curl -v https://your-proxy/connect
 ```
 

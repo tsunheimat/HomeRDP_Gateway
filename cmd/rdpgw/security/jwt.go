@@ -127,12 +127,7 @@ func CheckPAACookie(ctx context.Context, tokenString string) (bool, error) {
 		tunnel.User.SetUserName(user.Subject)
 		return true, nil
 	}
-	if custom.AuthSource == identity.AuthSourceHeader && custom.UserName != "" {
-		tunnel.User.SetUserName(custom.UserName)
-		return true, nil
-	}
-
-	return false, errors.New("PAA token missing a supported authentication source")
+	return false, errors.New("PAA token missing OIDC access token")
 }
 
 func GeneratePAAToken(ctx context.Context, username string, server string) (string, error) {
@@ -176,8 +171,8 @@ func GeneratePAAToken(ctx context.Context, username string, server string) (stri
 	if authSource == "" && accessToken != "" {
 		authSource = identity.AuthSourceOIDC
 	}
-	if accessToken == "" && authSource != identity.AuthSourceHeader {
-		return "", errors.New("cannot generate PAA token without OIDC access token or header auth source")
+	if accessToken == "" {
+		return "", errors.New("cannot generate PAA token without OIDC access token")
 	}
 	clientIP, ok := id.GetAttribute(identity.AttrClientIp).(string)
 	if !ok || clientIP == "" {

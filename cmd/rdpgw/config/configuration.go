@@ -315,7 +315,7 @@ func Load(configFile string) Configuration {
 		Conf.Dashboard.AuthHelperConfigPath = deriveAuthHelperConfigPath(Conf.Dashboard.StorePath)
 	}
 
-	if !Conf.Server.OpenIDEnabled() && !Conf.Server.HeaderEnabled() {
+	if !Conf.Server.OpenIDEnabled() {
 		Conf.Caps.TokenAuth = false
 		Conf.Security.EnableUserToken = false
 	}

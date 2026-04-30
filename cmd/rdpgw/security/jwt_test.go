@@ -118,38 +118,18 @@ func TestPAACookie(t *testing.T) {
 	}*/
 }
 
-func TestHeaderPAATokenDoesNotRequireOIDCAccessToken(t *testing.T) {
+func TestGeneratePAATokenRequiresOIDCAccessToken(t *testing.T) {
 	SigningKey = []byte("5aa3a1568fe8421cd7e127d5ace28d2d")
 	EncryptionKey = []byte("d3ecd7e565e56e37e2f2e95b584d8c0c")
 
 	id := identity.NewUser()
-	id.SetUserName("header-user@example.com")
-	id.SetAttribute(identity.AttrClientIp, "10.0.0.10")
+	id.SetUserName("alice")
+	id.SetAttribute(identity.AttrClientIp, "192.0.2.25")
 	id.SetAttribute(identity.AttrAuthSource, identity.AuthSourceHeader)
-
 	ctx := context.WithValue(context.Background(), identity.CTXKey, id)
-	token, err := GeneratePAAToken(ctx, "header-user@example.com", "host.internal:3389")
-	if err != nil {
-		t.Fatalf("GeneratePAAToken failed: %v", err)
-	}
 
-	tunnel := &protocol.Tunnel{}
-	ctx = context.WithValue(context.Background(), protocol.CtxTunnel, tunnel)
-	ok, err := CheckPAACookie(ctx, token)
-	if err != nil {
-		t.Fatalf("CheckPAACookie failed: %v", err)
-	}
-	if !ok {
-		t.Fatal("CheckPAACookie returned false")
-	}
-	if tunnel.TargetServer != "host.internal:3389" {
-		t.Fatalf("target server = %q", tunnel.TargetServer)
-	}
-	if tunnel.RemoteAddr != "10.0.0.10" {
-		t.Fatalf("remote addr = %q", tunnel.RemoteAddr)
-	}
-	if tunnel.User.UserName() != "header-user@example.com" {
-		t.Fatalf("tunnel user = %q", tunnel.User.UserName())
+	if _, err := GeneratePAAToken(ctx, "alice", "rdp.internal:3389"); err == nil {
+		t.Fatal("expected PAA token generation to require an OIDC access token")
 	}
 }
 

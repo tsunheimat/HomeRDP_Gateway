@@ -325,7 +325,7 @@ func TestHeaderAuthConnectWithoutPAATokenGeneratorDoesNotPanic(t *testing.T) {
 	}
 }
 
-func TestHeaderAuthConnectWithPAATokenGeneratorDownloadsRDP(t *testing.T) {
+func TestHeaderAuthConnectWithPAATokenGeneratorRequiresOIDCIdentity(t *testing.T) {
 	originalSigningKey := security.SigningKey
 	originalEncryptionKey := security.EncryptionKey
 	security.SigningKey = []byte("12345678901234567890123456789012")
@@ -358,11 +358,11 @@ func TestHeaderAuthConnectWithPAATokenGeneratorDownloadsRDP(t *testing.T) {
 	rr := httptest.NewRecorder()
 	enrich(headerAuth.Authenticated(http.HandlerFunc(handler.HandleDownload))).ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusOK {
-		t.Fatalf("expected status %d, got %d body=%q", http.StatusOK, rr.Code, rr.Body.String())
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status %d, got %d body=%q", http.StatusInternalServerError, rr.Code, rr.Body.String())
 	}
-	if !strings.Contains(rr.Body.String(), "gatewayaccesstoken:s:") {
-		t.Fatalf("expected generated RDP gateway access token, got %q", rr.Body.String())
+	if !strings.Contains(rr.Body.String(), "unable to generate gateway credentials") {
+		t.Fatalf("expected gateway credential error, got %q", rr.Body.String())
 	}
 }
 

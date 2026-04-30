@@ -575,7 +575,7 @@ Security:
 	}
 }
 
-func TestLoadKeepsHeaderTokenAuthWithoutOpenID(t *testing.T) {
+func TestLoadDisablesHeaderTokenAuthWithoutOpenID(t *testing.T) {
 	unsetEnvWithCleanup(t, "RDPGW_SERVER__AUTHENTICATION")
 	configPath := writeTempConfig(t, `
 Server:
@@ -592,10 +592,10 @@ Security:
 `)
 
 	cfg := Load(configPath)
-	if !cfg.Caps.TokenAuth {
-		t.Fatal("expected TokenAuth to stay enabled for header auth")
+	if cfg.Caps.TokenAuth {
+		t.Fatal("expected TokenAuth to be disabled for header auth without OpenID")
 	}
-	if !cfg.Security.EnableUserToken {
-		t.Fatal("expected EnableUserToken to stay enabled for header auth")
+	if cfg.Security.EnableUserToken {
+		t.Fatal("expected EnableUserToken to be disabled for header auth without OpenID")
 	}
 }

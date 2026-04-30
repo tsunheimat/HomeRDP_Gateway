@@ -9,8 +9,8 @@ Internet → Azure AD (Auth + CAP) → App Proxy → RDPGW (Internal) → RDP Ho
 ```
 
 **Authentication Flow:**
-- **Web requests** (`/connect`): Full Azure AD authentication with headers, then server-side RDP file generation from configured allow-listed hosts. Browser-supplied targets such as `/connect?host=...` are rejected.
-- **RDP protocol** (`/remoteDesktopGateway/`): Passthrough with token validation
+- **Web requests** (`/connect`): Azure/App Proxy supplies trusted headers, and RDPGW still requires its own OIDC session before generating the RDP file from configured allow-listed hosts. Browser-supplied targets such as `/connect?host=...` are rejected.
+- **RDP protocol** (`/remoteDesktopGateway/`): Passthrough with OIDC-backed token validation
 
 ## Prerequisites
 
@@ -97,6 +97,7 @@ If passthrough configuration isn't available in portal:
 # rdpgw.yaml
 Server:
   Authentication:
+    - openid
     - header
   Tls: disable
   GatewayAddress: https://rdpgw.yourdomain.com
@@ -117,6 +118,14 @@ Header:
   UserIdHeader: "X-MS-CLIENT-PRINCIPAL-ID"
   EmailHeader: "X-MS-CLIENT-PRINCIPAL-EMAIL"
 
+OpenId:
+  # Configure RDPGW as an OIDC client for the same Entra ID/Azure AD tenant.
+  # Web RDP downloads and PAA/user-token flows are OIDC-bound; header-only mode
+  # disables TokenAuth/EnableUserToken during configuration load.
+  ProviderUrl: https://login.microsoftonline.com/{tenant-id}/v2.0
+  ClientId: <rdpgw-oidc-client-id>
+  ClientSecret: <rdpgw-oidc-client-secret>
+
 Security:
   # Keep true only if App Proxy provides a stable forwarded client IP from a trusted
   # connector/source. If App Proxy NAT makes client IP unstable, disable this explicitly
@@ -126,7 +135,7 @@ Security:
   PAATokenEncryptionKey: "your-32-character-encryption-key"
 
 Caps:
-  TokenAuth: true
+  TokenAuth: true  # Effective only when Server.Authentication includes openid
   IdleTimeout: 60
 
 Client:
@@ -197,13 +206,13 @@ $grantControls = @{
 ```bash
 # Test /connect endpoint
 curl -v https://rdpgw.yourdomain.com/connect
-# Should redirect to Azure AD login
+# Should establish/require the RDPGW OIDC session before downloading the RDP file
 ```
 
 ### Test RDP Connection
 
 1. **Access web interface**: `https://rdpgw.yourdomain.com/connect`
-2. **Authenticate**: Complete Azure AD login + MFA
+2. **Authenticate**: Complete the RDPGW OIDC login backed by Azure AD/Entra ID
 3. **Download RDP file**: Should contain token-based credentials
 4. **Connect via RDP client**: Should work without additional authentication
 
@@ -223,7 +232,8 @@ curl -v https://rdpgw.yourdomain.com/connect
 1. **RDP Client Won't Connect**:
    - Verify passthrough configuration for `/remoteDesktopGateway/*`
    - Check token generation in downloaded RDP file
-   - Ensure `TokenAuth: true` in configuration
+   - Ensure `Server.Authentication` includes `openid`; without OIDC, RDPGW disables `TokenAuth`/user tokens
+   - Ensure `TokenAuth: true` remains configured for the OIDC-backed web download path
 
 2. **Authentication Loop**:
    - Verify header configuration matches App Proxy headers
@@ -246,7 +256,7 @@ docker logs rdpgw-container
 # return 401 unless it comes from a configured trusted proxy CIDR.
 curl -v http://rdpgw-internal/connect
 
-# Verify token generation
+# Verify OIDC-backed token generation
 curl -v https://rdpgw.yourdomain.com/connect
 ```
 

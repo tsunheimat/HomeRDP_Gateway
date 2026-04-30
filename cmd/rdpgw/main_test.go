@@ -170,13 +170,23 @@ func TestRegisterMetricsRouteEnabledByConfig(t *testing.T) {
 	}
 }
 
-func TestShouldRegisterTokenGatewayRouteForHeaderTokenAuth(t *testing.T) {
+func TestShouldRegisterTokenGatewayRouteForOpenIDTokenAuth(t *testing.T) {
+	cfg := config.Configuration{
+		Server: config.ServerConfig{Authentication: []string{config.AuthenticationOpenId}},
+		Caps:   config.RDGCapsConfig{TokenAuth: true},
+	}
+	if !shouldRegisterTokenGatewayRoute(cfg) {
+		t.Fatal("expected OpenID token auth to register token gateway route")
+	}
+}
+
+func TestShouldRegisterTokenGatewayRouteSkipsHeaderWithoutOpenID(t *testing.T) {
 	cfg := config.Configuration{
 		Server: config.ServerConfig{Authentication: []string{config.AuthenticationHeader}},
 		Caps:   config.RDGCapsConfig{TokenAuth: true},
 	}
-	if !shouldRegisterTokenGatewayRoute(cfg) {
-		t.Fatal("expected header token auth to register token gateway route")
+	if shouldRegisterTokenGatewayRoute(cfg) {
+		t.Fatal("expected header auth without OpenID to skip token gateway route")
 	}
 }
 

@@ -207,7 +207,7 @@ func shouldRegisterTokenGatewayRoute(conf config.Configuration) bool {
 		!conf.Server.KerberosEnabled() &&
 		!conf.Server.BasicAuthEnabled() &&
 		!conf.Server.NtlmEnabled() &&
-		(conf.Server.OpenIDEnabled() || conf.Server.HeaderEnabled())
+		conf.Server.OpenIDEnabled()
 }
 
 func buildGateway(conf config.Configuration, tokenAuth bool) protocol.Gateway {
@@ -312,7 +312,7 @@ func main() {
 		AuthHelperConfigPath:   helperConfigPath,
 	}
 
-	if conf.Caps.TokenAuth {
+	if conf.Caps.TokenAuth && conf.Server.OpenIDEnabled() {
 		w.PAATokenGenerator = security.GeneratePAAToken
 	}
 	if conf.Security.EnableUserToken {
@@ -481,9 +481,6 @@ func main() {
 			r.HandleFunc("/assets/app-icon", h.ServeAppIcon)
 			r.HandleFunc("/assets/icons/{id}", h.ServeUploadedIcon)
 
-			if !conf.Server.OpenIDEnabled() && shouldRegisterTokenGatewayRoute(conf) {
-				rdp.Name("gw").HandlerFunc(tokenGateway.HandleGatewayProtocol)
-			}
 		}
 	}
 
