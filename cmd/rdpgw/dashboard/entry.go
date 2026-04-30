@@ -19,18 +19,20 @@ const (
 var errValidation = errors.New("dashboard validation error")
 
 type Entry struct {
-	ID                   string    `json:"id"`
-	Type                 EntryType `json:"type"`
-	Name                 string    `json:"name"`
-	Description          string    `json:"description"`
-	Icon                 string    `json:"icon"`
-	AllowedGroups        []string  `json:"allowedGroups"`
-	Enabled              bool      `json:"enabled"`
-	Host                 string    `json:"host"`
-	UploadedTemplatePath string    `json:"uploadedTemplatePath"`
-	TargetHostOverride   string    `json:"targetHostOverride"`
-	CreatedAt            time.Time `json:"createdAt"`
-	UpdatedAt            time.Time `json:"updatedAt"`
+	ID                    string    `json:"id"`
+	Type                  EntryType `json:"type"`
+	Name                  string    `json:"name"`
+	Description           string    `json:"description"`
+	Icon                  string    `json:"icon"`
+	AllowedGroups         []string  `json:"allowedGroups"`
+	Enabled               bool      `json:"enabled"`
+	Host                  string    `json:"host"`
+	UploadedTemplatePath  string    `json:"uploadedTemplatePath"`
+	TargetHostOverride    string    `json:"targetHostOverride"`
+	TargetIPOverride      string    `json:"targetIPOverride"`
+	ForceTargetIPOverride bool      `json:"forceTargetIPOverride"`
+	CreatedAt             time.Time `json:"createdAt"`
+	UpdatedAt             time.Time `json:"updatedAt"`
 }
 
 func (e Entry) Validate() error {
@@ -52,6 +54,9 @@ func (e Entry) Validate() error {
 	}
 	if validGroups == 0 {
 		return validationError("at least one allowed group is required")
+	}
+	if override := strings.TrimSpace(e.TargetIPOverride); override != "" && net.ParseIP(override) == nil {
+		return validationError("target IP override must be an IP literal")
 	}
 
 	switch e.Type {

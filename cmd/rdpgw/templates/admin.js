@@ -577,7 +577,9 @@ function renderAdminEntries(entries) {
 
         const target = document.createElement('span');
         target.className = 'entry-row-target';
-        target.textContent = entry.host || entry.targetHostOverride || (entry.hasUploadedTemplate ? t('uploadedTemplateLabel', 'Uploaded template') : '');
+        target.textContent = entry.forceTargetIPOverride && entry.targetIPOverride
+            ? entry.targetIPOverride
+            : (entry.host || entry.targetHostOverride || (entry.hasUploadedTemplate ? t('uploadedTemplateLabel', 'Uploaded template') : ''));
         info.appendChild(target);
 
         const actions = document.createElement('div');
@@ -640,6 +642,8 @@ function renderAdminEntries(entries) {
 
         let hostInput = null;
         let targetHostInput = null;
+        let targetIPInput = null;
+        let forceTargetIPInput = null;
         if (entry.type === 'host') {
             const hostLabel = document.createElement('label');
             hostLabel.className = 'muted';
@@ -659,6 +663,23 @@ function renderAdminEntries(entries) {
             targetLabel.appendChild(targetHostInput);
             editPanel.appendChild(targetLabel);
         }
+        const targetIPLabel = document.createElement('label');
+        targetIPLabel.className = 'muted';
+        targetIPLabel.textContent = t('targetIPOverrideLabel', 'Target IP Override (optional)');
+        targetIPInput = document.createElement('input');
+        targetIPInput.type = 'text';
+        targetIPInput.value = entry.targetIPOverride || '';
+        targetIPLabel.appendChild(targetIPInput);
+        editPanel.appendChild(targetIPLabel);
+
+        const forceTargetIPLabel = document.createElement('label');
+        forceTargetIPLabel.className = 'checkbox-row';
+        forceTargetIPInput = document.createElement('input');
+        forceTargetIPInput.type = 'checkbox';
+        forceTargetIPInput.checked = Boolean(entry.forceTargetIPOverride);
+        forceTargetIPLabel.appendChild(forceTargetIPInput);
+        forceTargetIPLabel.appendChild(document.createTextNode(t('forceTargetIPOverrideLabel', 'Force target IP override')));
+        editPanel.appendChild(forceTargetIPLabel);
 
         const editActions = document.createElement('div');
         editActions.className = 'entry-edit-actions';
@@ -704,6 +725,8 @@ function renderAdminEntries(entries) {
             if (targetHostInput) {
                 payload.targetHostOverride = targetHostInput.value;
             }
+            payload.targetIPOverride = targetIPInput ? targetIPInput.value : '';
+            payload.forceTargetIPOverride = forceTargetIPInput ? forceTargetIPInput.checked : false;
             try {
                 await adminRequest(`/api/v1/admin/entries/${encodeURIComponent(entry.id)}`, {
                     method: 'PUT',
@@ -1109,6 +1132,8 @@ function bindHostForm() {
             icon: data.get('icon') || 'window',
             allowedGroups: splitGroups(String(data.get('allowedGroups') || '')),
             host: data.get('host') || '',
+            targetIPOverride: data.get('targetIPOverride') || '',
+            forceTargetIPOverride: data.get('forceTargetIPOverride') === 'on',
         };
 
         try {

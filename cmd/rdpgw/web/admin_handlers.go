@@ -20,36 +20,42 @@ import (
 )
 
 type adminCreateHostEntryRequest struct {
-	Name          string   `json:"name"`
-	Description   string   `json:"description"`
-	Icon          string   `json:"icon"`
-	AllowedGroups []string `json:"allowedGroups"`
-	Host          string   `json:"host"`
+	Name                  string   `json:"name"`
+	Description           string   `json:"description"`
+	Icon                  string   `json:"icon"`
+	AllowedGroups         []string `json:"allowedGroups"`
+	Host                  string   `json:"host"`
+	TargetIPOverride      string   `json:"targetIPOverride"`
+	ForceTargetIPOverride bool     `json:"forceTargetIPOverride"`
 }
 
 type adminUpdateEntryRequest struct {
-	Name               *string   `json:"name"`
-	Description        *string   `json:"description"`
-	Icon               *string   `json:"icon"`
-	AllowedGroups      *[]string `json:"allowedGroups"`
-	Enabled            *bool     `json:"enabled"`
-	Host               *string   `json:"host"`
-	TargetHostOverride *string   `json:"targetHostOverride"`
+	Name                  *string   `json:"name"`
+	Description           *string   `json:"description"`
+	Icon                  *string   `json:"icon"`
+	AllowedGroups         *[]string `json:"allowedGroups"`
+	Enabled               *bool     `json:"enabled"`
+	Host                  *string   `json:"host"`
+	TargetHostOverride    *string   `json:"targetHostOverride"`
+	TargetIPOverride      *string   `json:"targetIPOverride"`
+	ForceTargetIPOverride *bool     `json:"forceTargetIPOverride"`
 }
 
 type adminEntryResponse struct {
-	ID                  string    `json:"id"`
-	Type                string    `json:"type"`
-	Name                string    `json:"name"`
-	Description         string    `json:"description"`
-	Icon                string    `json:"icon"`
-	AllowedGroups       []string  `json:"allowedGroups"`
-	Enabled             bool      `json:"enabled"`
-	Host                string    `json:"host"`
-	TargetHostOverride  string    `json:"targetHostOverride"`
-	HasUploadedTemplate bool      `json:"hasUploadedTemplate"`
-	CreatedAt           time.Time `json:"createdAt"`
-	UpdatedAt           time.Time `json:"updatedAt"`
+	ID                    string    `json:"id"`
+	Type                  string    `json:"type"`
+	Name                  string    `json:"name"`
+	Description           string    `json:"description"`
+	Icon                  string    `json:"icon"`
+	AllowedGroups         []string  `json:"allowedGroups"`
+	Enabled               bool      `json:"enabled"`
+	Host                  string    `json:"host"`
+	TargetHostOverride    string    `json:"targetHostOverride"`
+	TargetIPOverride      string    `json:"targetIPOverride"`
+	ForceTargetIPOverride bool      `json:"forceTargetIPOverride"`
+	HasUploadedTemplate   bool      `json:"hasUploadedTemplate"`
+	CreatedAt             time.Time `json:"createdAt"`
+	UpdatedAt             time.Time `json:"updatedAt"`
 }
 
 type adminCreateAuthUserRequest struct {
@@ -115,14 +121,16 @@ func (h *Handler) HandleAdminCreateHostEntry(w http.ResponseWriter, r *http.Requ
 	}
 
 	entry := dashboard.Entry{
-		ID:            id,
-		Type:          dashboard.EntryTypeHost,
-		Name:          strings.TrimSpace(req.Name),
-		Description:   strings.TrimSpace(req.Description),
-		Icon:          entryIcon,
-		AllowedGroups: req.AllowedGroups,
-		Enabled:       true,
-		Host:          strings.TrimSpace(req.Host),
+		ID:                    id,
+		Type:                  dashboard.EntryTypeHost,
+		Name:                  strings.TrimSpace(req.Name),
+		Description:           strings.TrimSpace(req.Description),
+		Icon:                  entryIcon,
+		AllowedGroups:         req.AllowedGroups,
+		Enabled:               true,
+		Host:                  strings.TrimSpace(req.Host),
+		TargetIPOverride:      strings.TrimSpace(req.TargetIPOverride),
+		ForceTargetIPOverride: req.ForceTargetIPOverride,
 	}
 
 	if err := h.dashboardStore.Put(entry); err != nil {
@@ -205,15 +213,17 @@ func (h *Handler) HandleAdminCreateTemplateEntry(w http.ResponseWriter, r *http.
 	}
 
 	entry := dashboard.Entry{
-		ID:                   id,
-		Type:                 dashboard.EntryTypeTemplate,
-		Name:                 strings.TrimSpace(r.FormValue("name")),
-		Description:          strings.TrimSpace(r.FormValue("description")),
-		Icon:                 entryIcon,
-		AllowedGroups:        splitCSV(r.FormValue("allowedGroups")),
-		Enabled:              true,
-		UploadedTemplatePath: uploadedPath,
-		TargetHostOverride:   strings.TrimSpace(r.FormValue("targetHostOverride")),
+		ID:                    id,
+		Type:                  dashboard.EntryTypeTemplate,
+		Name:                  strings.TrimSpace(r.FormValue("name")),
+		Description:           strings.TrimSpace(r.FormValue("description")),
+		Icon:                  entryIcon,
+		AllowedGroups:         splitCSV(r.FormValue("allowedGroups")),
+		Enabled:               true,
+		UploadedTemplatePath:  uploadedPath,
+		TargetHostOverride:    strings.TrimSpace(r.FormValue("targetHostOverride")),
+		TargetIPOverride:      strings.TrimSpace(r.FormValue("targetIPOverride")),
+		ForceTargetIPOverride: r.FormValue("forceTargetIPOverride") == "on" || strings.EqualFold(r.FormValue("forceTargetIPOverride"), "true"),
 	}
 
 	if err := h.dashboardStore.Put(entry); err != nil {
@@ -287,6 +297,12 @@ func (h *Handler) HandleAdminUpdateEntry(w http.ResponseWriter, r *http.Request)
 	}
 	if req.TargetHostOverride != nil && entry.Type == dashboard.EntryTypeTemplate {
 		entry.TargetHostOverride = strings.TrimSpace(*req.TargetHostOverride)
+	}
+	if req.TargetIPOverride != nil {
+		entry.TargetIPOverride = strings.TrimSpace(*req.TargetIPOverride)
+	}
+	if req.ForceTargetIPOverride != nil {
+		entry.ForceTargetIPOverride = *req.ForceTargetIPOverride
 	}
 
 	if err := h.dashboardStore.Put(entry); err != nil {
@@ -643,18 +659,20 @@ func adminAuthUserResponses(users []dashboard.AuthUser) []adminAuthUserResponse 
 
 func newAdminEntryResponse(entry dashboard.Entry) adminEntryResponse {
 	return adminEntryResponse{
-		ID:                  entry.ID,
-		Type:                string(entry.Type),
-		Name:                entry.Name,
-		Description:         entry.Description,
-		Icon:                dashboard.NormalizeEntryIcon(entry.Icon),
-		AllowedGroups:       entry.AllowedGroups,
-		Enabled:             entry.Enabled,
-		Host:                entry.Host,
-		TargetHostOverride:  entry.TargetHostOverride,
-		HasUploadedTemplate: strings.TrimSpace(entry.UploadedTemplatePath) != "",
-		CreatedAt:           entry.CreatedAt,
-		UpdatedAt:           entry.UpdatedAt,
+		ID:                    entry.ID,
+		Type:                  string(entry.Type),
+		Name:                  entry.Name,
+		Description:           entry.Description,
+		Icon:                  dashboard.NormalizeEntryIcon(entry.Icon),
+		AllowedGroups:         entry.AllowedGroups,
+		Enabled:               entry.Enabled,
+		Host:                  entry.Host,
+		TargetHostOverride:    entry.TargetHostOverride,
+		TargetIPOverride:      entry.TargetIPOverride,
+		ForceTargetIPOverride: entry.ForceTargetIPOverride,
+		HasUploadedTemplate:   strings.TrimSpace(entry.UploadedTemplatePath) != "",
+		CreatedAt:             entry.CreatedAt,
+		UpdatedAt:             entry.UpdatedAt,
 	}
 }
 

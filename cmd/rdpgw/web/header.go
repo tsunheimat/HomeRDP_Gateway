@@ -44,14 +44,14 @@ func (h *Header) Authenticated(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := identity.FromRequestCtx(r)
 
-		// Check if user is already authenticated
-		if id.Authenticated() {
-			next.ServeHTTP(w, r)
+		if !h.trustedProxies.IsTrustedRemoteAddr(r.RemoteAddr) {
+			http.Error(w, "Header authentication requires a trusted proxy", http.StatusUnauthorized)
 			return
 		}
 
-		if !h.trustedProxies.IsTrustedRemoteAddr(r.RemoteAddr) {
-			http.Error(w, "Header authentication requires a trusted proxy", http.StatusUnauthorized)
+		// Header-auth sessions are only valid when replayed through the trusted proxy.
+		if id.Authenticated() {
+			next.ServeHTTP(w, r)
 			return
 		}
 
@@ -66,6 +66,7 @@ func (h *Header) Authenticated(next http.Handler) http.Handler {
 		id.SetUserName(userName)
 		id.SetAuthenticated(true)
 		id.SetAuthTime(time.Now())
+		id.SetAttribute(identity.AttrAuthSource, identity.AuthSourceHeader)
 
 		// Set optional user attributes from headers
 		if h.userIdHeader != "" {

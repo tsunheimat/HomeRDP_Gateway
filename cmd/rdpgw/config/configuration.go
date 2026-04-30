@@ -66,6 +66,8 @@ type ServerConfig struct {
 	AuthSocket           string   `koanf:"authsocket"`
 	BasicAuthTimeout     int      `koanf:"basicauthtimeout"`
 	TrustedProxyCIDRs    []string `koanf:"trustedproxycidrs"`
+	InternalDomains      []string `koanf:"internaldomains"`
+	InternalDNSServer    string   `koanf:"internaldnsserver"`
 	SecureCookies        bool     `koanf:"securecookies"`
 	AllowTLSKeyLog       bool     `koanf:"allowtlskeylog"`
 	EnableMetrics        bool     `koanf:"enablemetrics"`
@@ -187,6 +189,8 @@ var envKeyOverrides = map[string]string{
 	"Dashboard.Maxtemplateuploadstoragemb": "Dashboard.MaxTemplateUploadStorageMb",
 	"Dashboard.Maxiconuploadstoragemb":     "Dashboard.MaxIconUploadStorageMb",
 	"Server.Trustedproxycidrs":             "Server.TrustedProxyCIDRs",
+	"Server.Internaldomains":               "Server.InternalDomains",
+	"Server.Internaldnsserver":             "Server.InternalDNSServer",
 	"Server.Securecookies":                 "Server.SecureCookies",
 	"Server.Allowtlskeylog":                "Server.AllowTLSKeyLog",
 	"Server.Enablemetrics":                 "Server.EnableMetrics",
@@ -309,6 +313,11 @@ func Load(configFile string) Configuration {
 	}
 	if Conf.Dashboard.AuthHelperConfigPath == "" {
 		Conf.Dashboard.AuthHelperConfigPath = deriveAuthHelperConfigPath(Conf.Dashboard.StorePath)
+	}
+
+	if !Conf.Server.OpenIDEnabled() && !Conf.Server.HeaderEnabled() {
+		Conf.Caps.TokenAuth = false
+		Conf.Security.EnableUserToken = false
 	}
 
 	if len(Conf.Security.PAATokenEncryptionKey) != 32 {

@@ -71,6 +71,60 @@ func TestHandleEntryListFiltersByGroups(t *testing.T) {
 	}
 }
 
+func TestHandleEntryListReportsTargetIPOverrideOnlyWhenForced(t *testing.T) {
+	handler, store := newDashboardTestHandler(t)
+
+	entries := []dashboard.Entry{
+		{
+			ID:               "fallback-ip",
+			Type:             dashboard.EntryTypeHost,
+			Name:             "Fallback IP",
+			AllowedGroups:    []string{"homelab-users"},
+			Enabled:          true,
+			Host:             "fallback.internal:3389",
+			TargetIPOverride: "10.0.0.20",
+		},
+		{
+			ID:                    "forced-ip",
+			Type:                  dashboard.EntryTypeHost,
+			Name:                  "Forced IP",
+			AllowedGroups:         []string{"homelab-users"},
+			Enabled:               true,
+			Host:                  "forced.internal:3389",
+			TargetIPOverride:      "10.0.0.21",
+			ForceTargetIPOverride: true,
+		},
+	}
+	for _, entry := range entries {
+		if err := store.Put(entry); err != nil {
+			t.Fatalf("put entry %s: %v", entry.ID, err)
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/entries", nil)
+	req = identity.AddToRequestCtx(newIdentity(t, false), req)
+	rr := httptest.NewRecorder()
+	handler.HandleEntryList(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rr.Code, http.StatusOK)
+	}
+	var summaries []DashboardEntrySummary
+	if err := json.Unmarshal(rr.Body.Bytes(), &summaries); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	targets := make(map[string]string, len(summaries))
+	for _, summary := range summaries {
+		targets[summary.ID] = summary.Target
+	}
+	if targets["fallback-ip"] != "fallback.internal:3389" {
+		t.Fatalf("fallback target = %q, want original host", targets["fallback-ip"])
+	}
+	if targets["forced-ip"] != "10.0.0.21" {
+		t.Fatalf("forced target = %q, want target IP override", targets["forced-ip"])
+	}
+}
+
 func TestHandleEntryListPreservesUploadedIconReference(t *testing.T) {
 	handler, store, iconStore := newDashboardEntryIconTestHandler(t)
 

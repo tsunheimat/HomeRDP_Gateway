@@ -148,6 +148,25 @@ func TestConfigurationValidateAcceptsHeaderAuthWithTrustedProxyCIDRs(t *testing.
 	}
 }
 
+func TestConfigurationValidateAcceptsHeaderAuthWithOpenIDAndTrustedProxyCIDRs(t *testing.T) {
+	cfg := Configuration{
+		Server: ServerConfig{
+			Authentication:       []string{AuthenticationHeader, AuthenticationOpenId},
+			TrustedProxyCIDRs:    []string{"10.0.0.0/24"},
+			SessionKey:           "testsessionkeytestsessionkey1234",
+			SessionEncryptionKey: "testencryptionkeytestencrypt1234",
+		},
+		Header: HeaderConfig{
+			UserHeader: "X-Forwarded-User",
+		},
+		Caps: CapsConfigWithTokenAuth(),
+	}
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("expected valid header+OpenID auth config, got %v", err)
+	}
+}
+
 func TestConfigurationValidateRejectsInvalidTrustedProxyCIDR(t *testing.T) {
 	cfg := Configuration{
 		Server: ServerConfig{
@@ -523,5 +542,60 @@ func TestCombinedDockerSampleConfig(t *testing.T) {
 
 	if !cfg.Caps.TokenAuth {
 		t.Fatal("expected combined docker sample to keep token auth enabled for OIDC")
+	}
+}
+
+func writeTempConfig(t *testing.T, body string) string {
+	t.Helper()
+	configPath := filepath.Join(t.TempDir(), "rdpgw.yaml")
+	if err := os.WriteFile(configPath, []byte(body), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	return configPath
+}
+
+func TestLoadDisablesOIDCBoundTokenAuthForBasicAuthWithoutOpenID(t *testing.T) {
+	unsetEnvWithCleanup(t, "RDPGW_SERVER__AUTHENTICATION")
+	configPath := writeTempConfig(t, `
+Server:
+  Authentication:
+    - local
+Caps:
+  TokenAuth: true
+Security:
+  EnableUserToken: true
+`)
+
+	cfg := Load(configPath)
+	if cfg.Caps.TokenAuth {
+		t.Fatal("expected TokenAuth to be disabled when OpenID is not enabled")
+	}
+	if cfg.Security.EnableUserToken {
+		t.Fatal("expected EnableUserToken to be disabled when OpenID is not enabled")
+	}
+}
+
+func TestLoadKeepsHeaderTokenAuthWithoutOpenID(t *testing.T) {
+	unsetEnvWithCleanup(t, "RDPGW_SERVER__AUTHENTICATION")
+	configPath := writeTempConfig(t, `
+Server:
+  Authentication:
+    - header
+  TrustedProxyCIDRs:
+    - 198.51.100.0/24
+Header:
+  UserHeader: X-Forwarded-User
+Caps:
+  TokenAuth: true
+Security:
+  EnableUserToken: true
+`)
+
+	cfg := Load(configPath)
+	if !cfg.Caps.TokenAuth {
+		t.Fatal("expected TokenAuth to stay enabled for header auth")
+	}
+	if !cfg.Security.EnableUserToken {
+		t.Fatal("expected EnableUserToken to stay enabled for header auth")
 	}
 }

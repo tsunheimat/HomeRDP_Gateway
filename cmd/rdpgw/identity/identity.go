@@ -13,6 +13,10 @@ const (
 	AttrClientIp    = "clientIp"
 	AttrProxies     = "proxyAddresses"
 	AttrAccessToken = "accessToken" // todo remove for security reasons
+	AttrAuthSource  = "authSource"
+
+	AuthSourceHeader = "header"
+	AuthSourceOIDC   = "oidc"
 )
 
 type Identity interface {

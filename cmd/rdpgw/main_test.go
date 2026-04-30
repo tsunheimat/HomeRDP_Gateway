@@ -170,6 +170,26 @@ func TestRegisterMetricsRouteEnabledByConfig(t *testing.T) {
 	}
 }
 
+func TestShouldRegisterTokenGatewayRouteForHeaderTokenAuth(t *testing.T) {
+	cfg := config.Configuration{
+		Server: config.ServerConfig{Authentication: []string{config.AuthenticationHeader}},
+		Caps:   config.RDGCapsConfig{TokenAuth: true},
+	}
+	if !shouldRegisterTokenGatewayRoute(cfg) {
+		t.Fatal("expected header token auth to register token gateway route")
+	}
+}
+
+func TestShouldRegisterTokenGatewayRouteSkipsDirectAuthStack(t *testing.T) {
+	cfg := config.Configuration{
+		Server: config.ServerConfig{Authentication: []string{config.AuthenticationHeader, config.AuthenticationBasic}},
+		Caps:   config.RDGCapsConfig{TokenAuth: true},
+	}
+	if shouldRegisterTokenGatewayRoute(cfg) {
+		t.Fatal("expected direct auth stack to skip token gateway route")
+	}
+}
+
 func TestRdpRedirectionPolicyFromCapsHonorsRedirectAllAndDisableRedirect(t *testing.T) {
 	all := rdpRedirectionPolicyFromCaps(config.RDGCapsConfig{RedirectAll: true})
 	if !all.Clipboard || !all.Drive || !all.Printer || !all.Port || !all.Device || !all.Pnp {

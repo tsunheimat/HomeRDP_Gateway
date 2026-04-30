@@ -31,6 +31,8 @@ type customClaims struct {
 	RemoteServer string `json:"remoteServer"`
 	ClientIP     string `json:"clientIp"`
 	AccessToken  string `json:"accessToken"`
+	AuthSource   string `json:"authSource,omitempty"`
+	UserName     string `json:"userName,omitempty"`
 }
 
 func CheckSession(next protocol.CheckHostFunc) protocol.CheckHostFunc {
@@ -102,23 +104,35 @@ func CheckPAACookie(ctx context.Context, tokenString string) (bool, error) {
 		return false, err
 	}
 
-	// validate the access token embedded in the encrypted PAA token. Keeping the
-	// token self-contained avoids process-local cache misses after restart or in
-	// multi-replica deployments.
-	tokenSource := Oauth2Config.TokenSource(ctx, &oauth2.Token{AccessToken: custom.AccessToken})
-	user, err := OIDCProvider.UserInfo(ctx, tokenSource)
-	if err != nil {
-		log.Printf("Cannot get user info for access token: %s", err)
-		return false, err
-	}
-
 	tunnel := getTunnel(ctx)
+	if tunnel == nil {
+		return false, errors.New("no valid session info found in context")
+	}
+	if tunnel.User == nil {
+		tunnel.User = identity.NewUser()
+	}
 
 	tunnel.TargetServer = custom.RemoteServer
 	tunnel.RemoteAddr = custom.ClientIP
-	tunnel.User.SetUserName(user.Subject)
+	if custom.AccessToken != "" {
+		// validate the access token embedded in the encrypted PAA token. Keeping the
+		// token self-contained avoids process-local cache misses after restart or in
+		// multi-replica deployments.
+		tokenSource := Oauth2Config.TokenSource(ctx, &oauth2.Token{AccessToken: custom.AccessToken})
+		user, err := OIDCProvider.UserInfo(ctx, tokenSource)
+		if err != nil {
+			log.Printf("Cannot get user info for access token: %s", err)
+			return false, err
+		}
+		tunnel.User.SetUserName(user.Subject)
+		return true, nil
+	}
+	if custom.AuthSource == identity.AuthSourceHeader && custom.UserName != "" {
+		tunnel.User.SetUserName(custom.UserName)
+		return true, nil
+	}
 
-	return true, nil
+	return false, errors.New("PAA token missing a supported authentication source")
 }
 
 func GeneratePAAToken(ctx context.Context, username string, server string) (string, error) {
@@ -153,13 +167,29 @@ func GeneratePAAToken(ctx context.Context, username string, server string) (stri
 	}
 
 	id := identity.FromCtx(ctx)
+	if id == nil {
+		return "", errors.New("cannot generate PAA token without identity")
+	}
 
-	accessToken := id.GetAttribute(identity.AttrAccessToken).(string)
+	accessToken, _ := id.GetAttribute(identity.AttrAccessToken).(string)
+	authSource, _ := id.GetAttribute(identity.AttrAuthSource).(string)
+	if authSource == "" && accessToken != "" {
+		authSource = identity.AuthSourceOIDC
+	}
+	if accessToken == "" && authSource != identity.AuthSourceHeader {
+		return "", errors.New("cannot generate PAA token without OIDC access token or header auth source")
+	}
+	clientIP, ok := id.GetAttribute(identity.AttrClientIp).(string)
+	if !ok || clientIP == "" {
+		return "", errors.New("cannot generate PAA token without client IP")
+	}
 
 	private := customClaims{
 		RemoteServer: server,
-		ClientIP:     id.GetAttribute(identity.AttrClientIp).(string),
+		ClientIP:     clientIP,
 		AccessToken:  accessToken,
+		AuthSource:   authSource,
+		UserName:     username,
 	}
 
 	if token, err := jwt.SignedAndEncrypted(sig, enc).Claims(standard).Claims(private).Serialize(); err != nil {

@@ -49,34 +49,34 @@ func (h *BasicAuthHandler) BasicAuth(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func (h *BasicAuthHandler) authenticate(w http.ResponseWriter, r *http.Request, username string, password string) (authenticated bool) {
-        if h.SocketAddress == "" {
-                return false
-        }
+	if h.SocketAddress == "" {
+		return false
+	}
 
-        ctx := r.Context()
-        
-        conn, err := grpc.Dial(h.SocketAddress, grpc.WithTransportCredentials(insecure.NewCredentials()),
-                grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
-                        return net.Dial(protocolGrpc, addr)
-                }))
-        if err != nil {
-                log.Printf("Cannot reach authentication provider: %s", err)
-                http.Error(w, "Server error", http.StatusInternalServerError)
-                return false
-        }
-        defer conn.Close()
-        
-        c := auth.NewAuthenticateClient(conn)
-        ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(h.Timeout))
-        defer cancel()
-        
-        req := &auth.UserPass{Username: username, Password: password}
-        res, err := c.Authenticate(ctx, req)
-        if err != nil {
-                log.Printf("Error talking to authentication provider: %s", err)
-                http.Error(w, "Server error", http.StatusInternalServerError)
-                return false
-        }
-        
-        return res.Authenticated
+	ctx := r.Context()
+
+	conn, err := grpc.Dial(h.SocketAddress, grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
+			return net.Dial(protocolGrpc, addr)
+		}))
+	if err != nil {
+		log.Printf("Cannot reach authentication provider: %s", err)
+		http.Error(w, "Server error", http.StatusInternalServerError)
+		return false
+	}
+	defer conn.Close()
+
+	c := auth.NewAuthenticateClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(h.Timeout))
+	defer cancel()
+
+	req := &auth.UserPass{Username: username, Password: password}
+	res, err := c.Authenticate(ctx, req)
+	if err != nil {
+		log.Printf("Error talking to authentication provider: %s", err)
+		http.Error(w, "Server error", http.StatusInternalServerError)
+		return false
+	}
+
+	return res.Authenticated
 }

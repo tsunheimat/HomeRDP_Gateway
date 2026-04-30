@@ -202,6 +202,14 @@ func buildMainHTTPServer(conf config.Configuration, handler http.Handler, tlsCon
 	}
 }
 
+func shouldRegisterTokenGatewayRoute(conf config.Configuration) bool {
+	return conf.Caps.TokenAuth &&
+		!conf.Server.KerberosEnabled() &&
+		!conf.Server.BasicAuthEnabled() &&
+		!conf.Server.NtlmEnabled() &&
+		(conf.Server.OpenIDEnabled() || conf.Server.HeaderEnabled())
+}
+
 func buildGateway(conf config.Configuration, tokenAuth bool) protocol.Gateway {
 	gw := protocol.Gateway{
 		RedirectFlags: protocol.RedirectFlags{
@@ -280,12 +288,14 @@ func main() {
 
 	// configure web backend
 	w := &web.Config{
-		QueryInfo:        security.QueryInfo,
-		QueryTokenIssuer: conf.Security.QueryTokenIssuer,
-		EnableUserToken:  conf.Security.EnableUserToken,
-		AdminGroups:      conf.Dashboard.AdminGroups,
-		Hosts:            conf.Server.Hosts,
-		HostSelection:    conf.Server.HostSelection,
+		QueryInfo:         security.QueryInfo,
+		QueryTokenIssuer:  conf.Security.QueryTokenIssuer,
+		EnableUserToken:   conf.Security.EnableUserToken,
+		AdminGroups:       conf.Dashboard.AdminGroups,
+		Hosts:             conf.Server.Hosts,
+		HostSelection:     conf.Server.HostSelection,
+		InternalDomains:   conf.Server.InternalDomains,
+		InternalDNSServer: conf.Server.InternalDNSServer,
 		RdpOpts: web.RdpOpts{
 			UsernameTemplate: conf.Client.UsernameTemplate,
 			SplitUserDomain:  conf.Client.SplitUserDomain,
@@ -436,8 +446,8 @@ func main() {
 		r.HandleFunc("/assets/app-icon", h.ServeAppIcon)
 		r.HandleFunc("/assets/icons/{id}", h.ServeUploadedIcon)
 
-		// only enable un-auth endpoint for openid only config
-		if !conf.Server.KerberosEnabled() && !conf.Server.BasicAuthEnabled() && !conf.Server.NtlmEnabled() && !conf.Server.HeaderEnabled() {
+		// enable token-auth gateway when no direct gateway auth stack is configured
+		if shouldRegisterTokenGatewayRoute(conf) {
 			rdp.Name("gw").HandlerFunc(tokenGateway.HandleGatewayProtocol)
 		}
 	}
@@ -453,25 +463,27 @@ func main() {
 			TrustedProxyCIDRs: conf.Server.TrustedProxyCIDRs,
 		}
 		headerAuth := headerConfig.New()
-		r.Handle("/connect", headerAuth.Authenticated(http.HandlerFunc(h.HandleDownload)))
 
-		// Web interface and API routes (authenticated)
-		r.Handle("/", headerAuth.Authenticated(http.HandlerFunc(h.HandleWebInterface)))
-		api.Handle("/hosts", headerAuth.Authenticated(http.HandlerFunc(h.HandleHostList)))
-		api.Handle("/user", headerAuth.Authenticated(http.HandlerFunc(h.HandleUserInfo)))
+		if conf.Caps.TokenAuth {
+			r.Handle("/connect", headerAuth.Authenticated(http.HandlerFunc(h.HandleDownload)))
 
-		// Static files (no authentication required)
-		r.HandleFunc("/static/style.css", h.ServeStaticFile("style.css"))
-		r.HandleFunc("/static/app.js", h.ServeStaticFile("app.js"))
-		// Asset files (no authentication required)
-		r.HandleFunc("/assets/connect.svg", h.ServeAssetFile("connect.svg"))
-		r.HandleFunc("/assets/icon.svg", h.ServeAssetFile("icon.svg"))
-		r.HandleFunc("/assets/app-icon", h.ServeAppIcon)
-		r.HandleFunc("/assets/icons/{id}", h.ServeUploadedIcon)
+			// Web interface and API routes (authenticated)
+			r.Handle("/", headerAuth.Authenticated(http.HandlerFunc(h.HandleWebInterface)))
+			api.Handle("/hosts", headerAuth.Authenticated(http.HandlerFunc(h.HandleHostList)))
+			api.Handle("/user", headerAuth.Authenticated(http.HandlerFunc(h.HandleUserInfo)))
 
-		// only enable un-auth endpoint for header only config
-		if !conf.Server.KerberosEnabled() && !conf.Server.BasicAuthEnabled() && !conf.Server.NtlmEnabled() && !conf.Server.OpenIDEnabled() {
-			rdp.Name("gw").HandlerFunc(tokenGateway.HandleGatewayProtocol)
+			// Static files (no authentication required)
+			r.HandleFunc("/static/style.css", h.ServeStaticFile("style.css"))
+			r.HandleFunc("/static/app.js", h.ServeStaticFile("app.js"))
+			// Asset files (no authentication required)
+			r.HandleFunc("/assets/connect.svg", h.ServeAssetFile("connect.svg"))
+			r.HandleFunc("/assets/icon.svg", h.ServeAssetFile("icon.svg"))
+			r.HandleFunc("/assets/app-icon", h.ServeAppIcon)
+			r.HandleFunc("/assets/icons/{id}", h.ServeUploadedIcon)
+
+			if !conf.Server.OpenIDEnabled() && shouldRegisterTokenGatewayRoute(conf) {
+				rdp.Name("gw").HandlerFunc(tokenGateway.HandleGatewayProtocol)
+			}
 		}
 	}
 

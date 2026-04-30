@@ -2,6 +2,8 @@ package web
 
 import (
 	"context"
+	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -295,6 +297,181 @@ func TestHandleEntryDownloadTemplateEntryRequiresTargetHost(t *testing.T) {
 
 	if recorder.Code != http.StatusInternalServerError {
 		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleEntryDownloadUsesInternalDNSForInternalDomain(t *testing.T) {
+	store := newSingleHostEntryStore(t, dashboard.Entry{
+		ID:            "internal-app",
+		Type:          dashboard.EntryTypeHost,
+		Name:          "Internal App",
+		AllowedGroups: []string{"office-users"},
+		Enabled:       true,
+		Host:          "app.corp.internal:3389",
+	})
+
+	gatewayAddress, _ := url.Parse("https://gw.example.com:443")
+	var tokenHost string
+	handler := (&Config{
+		DashboardStore:    store,
+		PAATokenGenerator: recordingPAATokenMock(&tokenHost),
+		GatewayAddress:    gatewayAddress,
+		InternalDomains:   []string{"corp.internal"},
+		InternalDNSServer: "10.0.0.53:53",
+		InternalDNSLookupIP: func(ctx context.Context, dnsServer string, host string) ([]net.IP, error) {
+			if dnsServer != "10.0.0.53:53" || host != "app.corp.internal" {
+				t.Fatalf("lookup called with dns=%q host=%q", dnsServer, host)
+			}
+			return []net.IP{net.ParseIP("10.1.2.3")}, nil
+		},
+	}).NewHandler()
+
+	recorder := performEntryDownload(t, handler, "internal-app", "alice", []string{"office-users"})
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	data := rdpToMap(strings.Split(recorder.Body.String(), rdp.CRLF))
+	if data["full address"] != "10.1.2.3:3389" {
+		t.Fatalf("full address = %q, want internal DNS IP", data["full address"])
+	}
+	if tokenHost != "10.1.2.3:3389" {
+		t.Fatalf("token host = %q, want resolved IP host", tokenHost)
+	}
+}
+
+func TestHandleEntryDownloadFallsBackToConfiguredTargetIPWhenInternalDNSFails(t *testing.T) {
+	store := newSingleHostEntryStore(t, dashboard.Entry{
+		ID:               "fallback-app",
+		Type:             dashboard.EntryTypeHost,
+		Name:             "Fallback App",
+		AllowedGroups:    []string{"office-users"},
+		Enabled:          true,
+		Host:             "app.corp.internal:3389",
+		TargetIPOverride: "10.9.8.7",
+	})
+
+	gatewayAddress, _ := url.Parse("https://gw.example.com:443")
+	handler := (&Config{
+		DashboardStore:    store,
+		PAATokenGenerator: paaTokenMock,
+		GatewayAddress:    gatewayAddress,
+		InternalDomains:   []string{"corp.internal"},
+		InternalDNSServer: "10.0.0.53:53",
+		InternalDNSLookupIP: func(ctx context.Context, dnsServer string, host string) ([]net.IP, error) {
+			return nil, errors.New("dns unavailable")
+		},
+	}).NewHandler()
+
+	recorder := performEntryDownload(t, handler, "fallback-app", "alice", []string{"office-users"})
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	data := rdpToMap(strings.Split(recorder.Body.String(), rdp.CRLF))
+	if data["full address"] != "10.9.8.7:3389" {
+		t.Fatalf("full address = %q, want fallback IP", data["full address"])
+	}
+}
+
+func TestHandleEntryDownloadForceTargetIPOverrideSkipsInternalDNS(t *testing.T) {
+	store := newSingleHostEntryStore(t, dashboard.Entry{
+		ID:                    "forced-app",
+		Type:                  dashboard.EntryTypeHost,
+		Name:                  "Forced App",
+		AllowedGroups:         []string{"office-users"},
+		Enabled:               true,
+		Host:                  "app.corp.internal:3389",
+		TargetIPOverride:      "10.9.8.7",
+		ForceTargetIPOverride: true,
+	})
+
+	gatewayAddress, _ := url.Parse("https://gw.example.com:443")
+	handler := (&Config{
+		DashboardStore:    store,
+		PAATokenGenerator: paaTokenMock,
+		GatewayAddress:    gatewayAddress,
+		InternalDomains:   []string{"corp.internal"},
+		InternalDNSServer: "10.0.0.53:53",
+		InternalDNSLookupIP: func(ctx context.Context, dnsServer string, host string) ([]net.IP, error) {
+			t.Fatal("internal DNS should not be called when force target IP override is enabled")
+			return nil, nil
+		},
+	}).NewHandler()
+
+	recorder := performEntryDownload(t, handler, "forced-app", "alice", []string{"office-users"})
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	data := rdpToMap(strings.Split(recorder.Body.String(), rdp.CRLF))
+	if data["full address"] != "10.9.8.7:3389" {
+		t.Fatalf("full address = %q, want forced IP", data["full address"])
+	}
+}
+
+func TestHandleEntryDownloadLiteralIPAddressIsNotOverwrittenByInternalDNS(t *testing.T) {
+	store := newSingleHostEntryStore(t, dashboard.Entry{
+		ID:                    "ip-app",
+		Type:                  dashboard.EntryTypeHost,
+		Name:                  "IP App",
+		AllowedGroups:         []string{"office-users"},
+		Enabled:               true,
+		Host:                  "10.2.3.4:3389",
+		TargetIPOverride:      "10.9.8.7",
+		ForceTargetIPOverride: true,
+	})
+
+	gatewayAddress, _ := url.Parse("https://gw.example.com:443")
+	handler := (&Config{
+		DashboardStore:    store,
+		PAATokenGenerator: paaTokenMock,
+		GatewayAddress:    gatewayAddress,
+		InternalDomains:   []string{"corp.internal"},
+		InternalDNSServer: "10.0.0.53:53",
+		InternalDNSLookupIP: func(ctx context.Context, dnsServer string, host string) ([]net.IP, error) {
+			t.Fatal("internal DNS should not be called for literal IP targets")
+			return nil, nil
+		},
+	}).NewHandler()
+
+	recorder := performEntryDownload(t, handler, "ip-app", "alice", []string{"office-users"})
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	data := rdpToMap(strings.Split(recorder.Body.String(), rdp.CRLF))
+	if data["full address"] != "10.2.3.4:3389" {
+		t.Fatalf("full address = %q, want literal IP unchanged", data["full address"])
+	}
+}
+
+func newSingleHostEntryStore(t *testing.T, entry dashboard.Entry) dashboard.Store {
+	t.Helper()
+	store, err := dashboard.NewFileStore(filepath.Join(t.TempDir(), "catalog"), filepath.Join(t.TempDir(), "uploads"))
+	if err != nil {
+		t.Fatalf("new dashboard store: %v", err)
+	}
+	if err := store.Put(entry); err != nil {
+		t.Fatalf("put entry: %v", err)
+	}
+	return store
+}
+
+func performEntryDownload(t *testing.T, handler *Handler, entryID string, username string, groups []string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/connect/entries/"+entryID+".rdp", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": entryID})
+	id := identity.NewUser()
+	id.SetUserName(username)
+	id.SetAuthenticated(true)
+	id.SetGroups(groups)
+	req = identity.AddToRequestCtx(id, req)
+	recorder := httptest.NewRecorder()
+	handler.HandleEntryDownload(recorder, req)
+	return recorder
+}
+
+func recordingPAATokenMock(hostOut *string) TokenGeneratorFunc {
+	return func(ctx context.Context, username string, host string) (string, error) {
+		*hostOut = host
+		return username + "_" + host, nil
 	}
 }
 

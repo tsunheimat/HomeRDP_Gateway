@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -52,7 +53,7 @@ func (h *Handler) HandleEntryDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	builder, host, err := h.buildEntryBuilder(id, entry)
+	builder, host, err := h.buildEntryBuilder(r.Context(), id, entry)
 	if err != nil {
 		log.Printf("Cannot build RDP for entry %s due to %s", entryID, err)
 		http.Error(w, "unable to build RDP file", http.StatusInternalServerError)
@@ -79,6 +80,12 @@ func (h *Handler) HandleEntryDownload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if h.paaTokenGenerator == nil {
+		log.Printf("Cannot generate PAA token for user %s because no token generator is configured", user)
+		http.Error(w, "unable to generate gateway credentials", http.StatusInternalServerError)
+		return
+	}
+
 	token, err := h.paaTokenGenerator(r.Context(), user, host)
 	if err != nil {
 		log.Printf("Cannot generate PAA token for user %s due to %s", user, err)
@@ -87,6 +94,11 @@ func (h *Handler) HandleEntryDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.enableUserToken {
+		if h.userTokenGenerator == nil {
+			log.Printf("Cannot generate token for user %s because no user token generator is configured", user)
+			http.Error(w, "unable to generate gateway credentials", http.StatusInternalServerError)
+			return
+		}
 		userToken, err := h.userTokenGenerator(r.Context(), user)
 		if err != nil {
 			log.Printf("Cannot generate token for user %s due to %s", user, err)
@@ -115,10 +127,14 @@ func (h *Handler) HandleEntryDownload(w http.ResponseWriter, r *http.Request) {
 	h.serveBuiltRDP(w, r, entry.ID, builder)
 }
 
-func (h *Handler) buildEntryBuilder(id identity.Identity, entry dashboard.Entry) (*rdp.Builder, string, error) {
+func (h *Handler) buildEntryBuilder(ctx context.Context, id identity.Identity, entry dashboard.Entry) (*rdp.Builder, string, error) {
 	switch entry.Type {
 	case dashboard.EntryTypeHost:
 		host, err := security.ResolvePreferredUsernameHost(entry.Host, id.UserName())
+		if err != nil {
+			return nil, "", err
+		}
+		host, err = h.resolveRDPAddress(ctx, host, entry.TargetIPOverride, entry.ForceTargetIPOverride)
 		if err != nil {
 			return nil, "", err
 		}
@@ -145,6 +161,10 @@ func (h *Handler) buildEntryBuilder(id identity.Identity, entry dashboard.Entry)
 			if strings.TrimSpace(host) == "" {
 				return nil, "", errors.New("template entry does not resolve to a target host")
 			}
+			return nil, "", err
+		}
+		host, err = h.resolveRDPAddress(ctx, host, entry.TargetIPOverride, entry.ForceTargetIPOverride)
+		if err != nil {
 			return nil, "", err
 		}
 		return builder, host, nil

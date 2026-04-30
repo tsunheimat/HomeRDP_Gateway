@@ -101,18 +101,13 @@ func (h *Handler) HandleEntryList(w http.ResponseWriter, r *http.Request) {
 	visible := dashboard.VisibleEntries(entries, id.Groups())
 	summaries := make([]DashboardEntrySummary, 0, len(visible))
 	for _, entry := range visible {
-		target := entry.Host
-		if entry.Type == dashboard.EntryTypeTemplate && entry.TargetHostOverride != "" {
-			target = entry.TargetHostOverride
-		}
-
 		summaries = append(summaries, DashboardEntrySummary{
 			ID:                  entry.ID,
 			Type:                string(entry.Type),
 			Name:                entry.Name,
 			Description:         entry.Description,
 			Icon:                dashboard.NormalizeEntryIcon(entry.Icon),
-			Target:              target,
+			Target:              dashboardEntryActiveTarget(entry),
 			HasUploadedTemplate: entry.UploadedTemplatePath != "",
 			DownloadURL:         fmt.Sprintf("/connect/entries/%s.rdp", entry.ID),
 		})
@@ -120,6 +115,16 @@ func (h *Handler) HandleEntryList(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(summaries)
+}
+
+func dashboardEntryActiveTarget(entry dashboard.Entry) string {
+	if entry.TargetIPOverride != "" && entry.ForceTargetIPOverride {
+		return entry.TargetIPOverride
+	}
+	if entry.Type == dashboard.EntryTypeTemplate && entry.TargetHostOverride != "" {
+		return entry.TargetHostOverride
+	}
+	return entry.Host
 }
 
 func (h *Handler) HandleDashboardUserInfo(w http.ResponseWriter, r *http.Request) {
@@ -300,6 +305,14 @@ const fallbackAdminTemplate = `<!DOCTYPE html>
                                     {{.Messages.HostLabel}}
                                     <input type="text" name="host" placeholder="{{.Messages.HostPlaceholder}}" required>
                                 </label>
+                                <label>
+                                    {{.Messages.TargetIPOverrideLabel}}
+                                    <input type="text" name="targetIPOverride" placeholder="{{.Messages.TargetIPOverridePlaceholder}}">
+                                </label>
+                                <label class="checkbox-row">
+                                    <input type="checkbox" name="forceTargetIPOverride">
+                                    {{.Messages.ForceTargetIPOverrideLabel}}
+                                </label>
                                 <button type="submit" class="primary-button">{{.Messages.CreateHostEntryButton}}</button>
                             </form>
                         </section>
@@ -326,6 +339,14 @@ const fallbackAdminTemplate = `<!DOCTYPE html>
                                 <label>
                                     {{.Messages.TargetHostOverrideLabel}}
                                     <input type="text" name="targetHostOverride" placeholder="{{.Messages.TargetHostOverridePlaceholder}}">
+                                </label>
+                                <label>
+                                    {{.Messages.TargetIPOverrideLabel}}
+                                    <input type="text" name="targetIPOverride" placeholder="{{.Messages.TargetIPOverridePlaceholder}}">
+                                </label>
+                                <label class="checkbox-row">
+                                    <input type="checkbox" name="forceTargetIPOverride">
+                                    {{.Messages.ForceTargetIPOverrideLabel}}
                                 </label>
                                 <label>
                                     {{.Messages.RdpTemplateFileLabel}}

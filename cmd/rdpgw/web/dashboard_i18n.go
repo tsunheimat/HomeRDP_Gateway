@@ -106,6 +106,9 @@ type adminMessages struct {
 	TemplateSuggestionUnavailable  string            `json:"templateSuggestionUnavailable"`
 	TargetHostOverrideLabel        string            `json:"targetHostOverrideLabel"`
 	TargetHostOverridePlaceholder  string            `json:"targetHostOverridePlaceholder"`
+	TargetIPOverrideLabel          string            `json:"targetIPOverrideLabel"`
+	TargetIPOverridePlaceholder    string            `json:"targetIPOverridePlaceholder"`
+	ForceTargetIPOverrideLabel     string            `json:"forceTargetIPOverrideLabel"`
 	ToggleEnabledButton            string            `json:"toggleEnabledButton"`
 	UnknownUser                    string            `json:"unknownUser"`
 	UploadedTemplateLabel          string            `json:"uploadedTemplateLabel"`
@@ -321,6 +324,9 @@ func adminMessagesForLocale(locale string) adminMessages {
 			TemplateSuggestionUnavailable:  "範本中沒有可辨識的應用程式名稱或圖示提示。",
 			TargetHostOverrideLabel:        "目標主機覆寫（可選）",
 			TargetHostOverridePlaceholder:  "app.internal:3389",
+			TargetIPOverrideLabel:          "目標 IP 覆寫（可選）",
+			TargetIPOverridePlaceholder:    "10.0.0.25",
+			ForceTargetIPOverrideLabel:     "強制使用目標 IP 覆寫",
 			ToggleEnabledButton:            "切換啟用狀態",
 			UnknownUser:                    "未知使用者",
 			UploadedTemplateLabel:          "已上傳範本",
@@ -422,6 +428,9 @@ func adminMessagesForLocale(locale string) adminMessages {
 		TemplateSuggestionUnavailable:  "The template did not include a recognizable app name or icon hint.",
 		TargetHostOverrideLabel:        "Target Host Override (optional)",
 		TargetHostOverridePlaceholder:  "app.internal:3389",
+		TargetIPOverrideLabel:          "Target IP Override (optional)",
+		TargetIPOverridePlaceholder:    "10.0.0.25",
+		ForceTargetIPOverrideLabel:     "Force target IP override",
 		ToggleEnabledButton:            "Toggle Enabled",
 		UnknownUser:                    "Unknown User",
 		UploadedTemplateLabel:          "Uploaded template",

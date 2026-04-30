@@ -70,6 +70,14 @@
                                     {{.Messages.HostLabel}}
                                     <input type="text" name="host" placeholder="{{.Messages.HostPlaceholder}}" required>
                                 </label>
+                                <label>
+                                    {{.Messages.TargetIPOverrideLabel}}
+                                    <input type="text" name="targetIPOverride" placeholder="{{.Messages.TargetIPOverridePlaceholder}}">
+                                </label>
+                                <label class="checkbox-row">
+                                    <input type="checkbox" name="forceTargetIPOverride">
+                                    {{.Messages.ForceTargetIPOverrideLabel}}
+                                </label>
                                 <button type="submit" class="primary-button">{{.Messages.CreateHostEntryButton}}</button>
                             </form>
                         </section>
@@ -96,6 +104,14 @@
                                 <label>
                                     {{.Messages.TargetHostOverrideLabel}}
                                     <input type="text" name="targetHostOverride" placeholder="{{.Messages.TargetHostOverridePlaceholder}}">
+                                </label>
+                                <label>
+                                    {{.Messages.TargetIPOverrideLabel}}
+                                    <input type="text" name="targetIPOverride" placeholder="{{.Messages.TargetIPOverridePlaceholder}}">
+                                </label>
+                                <label class="checkbox-row">
+                                    <input type="checkbox" name="forceTargetIPOverride">
+                                    {{.Messages.ForceTargetIPOverrideLabel}}
                                 </label>
                                 <label>
                                     {{.Messages.RdpTemplateFileLabel}}

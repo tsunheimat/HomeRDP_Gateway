@@ -3,11 +3,13 @@ package web
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/identity"
+	"github.com/bolkedebruin/rdpgw/cmd/rdpgw/security"
 )
 
 func init() {
@@ -269,50 +271,98 @@ func TestHeaderAuthSaveSessionErrorReturnsGenericMessage(t *testing.T) {
 	}
 }
 
-func TestHeaderAlreadyAuthenticated(t *testing.T) {
-	// Create a test handler that checks the identity
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id := identity.FromRequestCtx(r)
-		if !id.Authenticated() {
-			t.Error("expected user to remain authenticated")
-		}
-		if id.UserName() != "existing_user" {
-			t.Errorf("expected username to remain: existing_user, got: %v", id.UserName())
-		}
-		w.WriteHeader(http.StatusOK)
-	})
-
-	// Create header auth handler
-	headerConfig := &HeaderConfig{
+func TestHeaderAlreadyAuthenticatedStillRequiresTrustedProxy(t *testing.T) {
+	headerAuth := (&HeaderConfig{
 		UserHeader:        "X-Forwarded-User",
 		TrustedProxyCIDRs: []string{"198.51.100.0/24"},
-	}
-	headerAuth := headerConfig.New()
+	}).New()
 
-	// Wrap test handler with authentication
-	authHandler := headerAuth.Authenticated(testHandler)
-
-	// Create test request
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.RemoteAddr = "203.0.113.10:54321"
 	req.Header.Set("X-Forwarded-User", "new_user@domain.com")
 
-	// Add pre-authenticated identity to request context
 	testId := identity.NewUser()
 	testId.SetUserName("existing_user")
 	testId.SetAuthenticated(true)
 	testId.SetAuthTime(time.Now())
 	req = identity.AddToRequestCtx(testId, req)
 
-	// Create response recorder
 	rr := httptest.NewRecorder()
+	headerAuth.Authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("next handler should not run for an authenticated session replayed from an untrusted peer")
+	})).ServeHTTP(rr, req)
 
-	// Execute the handler
-	authHandler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rr.Code)
+	}
+}
 
-	// Check status code
+func TestHeaderAuthConnectWithoutPAATokenGeneratorDoesNotPanic(t *testing.T) {
+	headerAuth := (&HeaderConfig{
+		UserHeader:        "X-Forwarded-User",
+		TrustedProxyCIDRs: []string{"198.51.100.0/24"},
+	}).New()
+	gatewayAddress, _ := url.Parse("https://gw.example.com:443")
+	handler := (&Config{
+		Hosts:          []string{"10.0.0.1:3389"},
+		HostSelection:  "roundrobin",
+		GatewayAddress: gatewayAddress,
+	}).NewHandler()
+
+	req := httptest.NewRequest(http.MethodGet, "/connect", nil)
+	req.RemoteAddr = "198.51.100.10:12345"
+	req.Header.Set("X-Forwarded-User", "user@example.com")
+	req = identity.AddToRequestCtx(identity.NewUser(), req)
+
+	rr := httptest.NewRecorder()
+	headerAuth.Authenticated(http.HandlerFunc(handler.HandleDownload)).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "unable to generate gateway credentials") {
+		t.Fatalf("expected gateway credential error, got %q", rr.Body.String())
+	}
+}
+
+func TestHeaderAuthConnectWithPAATokenGeneratorDownloadsRDP(t *testing.T) {
+	originalSigningKey := security.SigningKey
+	originalEncryptionKey := security.EncryptionKey
+	security.SigningKey = []byte("12345678901234567890123456789012")
+	security.EncryptionKey = []byte("abcdefghijklmnopqrstuvwxyz123456")
+	t.Cleanup(func() {
+		security.SigningKey = originalSigningKey
+		security.EncryptionKey = originalEncryptionKey
+	})
+
+	enrich, err := EnrichContextWithTrustedProxyCIDRs([]string{"198.51.100.0/24"})
+	if err != nil {
+		t.Fatalf("trusted proxy middleware: %v", err)
+	}
+	headerAuth := (&HeaderConfig{
+		UserHeader:        "X-Forwarded-User",
+		TrustedProxyCIDRs: []string{"198.51.100.0/24"},
+	}).New()
+	gatewayAddress, _ := url.Parse("https://gw.example.com:443")
+	handler := (&Config{
+		Hosts:             []string{"10.0.0.1:3389"},
+		HostSelection:     "roundrobin",
+		GatewayAddress:    gatewayAddress,
+		PAATokenGenerator: security.GeneratePAAToken,
+	}).NewHandler()
+
+	req := httptest.NewRequest(http.MethodGet, "/connect", nil)
+	req.RemoteAddr = "198.51.100.10:12345"
+	req.Header.Set("X-Forwarded-User", "user@example.com")
+
+	rr := httptest.NewRecorder()
+	enrich(headerAuth.Authenticated(http.HandlerFunc(handler.HandleDownload))).ServeHTTP(rr, req)
+
 	if rr.Code != http.StatusOK {
-		t.Errorf("expected status code: %v, got: %v", http.StatusOK, rr.Code)
+		t.Fatalf("expected status %d, got %d body=%q", http.StatusOK, rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "gatewayaccesstoken:s:") {
+		t.Fatalf("expected generated RDP gateway access token, got %q", rr.Body.String())
 	}
 }
 

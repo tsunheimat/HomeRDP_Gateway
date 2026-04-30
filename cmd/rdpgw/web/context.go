@@ -33,6 +33,10 @@ func enrichContextWithTrustedProxies(trustedProxies *TrustedProxyChecker) func(h
 			if id == nil {
 				id = identity.NewUser()
 			}
+			if id.Authenticated() && id.GetAttribute(identity.AttrAuthSource) == identity.AuthSourceHeader && !trustedProxies.IsTrustedRemoteAddr(r.RemoteAddr) {
+				http.Error(w, "Header authentication requires a trusted proxy", http.StatusUnauthorized)
+				return
+			}
 
 			log.Printf("Identity SessionId: %s, UserName: %s: Authenticated: %t",
 				id.SessionId(), id.UserName(), id.Authenticated())

@@ -316,6 +316,7 @@ func (h *OIDC) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	id.SetAuthenticated(true)
 	id.SetAuthTime(time.Now())
 	id.SetAttribute(identity.AttrAccessToken, oauth2Token.AccessToken)
+	id.SetAttribute(identity.AttrAuthSource, identity.AuthSourceOIDC)
 
 	if err := SaveSessionIdentity(r, w, id); err != nil {
 		log.Printf("OIDC HandleCallback: failed to save session identity: %v", err)

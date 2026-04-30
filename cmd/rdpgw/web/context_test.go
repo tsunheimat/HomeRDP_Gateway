@@ -35,6 +35,39 @@ func TestEnrichContextMalformedSessionCookieReturnsGenericError(t *testing.T) {
 	}
 }
 
+func TestEnrichContextRejectsPersistedHeaderSessionFromUntrustedPeer(t *testing.T) {
+	InitStore([]byte("thisisasessionkeyreplacethisjetzt"), []byte("thisisasessionencryptionkey12345"), "cookie", 8192)
+
+	saveReq := httptest.NewRequest(http.MethodGet, "/", nil)
+	saveRec := httptest.NewRecorder()
+	id := identity.NewUser()
+	id.SetUserName("header-user")
+	id.SetAuthenticated(true)
+	id.SetAttribute(identity.AttrAuthSource, identity.AuthSourceHeader)
+	if err := SaveSessionIdentity(saveReq, saveRec, id); err != nil {
+		t.Fatalf("save header session: %v", err)
+	}
+
+	handler, err := EnrichContextWithTrustedProxyCIDRs([]string{"198.51.100.0/24"})
+	if err != nil {
+		t.Fatalf("trusted proxy middleware: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/tokeninfo", nil)
+	req.RemoteAddr = "203.0.113.10:54321"
+	for _, cookie := range saveRec.Result().Cookies() {
+		req.AddCookie(cookie)
+	}
+	rec := httptest.NewRecorder()
+
+	handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("next handler should not run for persisted header session from untrusted peer")
+	})).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
+	}
+}
+
 func TestEnrichContextIgnoresSpoofedXForwardedForFromDirectClient(t *testing.T) {
 	handler, err := EnrichContextWithTrustedProxyCIDRs([]string{"10.0.0.0/24"})
 	if err != nil {

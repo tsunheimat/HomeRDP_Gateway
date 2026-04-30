@@ -12,6 +12,7 @@ import (
 	"html/template"
 	"log"
 	rnd "math/rand"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -51,6 +52,9 @@ type Config struct {
 	RdpSigningKey           string
 	TemplatesPath           string
 	RdpRedirection          RdpRedirectionPolicy
+	InternalDomains         []string
+	InternalDNSServer       string
+	InternalDNSLookupIP     func(context.Context, string, string) ([]net.IP, error)
 }
 
 // WebConfig represents the web interface configuration
@@ -114,6 +118,9 @@ type Handler struct {
 	webConfig               *WebConfig
 	htmlTemplate            *template.Template
 	rdpRedirection          RdpRedirectionPolicy
+	internalDomains         []string
+	internalDNSServer       string
+	internalDNSLookupIP     func(context.Context, string, string) ([]net.IP, error)
 }
 
 func (c *Config) NewHandler() *Handler {
@@ -140,6 +147,12 @@ func (c *Config) NewHandler() *Handler {
 		rdpRedirection:          c.RdpRedirection,
 		rdpDefaults:             c.TemplateFile,
 		templatesPath:           c.TemplatesPath,
+		internalDomains:         c.InternalDomains,
+		internalDNSServer:       c.InternalDNSServer,
+		internalDNSLookupIP:     c.InternalDNSLookupIP,
+	}
+	if handler.internalDNSLookupIP == nil {
+		handler.internalDNSLookupIP = lookupIPWithDNSServer
 	}
 
 	// set up RDP signer if config values are set
@@ -529,6 +542,12 @@ func (h *Handler) HandleDownload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, errors.New("invalid server configuration").Error(), http.StatusInternalServerError)
 		return
 	}
+	host, err = h.resolveRDPAddress(ctx, host, "", false)
+	if err != nil {
+		log.Printf("Cannot resolve RDP target for user %s due to %s", id.UserName(), err)
+		http.Error(w, errors.New("invalid server configuration").Error(), http.StatusInternalServerError)
+		return
+	}
 
 	// split the username into user and domain
 	var user = id.UserName()
@@ -552,6 +571,12 @@ func (h *Handler) HandleDownload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if h.paaTokenGenerator == nil {
+		log.Printf("Cannot generate PAA token for user %s because no token generator is configured", user)
+		http.Error(w, errors.New("unable to generate gateway credentials").Error(), http.StatusInternalServerError)
+		return
+	}
+
 	token, err := h.paaTokenGenerator(ctx, user, host)
 	if err != nil {
 		log.Printf("Cannot generate PAA token for user %s due to %s", user, err)
@@ -560,6 +585,11 @@ func (h *Handler) HandleDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.enableUserToken {
+		if h.userTokenGenerator == nil {
+			log.Printf("Cannot generate token for user %s because no user token generator is configured", user)
+			http.Error(w, errors.New("unable to generate gateway credentials").Error(), http.StatusInternalServerError)
+			return
+		}
 		userToken, err := h.userTokenGenerator(ctx, user)
 		if err != nil {
 			log.Printf("Cannot generate token for user %s due to %s", user, err)
