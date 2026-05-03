@@ -12,7 +12,7 @@ This project is intended for:
 - self-hosted environments,
 - personal infrastructure,
 - small private deployments,
-- WebUI-assisted OIDC and RemoteApp workflows.
+- OIDC-backed dashboard, split gateway, and direct-auth workflows.
 
 This project is not intended to be a full replacement for Microsoft Windows Server Remote Desktop Gateway, Microsoft Remote Desktop Services, or any official Microsoft server product.
 

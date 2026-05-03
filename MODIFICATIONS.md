@@ -10,29 +10,33 @@ HomeRDP Gateway is maintained by tsunheimat and is focused on homelab and self-h
 
 Compared with the original rdpgw project, this fork includes the following major changes:
 
-1. WebUI-assisted OIDC selection
+1. OIDC-backed dashboard and admin UI
 
-   This fork adds a WebUI flow that allows users to select an OIDC login option.
+   This fork adds a browser dashboard and `/admin` UI backed by OpenID Connect.
 
-   The goal is to make homelab identity-provider setups easier to use, especially when multiple OIDC choices or login paths are available.
+   The goal is to make homelab identity-provider setups easier to use while keeping host publishing and direct-auth user management inside a small self-hosted control surface.
 
-2. RemoteApp tool file upload support
+2. Dashboard entry, icon, and RDP template upload support
 
-   This fork adds support for uploading files used by the RemoteApp tool workflow.
+   This fork adds support for managing host entries, uploaded `.rdp` templates, uploaded web icons, and generated client downloads.
 
-   This is intended to make RemoteApp-related setup and operation easier for homelab users.
+   This is intended to make RDP entry publishing and client-file generation easier for homelab users.
 
 3. mstsc and macOS Remote Desktop client workflows
 
    This fork is designed to support connection workflows using Windows mstsc and macOS Remote Desktop clients.
 
-4. Unified host access control across two gateway components
+4. Unified host access control across OIDC and direct-auth gateway listeners
 
-   This fork introduces or adjusts permission-control behavior so that two gateway components can share a unified host access-control model.
+   This fork introduces split gateway mode so one container can run an OIDC/dashboard listener and a direct-auth listener from the same mounted configuration.
 
-   The intended result is that the gateways work together as a single control surface for host authorization.
+   The intended result is that dashboard-managed enabled host entries become the shared allowlist for downloaded OIDC `.rdp` files and direct `local`/`ntlm` gateway traffic.
 
-5. Homelab-oriented positioning
+5. Hardened container and Kubernetes starter deployment
+
+   This fork ships GHCR-based Docker Compose and Kubernetes starter manifests with non-root UID/GID `1001`, dropped Linux capabilities, no privilege escalation, read-only root filesystem support, explicit writable volumes, and split-listener examples.
+
+6. Homelab-oriented positioning
 
    This fork is designed for personal infrastructure, self-hosted environments, and homelab users.
 

@@ -128,7 +128,7 @@ Docker Hub publishing is intentionally disabled for this fork. Container images 
 ghcr.io/tsunheimat/homerdp-gateway
 ```
 
-After the GitHub repository is created and the workflow is enabled, expected tags are:
+Expected tags are:
 
 ```text
 ghcr.io/tsunheimat/homerdp-gateway:latest
@@ -160,7 +160,7 @@ The default `make` target builds both gateway binaries into `bin/`.
 
 ## Local Docker test
 
-The local Docker Compose sample starts a TLS-ready split gateway setup on ports `8443` and `9443`.
+The local Docker Compose sample starts a split gateway setup on ports `8443` and `9443`. The sample disables TLS inside the container because it is intended for local testing; use plain HTTP to reach the backend directly, and set `Server.SecureCookies: true` if you front it with a TLS terminator.
 
 For a step-by-step walkthrough, see the [setup guide](./docs/setup-guide.md).
 
@@ -174,15 +174,17 @@ docker compose up
 3. Check the listeners:
 
 ```bash
-curl -k https://localhost:8443/
-curl -k https://localhost:9443/
+curl http://localhost:8443/
+curl http://localhost:9443/
 ```
 
 4. Sign into the admin UI:
 
 ```text
-https://localhost:8443/admin
+http://localhost:8443/admin
 ```
+
+If you want to exercise browser login or direct-auth through HTTPS, front the container with a local reverse proxy or ingress and set `Server.SecureCookies: true` in the mounted config before exposing it outside your machine.
 
 5. Create at least one enabled host entry and, if testing direct authentication, create a direct-auth user.
 
@@ -209,7 +211,9 @@ securityContext:
 
 Mount writable volumes only where needed, for example a private auth-socket runtime directory such as `/run/rdpgw/rdpgw-auth.sock` for non-Docker deployments, the Docker sample's `/tmp` tmpfs for `/tmp/rdpgw-auth/rdpgw-auth.sock`, a dashboard state volume such as `/var/lib/rdpgw/dashboard`, and `/var/lib/rdpgw/certs` when ACME certificate caching is enabled.
 
-A Kubernetes starter manifest is available at [`k8s/rdpgw.yaml`](./k8s/rdpgw.yaml). It uses the published GHCR image, provides `rdpgw.yaml` through a `ConfigMap`, mounts that key at `/opt/rdpgw/rdpgw.yaml`, and mirrors the Docker sample's non-root/read-only runtime posture.
+A Kubernetes starter manifest is available at [`k8s/rdpgw.yaml`](./k8s/rdpgw.yaml). It uses the published GHCR image, provides `rdpgw.yaml` through a `ConfigMap`, mounts that key at `/opt/rdpgw/rdpgw.yaml`, and mirrors the Docker sample's non-root/read-only runtime posture. The sample keeps `GatewaySplit.Enabled: true`; the container entrypoint reads that helper section and starts both the OIDC/dashboard listener and the direct-auth listener. If `GatewaySplit` is removed, only `Server.Port` starts even if the Kubernetes `Service` still exposes `9443`.
+
+When adapting a known-good running config to Kubernetes, carry over behavior-sensitive fields such as `GatewaySplit.*`, `GatewaySplit.Direct.Authentication`, `Server.SessionStore`, and the `Caps.Enable*` redirection flags. The setup guide has a migration checklist for these fields.
 
 ## Minimal configuration sketch
 
@@ -237,9 +241,7 @@ OpenId:
   GroupsClaim: groups
 
 Dashboard:
-  StorePath: /var/lib/rdpgw/dashboard/store.json
-  UploadDir: /var/lib/rdpgw/dashboard/uploads
-  IconDir: /var/lib/rdpgw/dashboard/icons
+  StorePath: /var/lib/rdpgw/dashboard
   AdminGroups:
     - admin
 
@@ -250,11 +252,25 @@ Security:
 
 Caps:
   TokenAuth: true
-  EnableClipboard: false
-  EnableDrive: false
-  EnablePrinter: false
-  EnablePort: false
-  EnablePnp: false
+  EnableClipboard: true
+  EnableDrive: true
+  EnablePrinter: true
+  EnablePort: true
+  EnablePnp: true
+
+# Optional container-entrypoint helper section for running split OIDC/direct
+# listeners from one config file. It is used by dev/docker/run.sh, not by the
+# Go config schema directly.
+GatewaySplit:
+  Enabled: true
+  OIDC:
+    Hostname: https://your-oidc-gateway.example.com
+    Port: 8443
+  Direct:
+    Hostname: https://your-direct-gateway.example.com
+    Port: 9443
+    Authentication:
+      - ntlm
 ```
 
 ## Client caveats

@@ -229,7 +229,7 @@ Security:
 ```nginx
 upstream rdpgw {
     # rdpgw listens on plain HTTP because Server.Tls is disabled above.
-    server rdpgw:443;
+    server rdpgw:80;
 }
 
 upstream auth-service {

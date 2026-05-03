@@ -19,6 +19,10 @@ data:
         - openid
       Hosts:
         - xrdp:3389
+      # Keep this when you want the sample to mirror split/direct deployments.
+      # The pod mounts /tmp as an emptyDir so filesystem-backed sessions remain
+      # writable with readOnlyRootFilesystem enabled.
+      SessionStore: file
       SessionKey: CHANGE_ME_32_BYTES_SECRET_000001
       SessionEncryptionKey: CHANGE_ME_32_BYTES_SECRET_000002
       SecureCookies: true
@@ -40,6 +44,25 @@ data:
 
     Caps:
       TokenAuth: true
+      EnableClipboard: true
+      EnableDrive: true
+      EnablePrinter: true
+      EnablePort: true
+      EnablePnp: true
+
+    # The sample Service exposes both ports. GatewaySplit is interpreted by the
+    # container entrypoint and starts separate OIDC/dashboard and direct-auth
+    # rdpgw processes. If you remove this block, only Server.Port is started.
+    GatewaySplit:
+      Enabled: true
+      OIDC:
+        Hostname: https://rdpgw.example.invalid:8443
+        Port: 8443
+      Direct:
+        Hostname: https://rdpgw-direct.example.invalid:9443
+        Port: 9443
+        Authentication:
+          - ntlm
 ---
 apiVersion: apps/v1
 kind: Deployment

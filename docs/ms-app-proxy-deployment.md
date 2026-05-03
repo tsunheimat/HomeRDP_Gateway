@@ -148,14 +148,19 @@ Client:
 # docker-compose.yml
 services:
   rdpgw:
-    image: bolkedebruin/rdpgw:latest
+    image: ghcr.io/tsunheimat/homerdp-gateway:latest
+    user: "1001:1001"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,mode=1777
     ports:
-      - "80:443"
+      - "80:80"
     volumes:
       - ./rdpgw.yaml:/opt/rdpgw/rdpgw.yaml:ro
-    environment:
-      - RDPGW_SERVER__TLS=disable
-      - RDPGW_SERVER__PORT=443
     networks:
       - internal
 
@@ -211,7 +216,7 @@ curl -v https://rdpgw.yourdomain.com/connect
 
 ### Test RDP Connection
 
-1. **Access web interface**: `https://rdpgw.yourdomain.com/connect`
+1. **Access web interface**: `https://rdpgw.yourdomain.com/`
 2. **Authenticate**: Complete the RDPGW OIDC login backed by Azure AD/Entra ID
 3. **Download RDP file**: Should contain token-based credentials
 4. **Connect via RDP client**: Should work without additional authentication

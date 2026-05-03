@@ -132,7 +132,7 @@ RDPGW provides multi-factor authentication out of the box with OpenID Connect in
 ### Keycloak
 ```yaml
 OpenId:
-  ProviderUrl: https://keycloak.example.com/auth/realms/your-realm
+  ProviderUrl: https://keycloak.example.com/realms/your-realm
   ClientId: rdpgw
   ClientSecret: your-keycloak-secret
 ```

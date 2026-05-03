@@ -11,9 +11,12 @@ Server:
     - openid
   Hosts:
     - xrdp:3389
+  # Use filesystem-backed sessions in the container sample. The root compose file
+  # mounts /tmp as tmpfs, so session files are writable even with read_only: true.
+  SessionStore: file
   SessionKey: CHANGE_ME_32_BYTES_SECRET_000001
   SessionEncryptionKey: CHANGE_ME_32_BYTES_SECRET_000002
-  SecureCookies: true
+  SecureCookies: false
 
 OpenId:
   ProviderUrl: https://keycloak.example.invalid/realms/rdpgw
@@ -32,3 +35,22 @@ Security:
 
 Caps:
   TokenAuth: true
+  EnableClipboard: true
+  EnableDrive: true
+  EnablePrinter: true
+  EnablePort: true
+  EnablePnp: true
+
+# The compose sample publishes two backend listeners. The container entrypoint
+# reads this helper-only section and starts one rdpgw process for OIDC/dashboard
+# traffic plus one process for direct native RDP gateway auth.
+GatewaySplit:
+  Enabled: true
+  OIDC:
+    Hostname: https://localhost:8443
+    Port: 8443
+  Direct:
+    Hostname: https://localhost:9443
+    Port: 9443
+    Authentication:
+      - ntlm
