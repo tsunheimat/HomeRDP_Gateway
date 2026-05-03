@@ -40,7 +40,7 @@ Security reviews are especially welcome in the following areas:
 - Gateway token generation and validation
 - Cookie and session handling
 - Host authorization and access-control logic
-- RemoteApp file upload handling
+- RDP template and icon upload handling
 - File parsing and storage paths
 - Cross-gateway permission synchronization
 - Reverse proxy and TLS deployment assumptions

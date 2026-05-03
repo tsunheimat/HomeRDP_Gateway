@@ -223,7 +223,7 @@ xfreerdp /g:<gateway-host>:9443 /gd:"" /u:<direct-auth-user> /p:<direct-auth-pas
 
 Notes:
 
-- Windows `mstsc` does not support basic authentication for the gateway; use OpenID Connect, Kerberos, or NTLM depending on your deployment.
+- Windows `mstsc` does not support basic authentication for the gateway; use OpenID Connect or NTLM depending on your deployment.
 - Windows clients are stricter about TLS and certificates than many test tools.
 - The host in `/v:` should match an enabled dashboard host entry or another configured allow-list target.
 
@@ -302,6 +302,3 @@ Check:
 - [README](../README.md)
 - [OpenID authentication](./openid-authentication.md)
 - [NTLM authentication](./ntlm-authentication.md)
-- [Header authentication](./header-authentication.md)
-- [Microsoft App Proxy deployment](./ms-app-proxy-deployment.md)
-- [Kerberos authentication](./kerberos-authentication.md)

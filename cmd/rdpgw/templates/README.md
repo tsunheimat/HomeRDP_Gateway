@@ -20,7 +20,7 @@ Authenticated OpenID admin page (`/admin`) for users in configured admin groups.
 - **Branding Section**: Current global web icon preview, upload form, and active icon selector
 
 ### `index.html`
-Legacy web interface template used by existing non-dashboard flows. Does not use the `app-shell` structure.
+Lightweight connection UI template used by non-dashboard flows. Does not use the `app-shell` structure.
 
 ## JavaScript Files
 
@@ -45,7 +45,7 @@ Admin panel logic:
 - Surfaces API failures contextually within active sections
 
 ### `app.js`
-Legacy web interface logic used by `index.html`.
+Lightweight connection UI logic used by `index.html`.
 
 ## Shared Styling
 
@@ -53,7 +53,7 @@ Legacy web interface logic used by `index.html`.
 Shared stylesheet defining:
 - Base CSS tokens and variables
 - `app-shell` layout primitives (topbar, main, section switcher, etc.)
-- Specific styling for both dashboard/admin and legacy templates
+- Specific styling for both dashboard/admin and lightweight connection templates
 Update this file to keep visual consistency across all pages.
 
 ## Static Routes
@@ -61,7 +61,7 @@ Update this file to keep visual consistency across all pages.
 - `/static/style.css`
 - `/static/dashboard.js`
 - `/static/admin.js`
-- `/static/app.js` (legacy flow)
+- `/static/app.js` (lightweight connection UI)
 - `/assets/connect.svg`
 - `/assets/icon.svg`
 - `/assets/app-icon`

@@ -37,8 +37,7 @@ HomeRDP Gateway keeps the core rdpgw gateway behavior and focuses on these fork-
 - Split gateway mode: one OIDC/browser listener plus one direct-auth listener for native RDP clients.
 - Managed host allowlist for direct `local` and `ntlm` RDP gateway traffic.
 - Support for Windows `mstsc`, macOS Microsoft Remote Desktop, iOS/Android Microsoft clients, and FreeRDP where compatible.
-- Header-based authentication for deployments behind trusted identity-aware reverse proxies.
-- Kerberos, PAM/local, NTLM, and OpenID Connect authentication modes inherited or extended from upstream rdpgw.
+- PAM/local, NTLM, and OpenID Connect authentication modes for direct auth and dashboard login.
 - Hardened container defaults: non-root runtime user, dropped capabilities, read-only root filesystem support, and explicit writable data paths.
 
 ## Architecture overview
@@ -74,7 +73,7 @@ With OpenID Connect enabled, `/` serves a dashboard after login. Entries are fil
 
 `Dashboard.AdminGroups` controls access to `/admin` and admin API endpoints. Admin users can create host entries, upload `.rdp` templates, update/delete entries, manage direct-auth users, and upload/select/delete the web page icon.
 
-Dashboard group checks apply to OIDC web sessions. For native RDP clients using direct `local`, `ntlm`, or `kerberos` authentication, enabled dashboard host entry addresses are used as the allowlist; entry `AllowedGroups` are not evaluated because those modes do not reliably provide group claims to the gateway.
+Dashboard group checks apply to OIDC web sessions. For native RDP clients using direct `local` or `ntlm` authentication, enabled dashboard host entry addresses are used as the allowlist; entry `AllowedGroups` are not evaluated because those modes do not reliably provide group claims to the gateway.
 
 ### Local/PAM and NTLM
 
@@ -86,23 +85,6 @@ Use direct authentication when a native RDP client should authenticate directly 
 Relevant docs:
 
 - [docs/ntlm-authentication.md](./docs/ntlm-authentication.md)
-
-### Kerberos
-
-Kerberos mode requires client-side Kerberos setup, a KDC reachable by the gateway, and appropriate keytab/krb5 configuration.
-
-Relevant docs:
-
-- [docs/kerberos-authentication.md](./docs/kerberos-authentication.md)
-
-### Header authentication
-
-Header authentication is intended for deployments behind a trusted reverse proxy or identity-aware access proxy. Only enable it when the gateway can trust the proxy source addresses.
-
-Relevant docs:
-
-- [docs/header-authentication.md](./docs/header-authentication.md)
-- [docs/ms-app-proxy-deployment.md](./docs/ms-app-proxy-deployment.md)
 
 ## TLS and security notes
 
@@ -277,7 +259,7 @@ GatewaySplit:
 
 Microsoft Remote Desktop clients differ in gateway behavior:
 
-- Windows `mstsc` does not support basic authentication for the gateway; use OpenID Connect, Kerberos, or NTLM.
+- Windows `mstsc` does not support basic authentication for the gateway; use OpenID Connect or NTLM.
 - Windows `mstsc` often requires saved gateway credentials or a domain-style username such as `.\username`.
 - Windows `mstsc` requires a valid certificate and is stricter about TLS/cipher configuration than some other clients.
 - Host entries should normally include hostnames and ports, for example `myserver.example.com:3389`.

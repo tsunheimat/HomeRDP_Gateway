@@ -54,7 +54,7 @@ When OpenID Connect is enabled, the homelab dashboard uses OIDC group membership
 - `Dashboard.MaxTemplateUploadStorageMb`: max total storage for uploaded `.rdp` templates. Default: `100`; `0` disables this quota.
 - `Dashboard.MaxIconUploadStorageMb`: max total storage for uploaded icon files. Default: `100`; `0` disables this quota.
 
-These dashboard group controls are web/OIDC controls. Entry `AllowedGroups` is evaluated for OIDC dashboard visibility and `.rdp` download access, and `Dashboard.AdminGroups` is evaluated for the admin UI. They are not evaluated for native RDP clients using direct authentication (`local`, `ntlm`, or `kerberos`). Direct-auth host authorization uses the addresses from enabled dashboard host entries as its host allowlist because those authentication modes do not carry reliable group claims.
+These dashboard group controls are web/OIDC controls. Entry `AllowedGroups` is evaluated for OIDC dashboard visibility and `.rdp` download access, and `Dashboard.AdminGroups` is evaluated for the admin UI. They are not evaluated for native RDP clients using direct authentication (`local` or `ntlm`). Direct-auth host authorization uses the addresses from enabled dashboard host entries as its host allowlist because those authentication modes do not carry reliable group claims.
 
 Example:
 
