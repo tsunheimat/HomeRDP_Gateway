@@ -1,5 +1,9 @@
 # HomeRDP Gateway
 
+[![Go](https://github.com/tsunheimat/HomeRDP_Gateway/actions/workflows/go.yml/badge.svg)](https://github.com/tsunheimat/HomeRDP_Gateway/actions/workflows/go.yml)
+[![CodeQL](https://github.com/tsunheimat/HomeRDP_Gateway/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/tsunheimat/HomeRDP_Gateway/actions/workflows/codeql-analysis.yml)
+[![Container Image CI](https://github.com/tsunheimat/HomeRDP_Gateway/actions/workflows/docker-image.yml/badge.svg)](https://github.com/tsunheimat/HomeRDP_Gateway/actions/workflows/docker-image.yml)
+
 HomeRDP Gateway is a homelab-oriented Remote Desktop Gateway based on the open-source [rdpgw](https://github.com/bolkedebruin/rdpgw) project. It lets users connect to RDP hosts through HTTPS with Microsoft Remote Desktop clients, while adding a browser dashboard and self-hosted management workflows that are useful for small private deployments.
 
 This repository is an **independent modified fork** maintained by [tsunheimat](https://github.com/tsunheimat). It is not affiliated with, endorsed by, sponsored by, or maintained by the original rdpgw project, its maintainers, Microsoft, Windows Server, or Remote Desktop Services.
@@ -9,6 +13,7 @@ HomeRDP Gateway is designed for homelab, self-hosted, and personal infrastructur
 ## Status
 
 - License: Apache License 2.0.
+- Repository: <https://github.com/tsunheimat/HomeRDP_Gateway>.
 - Upstream: <https://github.com/bolkedebruin/rdpgw>.
 - Upstream sync status: this fork is independently maintained and is not currently guaranteed to match the latest upstream release.
 - Container publishing target: GitHub Container Registry (`ghcr.io`), not Docker Hub.
@@ -270,7 +275,7 @@ https://github.com/bolkedebruin/rdpgw
 
 The upstream project is licensed under Apache License 2.0. This fork preserves the Apache License 2.0 license text and relevant attribution. See [NOTICE](./NOTICE) and [MODIFICATIONS.md](./MODIFICATIONS.md).
 
-Please report issues for this fork in this fork's issue tracker once the public repository is available. For upstream rdpgw issues that are not specific to this fork, consider reporting them upstream.
+Please report issues for this fork at <https://github.com/tsunheimat/HomeRDP_Gateway/issues>. For upstream rdpgw issues that are not specific to this fork, consider reporting them upstream.
 
 ## Acknowledgements
 
