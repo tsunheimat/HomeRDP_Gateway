@@ -20,6 +20,7 @@ HomeRDP Gateway is designed for homelab, self-hosted, and personal infrastructur
 
 See also:
 
+- [docs/setup-guide.md](./docs/setup-guide.md) for first-time Docker Compose and Kubernetes setup.
 - [MODIFICATIONS.md](./MODIFICATIONS.md) for major changes from upstream.
 - [NOTICE](./NOTICE) for attribution and non-affiliation notices.
 - [SECURITY.md](./SECURITY.md) for vulnerability reporting.
@@ -160,6 +161,8 @@ The default `make` target builds both gateway binaries into `bin/`.
 ## Local Docker test
 
 The local Docker Compose sample starts a TLS-ready split gateway setup on ports `8443` and `9443`.
+
+For a step-by-step walkthrough, see the [setup guide](./docs/setup-guide.md).
 
 1. Review and replace the placeholder values in [`dev/docker/rdpgw.yaml`](./dev/docker/rdpgw.yaml).
 2. Start the sample from the repository root using the published GHCR image:
