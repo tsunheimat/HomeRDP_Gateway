@@ -87,4 +87,5 @@ config.yml
 
 
 dev/docker/data/
+data/
 .gstack/

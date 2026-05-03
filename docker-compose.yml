@@ -1,10 +1,8 @@
 services:
   rdpgw:
+    image: ghcr.io/tsunheimat/homerdp-gateway:latest
     container_name: rdpgw
     hostname: rdpgw
-    build:
-      context: ../..
-      dockerfile: dev/docker/Dockerfile
     user: "1001:1001"
     read_only: true
     security_opt:
@@ -18,5 +16,5 @@ services:
       - "9443:9443"
     restart: unless-stopped
     volumes:
-      - ./rdpgw.yaml:/opt/rdpgw/rdpgw.yaml:ro
+      - ./dev/docker/rdpgw.yaml:/opt/rdpgw/rdpgw.yaml:ro
       - ./data/dashboard:/var/lib/rdpgw/dashboard:rw

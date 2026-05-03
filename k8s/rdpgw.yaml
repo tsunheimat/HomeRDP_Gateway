@@ -1,0 +1,137 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rdpgw-config
+  labels:
+    app.kubernetes.io/name: rdpgw
+    app.kubernetes.io/component: gateway
+data:
+  rdpgw.yaml: |
+    # Sanitized Kubernetes sample configuration.
+    # Do not use these placeholder values in shared or production environments.
+    # Replace every CHANGE_ME value with a Kubernetes Secret or another
+    # orchestrator-managed secret before exposing the gateway beyond dev.
+    Server:
+      GatewayAddress: https://rdpgw.example.invalid:8443
+      Port: 8443
+      Tls: disable
+      Authentication:
+        - openid
+      Hosts:
+        - xrdp:3389
+      SessionKey: CHANGE_ME_32_BYTES_SECRET_000001
+      SessionEncryptionKey: CHANGE_ME_32_BYTES_SECRET_000002
+      SecureCookies: true
+
+    OpenId:
+      ProviderUrl: https://keycloak.example.invalid/realms/rdpgw
+      ClientId: rdpgw
+      ClientSecret: CHANGE_ME_USE_KUBERNETES_SECRET
+
+    Dashboard:
+      StorePath: /var/lib/rdpgw/dashboard
+      AdminGroups:
+        - admin
+
+    Security:
+      PAATokenEncryptionKey: CHANGE_ME_32_BYTES_SECRET_000003
+      PAATokenSigningKey: CHANGE_ME_32_BYTES_SECRET_000004
+      VerifyClientIp: true
+
+    Caps:
+      TokenAuth: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rdpgw
+  labels:
+    app.kubernetes.io/name: rdpgw
+    app.kubernetes.io/component: gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rdpgw
+      app.kubernetes.io/component: gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rdpgw
+        app.kubernetes.io/component: gateway
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: rdpgw
+          image: ghcr.io/tsunheimat/homerdp-gateway:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: oidc
+              containerPort: 8443
+            - name: direct
+              containerPort: 9443
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: rdpgw-config
+              mountPath: /opt/rdpgw/rdpgw.yaml
+              subPath: rdpgw.yaml
+              readOnly: true
+            - name: rdpgw-dashboard
+              mountPath: /var/lib/rdpgw/dashboard
+            - name: rdpgw-tmp
+              mountPath: /tmp
+      volumes:
+        - name: rdpgw-config
+          configMap:
+            name: rdpgw-config
+            items:
+              - key: rdpgw.yaml
+                path: rdpgw.yaml
+        - name: rdpgw-dashboard
+          persistentVolumeClaim:
+            claimName: rdpgw-dashboard
+        - name: rdpgw-tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rdpgw-dashboard
+  labels:
+    app.kubernetes.io/name: rdpgw
+    app.kubernetes.io/component: gateway
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rdpgw
+  labels:
+    app.kubernetes.io/name: rdpgw
+    app.kubernetes.io/component: gateway
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: rdpgw
+    app.kubernetes.io/component: gateway
+  ports:
+    - name: oidc
+      port: 8443
+      targetPort: oidc
+    - name: direct
+      port: 9443
+      targetPort: direct

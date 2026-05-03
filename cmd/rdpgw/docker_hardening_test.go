@@ -121,9 +121,10 @@ func TestDockerRunScriptRunsAsCurrentNonRootUser(t *testing.T) {
 }
 
 func TestDockerComposeRuntimeHardening(t *testing.T) {
-	compose := readRepoFile(t, "dev", "docker", "docker-compose.yml")
+	compose := readRepoFile(t, "docker-compose.yml")
 
 	for _, required := range []string{
+		`image: ghcr.io/tsunheimat/homerdp-gateway:latest`,
 		`user: "1001:1001"`,
 		"no-new-privileges:true",
 		"cap_drop:",
@@ -131,9 +132,40 @@ func TestDockerComposeRuntimeHardening(t *testing.T) {
 		"read_only: true",
 		"tmpfs:",
 		"/tmp",
+		"./dev/docker/rdpgw.yaml:/opt/rdpgw/rdpgw.yaml:ro",
+		"./data/dashboard:/var/lib/rdpgw/dashboard:rw",
 	} {
 		if !strings.Contains(compose, required) {
-			t.Fatalf("docker-compose.yml missing runtime hardening setting %q", required)
+			t.Fatalf("docker-compose.yml missing runtime hardening or image setting %q", required)
+		}
+	}
+	if strings.Contains(compose, "build:") || strings.Contains(compose, "dockerfile:") {
+		t.Fatal("root docker-compose.yml should consume the published GHCR image instead of building locally")
+	}
+}
+
+func TestKubernetesDeploymentMountsConfigMapConfig(t *testing.T) {
+	manifest := readRepoFile(t, "k8s", "rdpgw.yaml")
+
+	for _, required := range []string{
+		"kind: ConfigMap",
+		"name: rdpgw-config",
+		"rdpgw.yaml: |",
+		"kind: Deployment",
+		"image: ghcr.io/tsunheimat/homerdp-gateway:latest",
+		"mountPath: /opt/rdpgw/rdpgw.yaml",
+		"subPath: rdpgw.yaml",
+		"configMap:",
+		"name: rdpgw-config",
+		"readOnlyRootFilesystem: true",
+		"allowPrivilegeEscalation: false",
+		"runAsNonRoot: true",
+		"runAsUser: 1001",
+		"runAsGroup: 1001",
+		`drop: ["ALL"]`,
+	} {
+		if !strings.Contains(manifest, required) {
+			t.Fatalf("k8s/rdpgw.yaml missing expected deployment/configmap setting %q", required)
 		}
 	}
 }

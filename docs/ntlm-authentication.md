@@ -109,7 +109,7 @@ WantedBy=multi-user.target
 # docker-compose.yml
 services:
   rdpgw:
-    image: rdpgw
+    image: ghcr.io/tsunheimat/homerdp-gateway:latest
     user: "1001:1001"
     read_only: true
     security_opt:
@@ -122,11 +122,11 @@ services:
       - "8443:8443"
       - "9443:9443"
     volumes:
-      - ./rdpgw.yaml:/opt/rdpgw/rdpgw.yaml:ro
+      - ./dev/docker/rdpgw.yaml:/opt/rdpgw/rdpgw.yaml:ro
       - ./data/dashboard:/var/lib/rdpgw/dashboard:rw
 ```
 
-The checked-in `dev/docker/docker-compose.yml` uses this hardened runtime model. The helper socket is created below `/tmp/rdpgw-auth/` rather than directly under `/tmp`, so the socket can keep a private parent directory even when `/tmp` is the writable tmpfs.
+The checked-in root `docker-compose.yml` uses this hardened runtime model and consumes the published GHCR image. The helper socket is created below `/tmp/rdpgw-auth/` rather than directly under `/tmp`, so the socket can keep a private parent directory even when `/tmp` is the writable tmpfs.
 
 Use the split gateway topology in one container:
 

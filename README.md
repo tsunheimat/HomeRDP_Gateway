@@ -162,10 +162,10 @@ The default `make` target builds both gateway binaries into `bin/`.
 The local Docker Compose sample starts a TLS-ready split gateway setup on ports `8443` and `9443`.
 
 1. Review and replace the placeholder values in [`dev/docker/rdpgw.yaml`](./dev/docker/rdpgw.yaml).
-2. Start the sample:
+2. Start the sample from the repository root using the published GHCR image:
 
 ```bash
-docker compose -f dev/docker/docker-compose.yml up --build
+docker compose up
 ```
 
 3. Check the listeners:
@@ -205,6 +205,8 @@ securityContext:
 ```
 
 Mount writable volumes only where needed, for example a private auth-socket runtime directory such as `/run/rdpgw/rdpgw-auth.sock` for non-Docker deployments, the Docker sample's `/tmp` tmpfs for `/tmp/rdpgw-auth/rdpgw-auth.sock`, a dashboard state volume such as `/var/lib/rdpgw/dashboard`, and `/var/lib/rdpgw/certs` when ACME certificate caching is enabled.
+
+A Kubernetes starter manifest is available at [`k8s/rdpgw.yaml`](./k8s/rdpgw.yaml). It uses the published GHCR image, provides `rdpgw.yaml` through a `ConfigMap`, mounts that key at `/opt/rdpgw/rdpgw.yaml`, and mirrors the Docker sample's non-root/read-only runtime posture.
 
 ## Minimal configuration sketch
 
