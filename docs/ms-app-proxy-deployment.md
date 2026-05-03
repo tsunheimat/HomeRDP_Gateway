@@ -1,117 +1,57 @@
 # Microsoft Azure Application Proxy Deployment Guide
 
-This guide provides step-by-step instructions for deploying RDPGW behind Microsoft Azure Application Proxy with Conditional Access Policy enforcement.
+This guide describes the current Azure Application Proxy / Entra ID pattern for HomeRDP Gateway.
 
-## Architecture Overview
+The important distinction is:
 
-```
-Internet → Azure AD (Auth + CAP) → App Proxy → RDPGW (Internal) → RDP Hosts
-```
+- Azure Application Proxy is used to front the *web/OIDC listener*.
+- The browser dashboard still belongs to rdpgw.
+- Direct RDP clients should usually use the direct-auth listener separately.
 
-**Authentication Flow:**
-- **Web requests** (`/connect`): Azure/App Proxy supplies trusted headers, and RDPGW still requires its own OIDC session before generating the RDP file from configured allow-listed hosts. Browser-supplied targets such as `/connect?host=...` are rejected.
-- **RDP protocol** (`/remoteDesktopGateway/`): Passthrough with OIDC-backed token validation
+## What this deployment is for
 
-## Prerequisites
+Use this pattern when you want:
 
-- Azure AD Premium P1/P2 (for Conditional Access)
-- Azure AD Application Proxy connector installed
-- RDPGW deployed internally
-- Network connectivity from connector to RDPGW
+- Entra ID / Azure AD authentication in front of the web UI
+- trusted header propagation from Azure Application Proxy
+- OIDC-backed dashboard login and `.rdp` download generation
+- a private backend rdpgw service that is not exposed directly to the Internet
 
-## Step 1: Azure AD App Registration
+## What it is not for
 
-```powershell
-# Create app registration
-$app = New-AzADApplication -DisplayName "RDPGW-AppProxy" `
-    -HomePage "https://rdpgw.yourdomain.com" `
-    -IdentifierUris "https://rdpgw.yourdomain.com"
+This is *not* the recommended way to publish the native direct-auth listener for `mstsc`/FreeRDP. For direct RDP use, prefer the split gateway direct listener on `9443` and keep it on a trusted private path unless you explicitly want to publish it another way.
 
-# Note the Application ID
-Write-Host "Application ID: $($app.ApplicationId)"
-```
+## Current auth flow
 
-## Step 2: Configure Application Proxy
+### Web path
 
-### Portal Configuration
+- User browses to the published App Proxy URL.
+- Azure App Proxy authenticates the user.
+- App Proxy forwards trusted identity headers to rdpgw.
+- rdpgw uses OIDC for the dashboard session and server-side RDP file generation.
+- `/connect` serves the download path from the server-side allow list.
 
-1. **Navigate to**: Azure AD → Enterprise Applications → New Application
-2. **Select**: On-premises application
-3. **Configure**:
-   - **Name**: RDPGW
-   - **Internal URL**: `http://rdpgw-server:80`
-   - **External URL**: `https://rdpgw.yourdomain.com`
-   - **Pre-authentication**: Azure Active Directory
-   - **Connector Group**: Select appropriate connector
+### Direct browser-host selection
 
-### Advanced Configuration
+Do *not* rely on browser-supplied host parameters. The current application chooses from server-side configured entries, and per-entry downloads are served from `/connect/entries/{id}.rdp`.
 
-```json
-{
-  "application": {
-    "name": "RDPGW",
-    "internalUrl": "http://rdpgw-server",
-    "externalUrl": "https://rdpgw.yourdomain.com",
-    "preAuthentication": "aadPreAuthentication",
-    "externalAuthenticationType": "aadPreAuthentication",
-    "applicationProxyUrlSettings": {
-      "externalUrl": "https://rdpgw.yourdomain.com",
-      "internalUrl": "http://rdpgw-server",
-      "isTranslateHostHeaderEnabled": true,
-      "isTranslateLinksInBodyEnabled": false,
-      "isOnPremPublishingEnabled": true
-    }
-  }
-}
-```
+## Configuration
 
-## Step 3: Configure Passthrough for RDP Endpoint
-
-**Critical**: Configure App Proxy to bypass authentication for RDP connections:
-
-### PowerShell Configuration
-
-```powershell
-# Get the application
-$app = Get-AzADApplication -DisplayName "RDPGW-AppProxy"
-
-# Configure passthrough paths (if available via API)
-# Note: This may need to be configured via Support ticket
-$passthroughPaths = @("/remoteDesktopGateway/*")
-```
-
-### Support Request
-
-If passthrough configuration isn't available in portal:
-
-1. **Open Azure Support Ticket**
-2. **Request**: Passthrough configuration for `/remoteDesktopGateway/*` path
-3. **Provide**: Application ID and external URL
-4. **Reason**: RDP client compatibility requirements
-
-## Step 4: RDPGW Configuration
-
-### Complete Configuration File
+A current configuration for this pattern usually looks like this:
 
 ```yaml
-# rdpgw.yaml
 Server:
   Authentication:
     - openid
     - header
   Tls: disable
   GatewayAddress: https://rdpgw.yourdomain.com
-  Port: 80
-  # App Proxy terminates HTTPS externally; force Secure cookies on browser sessions.
-  SecureCookies: true
-  # Replace this with the narrow connector/source CIDR that rdpgw sees as RemoteAddr.
-  # Header auth will fail closed unless the immediate peer is inside this range.
   TrustedProxyCIDRs:
-    - "10.0.0.0/24"
+    - "10.0.0.0/24" # Replace with the connector or internal source range rdpgw sees as RemoteAddr
+  SecureCookies: true
   Hosts:
     - server1.internal.domain:3389
     - server2.internal.domain:3389
-    - "{{ preferred_username }}-desktop:3389"  # Dynamic host mapping
 
 Header:
   UserHeader: "X-MS-CLIENT-PRINCIPAL-NAME"
@@ -119,165 +59,141 @@ Header:
   EmailHeader: "X-MS-CLIENT-PRINCIPAL-EMAIL"
 
 OpenId:
-  # Configure RDPGW as an OIDC client for the same Entra ID/Azure AD tenant.
-  # Web RDP downloads and PAA/user-token flows are OIDC-bound; header-only mode
-  # disables TokenAuth/EnableUserToken during configuration load.
   ProviderUrl: https://login.microsoftonline.com/{tenant-id}/v2.0
   ClientId: <rdpgw-oidc-client-id>
   ClientSecret: <rdpgw-oidc-client-secret>
+  GroupsClaim: groups
 
 Security:
-  # Keep true only if App Proxy provides a stable forwarded client IP from a trusted
-  # connector/source. If App Proxy NAT makes client IP unstable, disable this explicitly
-  # and rely on short token lifetime plus normal session controls.
-  VerifyClientIp: false
-  PAATokenSigningKey: "your-32-character-signing-key-here"
-  PAATokenEncryptionKey: "your-32-character-encryption-key"
+  VerifyClientIp: true
+  PAATokenSigningKey: <32-char-signing-key>
+  PAATokenEncryptionKey: <32-char-encryption-key>
 
 Caps:
-  TokenAuth: true  # Effective only when Server.Authentication includes openid
-  IdleTimeout: 60
+  TokenAuth: true
 
-Client:
-  UsernameTemplate: "{{ username }}\x1f{{ token }}"
+GatewaySplit:
+  Enabled: true
+  OIDC:
+    Hostname: https://rdpgw.yourdomain.com
+    Port: 8443
+  Direct:
+    Hostname: https://rdpgw-direct.yourdomain.com
+    Port: 9443
+    Authentication:
+      - ntlm
 ```
 
-### Docker Deployment
+### Notes on the config
 
-```yaml
-# docker-compose.yml
-services:
-  rdpgw:
-    image: ghcr.io/tsunheimat/homerdp-gateway:latest
-    user: "1001:1001"
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,nodev,mode=1777
-    ports:
-      - "80:80"
-    volumes:
-      - ./rdpgw.yaml:/opt/rdpgw/rdpgw.yaml:ro
-    networks:
-      - internal
+- `Server.Authentication` must include `openid` for the web download path.
+- `header` is only trusted from configured `Server.TrustedProxyCIDRs`.
+- `Server.SecureCookies: true` is recommended when App Proxy terminates HTTPS externally and rdpgw sees HTTP internally.
+- `Security.VerifyClientIp` should stay enabled only if the proxy provides a stable forwarded client IP; disable it explicitly if the proxy NAT makes that unstable.
+- `GatewaySplit` is what makes the sample listener split work in the current container entrypoint.
 
-networks:
-  internal:
-    driver: bridge
-```
+## Azure setup
 
-## Step 5: Conditional Access Policy
+### 1. Register the application
 
-### Create CAP for RDPGW
+Create an Entra ID / Azure AD application for the published URL.
 
-```powershell
-# PowerShell example (simplified)
-$conditions = @{
-    "applications" = @{
-        "includeApplications" = @($app.ApplicationId)
-    }
-    "users" = @{
-        "includeGroups" = @("rdp-users-group-id")
-    }
-    "locations" = @{
-        "includeLocations" = @("AllTrusted")
-    }
-}
+Use the external URL that users will visit, for example:
 
-$grantControls = @{
-    "operator" = "OR"
-    "builtInControls" = @("mfa", "compliantDevice")
-}
-```
+- `https://rdpgw.yourdomain.com`
 
-### Portal Configuration
+### 2. Configure Application Proxy
 
-1. **Navigate to**: Azure AD → Security → Conditional Access
-2. **Create Policy**:
-   - **Name**: RDPGW Access Control
-   - **Users**: Select appropriate groups
-   - **Cloud apps**: Select RDPGW application
-   - **Conditions**: Configure as needed (device, location, etc.)
-   - **Grant**: Require MFA + Compliant Device
-   - **Session**: Configure session lifetime
+Set the internal target to the private rdpgw web listener, for example:
 
-## Step 6: Testing
+- internal URL: `http://rdpgw-web:8443`
+- external URL: `https://rdpgw.yourdomain.com`
+- pre-authentication: Azure Active Directory / Entra ID
 
-### Test Web Authentication
+Make sure the connector or internal source IP range matches `Server.TrustedProxyCIDRs`.
+
+### 3. Configure claims
+
+Forward the identity headers rdpgw expects:
+
+- `X-MS-CLIENT-PRINCIPAL-NAME`
+- `X-MS-CLIENT-PRINCIPAL-ID`
+- `X-MS-CLIENT-PRINCIPAL-EMAIL`
+
+If you use different claim names in your tenant or proxy policy, update the `Header.*` fields accordingly.
+
+### 4. Keep the backend private
+
+Do not expose the backend rdpgw service publicly if App Proxy is the front door.
+
+Recommended controls:
+
+- private network only
+- Kubernetes `NetworkPolicy` if you are on a cluster
+- reverse proxy / connector source ranges limited to the App Proxy connector
+- `Server.TrustedProxyCIDRs` narrowed to the real connector or load-balancer source range
+
+## Testing
+
+### Test the web flow
 
 ```bash
-# Test /connect endpoint
+curl -v https://rdpgw.yourdomain.com/
+curl -v https://rdpgw.yourdomain.com/admin
 curl -v https://rdpgw.yourdomain.com/connect
-# Should establish/require the RDPGW OIDC session before downloading the RDP file
 ```
 
-### Test RDP Connection
+Expected result:
 
-1. **Access web interface**: `https://rdpgw.yourdomain.com/`
-2. **Authenticate**: Complete the RDPGW OIDC login backed by Azure AD/Entra ID
-3. **Download RDP file**: Should contain token-based credentials
-4. **Connect via RDP client**: Should work without additional authentication
+- App Proxy redirects/challenges to Entra ID as needed
+- rdpgw accepts the trusted headers only from the proxy
+- the dashboard session and RDP download path work after login
 
-### Verify Headers
-
-Check that App Proxy forwards correct headers by testing through the published App Proxy URL after Azure AD authentication. Do not validate header authentication by curling rdpgw directly with identity headers; direct requests should return `401 Unauthorized` unless they originate from the configured `Server.TrustedProxyCIDRs` range.
+### Test a per-entry download
 
 ```bash
-# Test through Azure Application Proxy, not directly against rdpgw.
-curl -v https://rdpgw.yourdomain.com/connect
+curl -v https://rdpgw.yourdomain.com/connect/entries/<id>.rdp
 ```
+
+### Do not test header auth by spoofing headers directly
+
+Direct requests to rdpgw with fake identity headers should be rejected unless they originate from a configured trusted proxy CIDR.
 
 ## Troubleshooting
 
-### Common Issues
+### Browser login loops
 
-1. **RDP Client Won't Connect**:
-   - Verify passthrough configuration for `/remoteDesktopGateway/*`
-   - Check token generation in downloaded RDP file
-   - Ensure `Server.Authentication` includes `openid`; without OIDC, RDPGW disables `TokenAuth`/user tokens
-   - Ensure `TokenAuth: true` remains configured for the OIDC-backed web download path
+Check:
 
-2. **Authentication Loop**:
-   - Verify header configuration matches App Proxy headers
-   - Confirm `Server.TrustedProxyCIDRs` contains the App Proxy connector/source CIDR that rdpgw sees as `RemoteAddr`
-   - If `Security.VerifyClientIp` is true, confirm App Proxy provides a stable trusted forwarded client IP; otherwise disable it explicitly for App Proxy NAT
-   - Validate App Proxy connector connectivity
+- `Server.GatewayAddress` matches the externally visible URL
+- the App Proxy external URL matches the OIDC callback URL
+- `Server.SecureCookies` is `true` when the frontend is HTTPS and the backend is HTTP
+- the proxy forwards the expected host and scheme
 
-3. **CAP Not Enforced**:
-   - Verify policy targets correct application
-   - Check user/group assignments
-   - Review conditional access logs
+### Header auth fails
 
-### Debug Commands
+Check:
 
-```bash
-# Check RDPGW logs
-docker logs rdpgw-container
+- the immediate source IP is inside `Server.TrustedProxyCIDRs`
+- the proxy strips client-supplied identity headers before forwarding
+- `Header.UserHeader` matches the header actually injected by App Proxy
 
-# Test internal connectivity without spoofed identity headers; a direct request should
-# return 401 unless it comes from a configured trusted proxy CIDR.
-curl -v http://rdpgw-internal/connect
+### Dashboard works but downloads fail
 
-# Verify OIDC-backed token generation
-curl -v https://rdpgw.yourdomain.com/connect
-```
+Check:
 
-### Azure AD Logs
+- `Server.Authentication` includes `openid`
+- `Caps.TokenAuth` is enabled
+- the configured host entries exist and are enabled
+- the OIDC provider settings are correct
 
-Monitor these logs for authentication issues:
+## Recommended current pattern
 
-- **Sign-ins**: User authentication events
-- **Conditional Access**: Policy evaluation results
-- **Application Proxy**: Connector and application events
+For most current deployments, this is the safest split:
 
-## Security Considerations
+- App Proxy publishes the OIDC/dashboard listener
+- direct RDP clients use the direct listener on `9443`
+- both listeners read the same dashboard state
+- only the proxy-facing web path is exposed through App Proxy
 
-- **Network Isolation**: Deploy RDPGW in private network and allow inbound access only from the App Proxy connector/source CIDR configured in `Server.TrustedProxyCIDRs`
-- **Connector Security**: Ensure App Proxy connector is secured and strips or overwrites identity and forwarding headers before reaching rdpgw
-- **Secure Cookies**: Set `Server.SecureCookies: true` when App Proxy terminates HTTPS externally
-- **Token Validation**: Monitor for token replay attacks; keep `Security.VerifyClientIp` enabled only when forwarded client IPs are stable and trusted
-- **Audit Logging**: Enable comprehensive logging for compliance
-- **Certificate Management**: Ensure proper TLS certificate chain
+This keeps the web SSO and direct-auth flows separate while still using the current split-gateway design.

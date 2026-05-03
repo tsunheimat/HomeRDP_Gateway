@@ -1,246 +1,128 @@
 # NTLM Authentication
 
-RDPGW supports NTLM authentication for direct RDP clients such as the default Windows client `mstsc`. In the homelab dashboard deployment, NTLM and `local` direct auth both read from the same helper-managed user list.
+RDPGW supports NTLM authentication for direct RDP clients such as Windows `mstsc`. In the current HomeRDP Gateway deployment model, NTLM and `local` are *direct listener* auth modes: they are meant for the dedicated direct-auth listener, while the OIDC/dashboard listener handles browser login and downloads.
 
-## Advantages
+## Current deployment model
 
-- **Easy Setup**: Simple configuration without external dependencies
-- **Windows Client Support**: Works with default Windows client `mstsc`
-- **No External Services**: Self-contained authentication mechanism
-- **Quick Deployment**: Ideal for small teams or testing environments
+The checked-in sample uses split gateway mode:
 
-## Security Warning
+- OIDC/dashboard listener on `8443`
+- direct-auth listener on `9443`
+- shared dashboard state under `/var/lib/rdpgw/dashboard`
+- shared `rdpgw-auth` helper socket under `/run/rdpgw/rdpgw-auth.sock` in non-container deployments, or under the container's writable `/tmp` runtime directory
 
-**⚠️ Plain Text Storage**: Passwords are currently stored in plain text to support the NTLM authentication protocol. Keep configuration files secure and avoid reusing passwords for other applications.
+When `GatewaySplit.Enabled: true` is set, the container entrypoint starts both listeners and starts `rdpgw-auth` automatically when the direct listener uses `ntlm` or `local`.
+
+## When to use NTLM
+
+Use NTLM when you want:
+
+- Windows `mstsc` compatibility
+- direct RDP login without browser OIDC for the actual RDP tunnel
+- dashboard-managed direct-auth users
+
+If your clients can use browser SSO instead, use OIDC on the dashboard listener and leave the direct listener for native RDP access only.
 
 ## Configuration
 
-### 1. Gateway Configuration
-
-Configure RDPGW to use NTLM authentication:
+### Minimal direct-auth config
 
 ```yaml
 Server:
   Authentication:
     - ntlm
   AuthSocket: /run/rdpgw/rdpgw-auth.sock
-  SecureCookies: true # Recommended when HTTPS is terminated by a reverse proxy
+  SecureCookies: true
 Caps:
   TokenAuth: false
 ```
 
-Set `Server.AuthSocket` to the same socket path passed to `rdpgw-auth -s`; otherwise the gateway and helper will listen/connect to different Unix sockets.
+Notes:
 
-### 2. Authentication Helper Configuration
+- `Server.AuthSocket` must match the socket path used by `rdpgw-auth`.
+- `Server.SecureCookies: true` is recommended when an HTTPS reverse proxy terminates TLS before rdpgw.
+- `Caps.TokenAuth` should remain `false` for a pure direct-auth listener.
 
-The `rdpgw-auth` helper reads user credentials from the YAML file pointed to by `RDPGW_AUTH_HELPER_CONFIG`.
-
-- In the supported managed deployment, this file is generated automatically from `/admin`.
-- `local` and `ntlm` direct auth require OpenID Connect to be enabled for the dashboard management surface.
-- Do not treat the helper YAML as an admin-editable source of truth.
+### Split gateway config
 
 ```yaml
-# /var/lib/rdpgw/dashboard/rdpgw-auth.yaml
-Users:
-  - Username: "alice"
-    Password: "secure_password_1"
-  - Username: "bob"
-    Password: "secure_password_2"
-  - Username: "admin"
-    Password: "admin_secure_password"
+Server:
+  Authentication:
+    - openid
+Dashboard:
+  StorePath: /var/lib/rdpgw/dashboard
+  AdminGroups:
+    - admin
+GatewaySplit:
+  Enabled: true
+  OIDC:
+    Hostname: https://rdpgw.example.com
+    Port: 8443
+  Direct:
+    Hostname: https://rdpgw-direct.example.com
+    Port: 9443
+    Authentication:
+      - ntlm
 ```
 
-### 3. Start Authentication Helper
+If you want a `local` direct listener instead, replace `ntlm` with `local` in `GatewaySplit.Direct.Authentication`.
 
-Run the `rdpgw-auth` helper with NTLM configuration:
+## How direct-auth user management works now
 
-```bash
-./rdpgw-auth -c /var/lib/rdpgw/dashboard/rdpgw-auth.yaml -s /run/rdpgw/rdpgw-auth.sock
-```
+The supported workflow is dashboard-managed:
 
-## Authentication Flow
+1. Sign in to `/admin` on the OIDC/dashboard listener.
+2. Create or update direct-auth users in the Direct Auth Users section.
+3. The server writes `auth-users.json` under the dashboard store.
+4. The server regenerates `rdpgw-auth.yaml` automatically.
+5. `rdpgw-auth` reloads the generated file on the next auth request.
 
-1. Client initiates NTLM handshake with gateway
-2. Gateway forwards NTLM messages to `rdpgw-auth`
-3. Helper validates credentials against configured user database
-4. Client connects directly on successful authentication
+Do not hand-edit the generated helper YAML as the source of truth in the supported deployment.
 
-## User Management
+## Authentication flow
 
-### Dashboard-Managed Mode
+1. Client connects to the direct listener on `9443`.
+2. Gateway forwards the NTLM handshake to `rdpgw-auth` over the Unix socket.
+3. `rdpgw-auth` validates the credentials against the generated direct-auth user list.
+4. The client connects to the target host after successful authentication.
 
-When OpenID Connect dashboard mode is enabled:
+## Docker deployment
 
-1. Sign in to `/admin` with an OIDC user in `Dashboard.AdminGroups`
-2. Create or update direct-auth users in the "Direct Auth Users" section
-3. The server writes `auth-users.json`
-4. The server regenerates `RDPGW_AUTH_HELPER_CONFIG`
-5. `rdpgw-auth` reloads the config automatically on the next auth request
+The root `docker-compose.yml` uses the published GHCR image, runs as UID/GID `1001`, and mounts `/tmp` as writable tmpfs. The container entrypoint starts `rdpgw-auth` automatically when the config enables `ntlm` or `local` on the direct listener.
 
-No manual helper restart is required, and manual helper YAML editing is not part of the supported admin workflow.
+If you use a non-container deployment, start `rdpgw-auth` separately and point it at the same socket and generated helper config path.
 
-## Deployment Options
+## Windows client notes
 
-### Systemd Service
-
-Create `/etc/systemd/system/rdpgw-auth.service`:
-
-```ini
-[Unit]
-Description=RDPGW NTLM Authentication Helper
-After=network.target
-
-[Service]
-Type=simple
-User=rdpgw
-RuntimeDirectory=rdpgw
-RuntimeDirectoryMode=0700
-ExecStart=/usr/local/bin/rdpgw-auth -c /var/lib/rdpgw/dashboard/rdpgw-auth.yaml -s /run/rdpgw/rdpgw-auth.sock
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
-
-### Docker Deployment
-
-```yaml
-# docker-compose.yml
-services:
-  rdpgw:
-    image: ghcr.io/tsunheimat/homerdp-gateway:latest
-    user: "1001:1001"
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,nodev,mode=1777
-    ports:
-      - "8443:8443"
-      - "9443:9443"
-    volumes:
-      - ./dev/docker/rdpgw.yaml:/opt/rdpgw/rdpgw.yaml:ro
-      - ./data/dashboard:/var/lib/rdpgw/dashboard:rw
-```
-
-The checked-in root `docker-compose.yml` uses this hardened runtime model and consumes the published GHCR image. The helper socket is created below `/tmp/rdpgw-auth/` rather than directly under `/tmp`, so the socket can keep a private parent directory even when `/tmp` is the writable tmpfs.
-
-Use the split gateway topology in one container:
-
-- OIDC web UI, `/admin`, callback handling, and downloaded `.rdp` clients on the OIDC listener
-- NTLM or `local` direct RDP clients on the direct listener
-- one shared dashboard store and one shared `rdpgw-auth` helper
-
-In the supported topology, `/admin` on the OIDC listener manages direct-auth users and enabled hosts, then the bundled `rdpgw-auth` helper consumes the generated `rdpgw-auth.yaml` from the shared dashboard store. Direct-auth clients connect only to the direct listener hostname.
-
-## Client Configuration
-
-### Windows (mstsc)
-
-NTLM authentication works seamlessly with the default Windows Remote Desktop client:
-
-1. Configure gateway address in RDP settings
-2. Save gateway credentials when prompted
-3. Connect using domain credentials or local accounts
-
-### Alternative Clients
-
-NTLM is widely supported across RDP clients:
-
-- **mRemoteNG** (Windows)
-- **Royal TS/TSX** (Windows/macOS)
-- **Remmina** (Linux)
-- **FreeRDP** (Cross-platform)
-
-## Security Best Practices
-
-### File Permissions
-
-Secure the configuration file:
-
-```bash
-sudo chown rdpgw:rdpgw /var/lib/rdpgw/dashboard/rdpgw-auth.yaml
-sudo chmod 600 /var/lib/rdpgw/dashboard/rdpgw-auth.yaml
-```
-
-### Password Policy
-
-- Use strong, unique passwords for each user
-- Implement regular password rotation
-- Avoid reusing passwords from other systems
-- Consider minimum password length requirements
-
-### Network Security
-
-- Deploy gateway behind TLS termination
-- Set `Server.SecureCookies: true` when external clients reach rdpgw over HTTPS through a TLS-terminating proxy. This marks the NTLM handshake cookie `Secure` even if backend traffic from the proxy to rdpgw is HTTP.
-- Use private networks when possible
-- Implement network-level access controls
-- Monitor authentication logs for suspicious activity
-
-### Access Control
-
-- Limit user accounts to necessary personnel only
-- Regularly audit user list and remove inactive accounts
-- Use principle of least privilege
-- Consider time-based access restrictions
-
-## Migration Path
-
-For production environments, consider migrating to more secure authentication methods:
-
-### To OpenID Connect
-- Better password security (hashed storage)
-- MFA support
-- Centralized user management
-- SSO integration
-
-### To Kerberos
-- No password storage in gateway
-- Enterprise authentication integration
-- Stronger cryptographic security
-- Seamless Windows domain integration
+- Use the direct listener hostname and port `9443` in `mstsc`.
+- Save gateway credentials when prompted.
+- If you are testing against a TLS-terminating proxy, keep `Server.SecureCookies: true`.
 
 ## Troubleshooting
 
-### Common Issues
+### Direct auth fails
 
-1. **Authentication Failed**: Verify username/password in configuration
-2. **Helper Not Running**: Check if `rdpgw-auth` process is active
-3. **Socket Errors**: Verify socket path and permissions
+Check:
 
-### Debug Commands
+- `GatewaySplit.Enabled: true` is present in the mounted config
+- `GatewaySplit.Direct.Authentication` includes `ntlm` or `local`
+- the direct listener port matches the service or port-forward target
+- `rdpgw-auth` is running or the container entrypoint is starting it
+- the auth socket path is writable
+- a direct-auth user exists and is enabled in `/admin`
+- the direct-auth host entry is enabled
 
-```bash
-# Check helper process
-ps aux | grep rdpgw-auth
+### Helper config looks stale
 
-# Verify configuration
-cat /var/lib/rdpgw/dashboard/rdpgw-auth.yaml
+Check:
 
-# Test socket connectivity
-ls -la /run/rdpgw/rdpgw-auth.sock
+- `Dashboard.StorePath` points at the mounted dashboard volume
+- `Dashboard.AuthHelperConfigPath` is derived or set to the same shared path the helper reads
+- the dashboard store volume is writable by UID `1001`
 
-# Monitor authentication logs
-journalctl -u rdpgw-auth -f
-```
+## Security notes
 
-### Log Analysis
-
-Enable debug logging in `rdpgw-auth` for detailed NTLM protocol analysis:
-
-```bash
-./rdpgw-auth -c /var/lib/rdpgw/dashboard/rdpgw-auth.yaml -s /run/rdpgw/rdpgw-auth.sock -v
-```
-
-## Future Enhancements
-
-Planned improvements for NTLM authentication:
-
-- **Database Backend**: Support for SQLite/PostgreSQL user storage
-- **Password Hashing**: Secure password storage options
-- **Group Support**: Role-based access control
-- **Audit Logging**: Enhanced security monitoring
+- Direct-auth passwords are sensitive and should be treated as credential data.
+- Keep the dashboard store and backups protected.
+- Do not expose the direct listener directly to untrusted networks unless that is the intended design.
+- Prefer TLS termination or a trusted private network, and keep `Server.SecureCookies: true` when browser sessions cross a TLS terminator.
