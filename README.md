@@ -136,6 +136,11 @@ The default `make` target builds both gateway binaries into `bin/`.
 - [`SECURITY.md`](./SECURITY.md)
 - [`CONTRIBUTING.md`](./CONTRIBUTING.md)
 
+## Translations
+
+- [繁體中文 README](./README.zh-TW.md)
+- [繁體中文文件索引](./docs/zh-TW/README.md)
+
 ## License and attribution
 
 HomeRDP Gateway is licensed under Apache License 2.0. See [`NOTICE`](./NOTICE) and [`MODIFICATIONS.md`](./MODIFICATIONS.md) for attribution and project history.
