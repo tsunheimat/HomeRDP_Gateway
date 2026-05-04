@@ -1,5 +1,7 @@
 # HomeRDP Gateway
 
+[繁體中文文件](./README.zh-TW.md) | [繁體中文文件索引](./docs/zh-TW/README.md)
+
 HomeRDP Gateway is a simple Remote Desktop Gateway for homelab and self-hosted environments.
 
 It gives you:
